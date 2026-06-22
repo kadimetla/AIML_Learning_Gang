@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>From Text to Tensors — Tokenization, Embeddings & Attention</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #FBFAF6;
+    --panel: #FFFFFF;
+    --panel-tint: #EFF3EE;
+    --ink: #233129;
+    --slate: #5C6B62;
+    --muted: #8C9A91;
+    --teal: #2B6E68;
+    --teal-deep: #1D4F4B;
+    --amber: #C77B36;
+    --amber-tint: #F7E9D8;
+    --rose: #B25450;
+    --rose-tint: #F6E4E2;
+    --line: #E2E6DE;
+    --code-bg: #F1F3EE;
+    --shadow: 0 6px 24px rgba(35,49,41,0.08);
+  }
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; background: var(--bg); color: var(--ink); }
+  body{ font-family: 'Inter', system-ui, sans-serif; }
+  .deck{ width:100vw; height:100vh; position:relative; }
+  .slide{
+    position:absolute; inset:0;
+    display:flex; flex-direction:column;
+    padding: 64px 90px 90px 90px;
+    opacity:0; visibility:hidden;
+    transform: translateY(14px);
+    transition: opacity .35s ease, transform .35s ease;
+    overflow-y: auto;
+  }
+  .slide.active{ opacity:1; visibility:visible; transform:none; }
+
+  .eyebrow{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 12.5px; font-weight:600; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--teal); margin-bottom: 14px;
+  }
+  h1.title{
+    font-family:'Source Serif 4', serif; font-weight:700;
+    font-size: 42px; line-height:1.12; margin:0 0 10px 0; color: var(--ink);
+    max-width: 920px;
+  }
+  p.sub{ font-size:16px; color: var(--slate); margin:0 0 28px 0; max-width: 820px; line-height:1.5; }
+
+  .content{ display:flex; flex-direction:column; }
+
+  .pageno{
+    position:absolute; bottom: 28px; right: 40px;
+    font-family:'JetBrains Mono', monospace; font-size:12px; color: var(--muted);
+  }
+  .brandmark{
+    position:absolute; bottom: 28px; left: 40px;
+    font-family:'JetBrains Mono', monospace; font-size:11px; color: var(--muted); letter-spacing:.06em;
+  }
+
+  /* progress bar */
+  .progress{ position:absolute; top:0; left:0; height:4px; background: var(--teal); transition: width .35s ease; z-index:50;}
+
+  /* nav */
+  .nav{
+    position:absolute; bottom: 22px; left:50%; transform:translateX(-50%);
+    display:flex; gap:8px; z-index:60;
+  }
+  .dot{ width:7px; height:7px; border-radius:50%; background: var(--line); cursor:pointer; transition: all .2s; }
+  .dot.active{ background: var(--teal); width:22px; border-radius:4px; }
+
+  .arrow-btn{
+    position:absolute; top:50%; transform:translateY(-50%);
+    width:44px; height:44px; border-radius:50%;
+    background: var(--panel); border:1px solid var(--line);
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer; box-shadow: var(--shadow); z-index:60; color: var(--teal); font-size:18px;
+    transition: background .2s;
+  }
+  .arrow-btn:hover{ background: var(--panel-tint); }
+  .arrow-btn.left{ left: 22px; }
+  .arrow-btn.right{ right: 22px; }
+
+  /* ---------- shared components ---------- */
+  .grid{ display:grid; gap: 22px; }
+  .grid-3{ grid-template-columns: repeat(3, 1fr); }
+  .grid-2{ grid-template-columns: repeat(2, 1fr); }
+
+  .card{
+    background: var(--panel); border-radius: 14px; padding: 22px 24px;
+    box-shadow: var(--shadow); border: 1px solid var(--line);
+  }
+  .card h3{ margin:0 0 8px 0; font-size:16px; font-weight:700; color: var(--ink); font-family:'Inter'; }
+  .card p{ margin:0; font-size:13.5px; color: var(--slate); line-height:1.5; }
+
+  .pill{
+    display:inline-flex; align-items:center; gap:6px;
+    font-size: 12px; font-weight:700; padding: 4px 10px; border-radius: 20px;
+  }
+  .pill.good{ background: #E2F0E6; color: #2E7D4F; }
+  .pill.bad{ background: var(--rose-tint); color: var(--rose); }
+
+  code, .mono{ font-family:'JetBrains Mono', monospace; }
+  .codeblock{
+    background: var(--code-bg); border-radius: 10px; padding: 16px 18px;
+    font-family:'JetBrains Mono', monospace; font-size: 13.5px; color: var(--teal-deep);
+    line-height:1.65; white-space:pre; overflow:auto; border:1px solid var(--line);
+  }
+
+  .callout{
+    background: var(--panel-tint); border-radius:12px; padding:16px 20px;
+    font-size:13.5px; color: var(--slate); line-height:1.55;
+  }
+  .callout b{ color: var(--ink); }
+
+  .step-row{ display:flex; align-items:flex-start; gap:18px; margin-bottom: 18px; }
+  .step-num{
+    width:40px; height:40px; min-width:40px; border-radius:50%;
+    background: var(--teal-deep); color:#EAF4F1; font-family:'Source Serif 4', serif; font-weight:700;
+    display:flex; align-items:center; justify-content:center; font-size:17px;
+  }
+  .step-text h4{ margin:0 0 3px 0; font-size:15px; color:var(--ink); }
+  .step-text p{ margin:0; font-size:13px; color:var(--slate); }
+
+  ul.bullets{ margin:0; padding-left: 18px; }
+  ul.bullets li{ font-size:13.5px; color: var(--slate); margin-bottom:9px; line-height:1.5; }
+  ul.bullets li b{ color: var(--ink); }
+  ul.bullets.light li{ color: #DCE7E4; }
+  ul.bullets.light li b{ color: #fff; }
+
+  table.cmp{ width:100%; border-collapse: collapse; font-size:13px; }
+  table.cmp th, table.cmp td{ text-align:left; padding: 11px 14px; border-bottom: 1px solid var(--line); }
+  table.cmp th{ background: var(--teal-deep); color:#fff; font-weight:600; }
+  table.cmp td:first-child{ font-weight:600; color: var(--ink); width:22%; }
+  table.cmp td{ color: var(--slate); }
+  table.cmp tr:last-child td{ border-bottom:none; }
+
+  .flow{ display:flex; align-items:stretch; gap:0; }
+  .flow .box{
+    background: var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:16px 18px; flex:1; box-shadow: var(--shadow);
+  }
+  .flow .arrow{ display:flex; align-items:center; justify-content:center; width:46px; color: var(--teal); font-size:20px; }
+
+  .vstack{ display:flex; flex-direction:column; gap:14px; }
+
+  .tag-step{ display:flex; align-items:center; gap:10px; }
+  .tag-step .dotnum{
+    width:26px;height:26px;border-radius:50%; background:var(--amber-tint); color:var(--amber);
+    display:flex;align-items:center;justify-content:center; font-size:12px; font-weight:700; font-family:'JetBrains Mono';
+  }
+
+  /* slide-specific accents */
+  .hero-bg{
+    position:absolute; top:-100px; right:-120px; width:480px; height:480px; border-radius:50%;
+    background: radial-gradient(circle at 30% 30%, #DCEFE9, #FBFAF6 70%); z-index:0;
+  }
+  .hero-bg2{
+    position:absolute; bottom:-160px; right:60px; width:300px; height:300px; border-radius:50%;
+    background: radial-gradient(circle at 30% 30%, var(--amber-tint), transparent 70%); z-index:0; opacity:.7;
+  }
+  .relz{ position:relative; z-index:1; }
+
+  kbd-hint{ display:none; }
+  @media (max-width: 900px){
+    .slide{ padding: 36px 28px; }
+    h1.title{ font-size:30px; }
+    .grid-3{ grid-template-columns: 1fr; }
+    .grid-2{ grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress" style="width:8.3%"></div>
+<div class="deck" id="deck">
+
+  <!-- SLIDE 1 — TITLE -->
+  <section class="slide active">
+    <div class="hero-bg"></div>
+    <div class="hero-bg2"></div>
+    <div class="relz" style="margin-top:auto; margin-bottom:auto;">
+      <div class="eyebrow">From text to tensors</div>
+      <h1 class="title" style="font-size:56px;">Tokenization, Embeddings<br>&amp; Attention</h1>
+      <p class="sub" style="font-size:18px; font-style:italic;">A mechanical, first-principles deep dive — from raw text to contextual vectors.</p>
+      <div style="display:flex; gap:12px; margin-top:28px;">
+        <span class="mono" style="background:var(--teal-deep); color:#EAF4F1; padding:9px 18px; border-radius:8px; font-size:13px; font-weight:600;">Tokenize</span>
+        <span class="mono" style="background:var(--teal-deep); color:#EAF4F1; padding:9px 18px; border-radius:8px; font-size:13px; font-weight:600;">Embed</span>
+        <span class="mono" style="background:var(--teal-deep); color:#EAF4F1; padding:9px 18px; border-radius:8px; font-size:13px; font-weight:600;">Attend</span>
+        <span class="mono" style="background:var(--teal-deep); color:#EAF4F1; padding:9px 18px; border-radius:8px; font-size:13px; font-weight:600;">Contextualize</span>
+      </div>
+      <p style="margin-top:34px; font-size:12.5px; color:var(--muted);" class="mono">12 slides · worked numeric examples · BERT-style masked language modeling</p>
+    </div>
+  </section>
+
+  <!-- SLIDE 2 — AGENDA -->
+  <section class="slide">
+    <div class="eyebrow">Roadmap</div>
+    <h1 class="title">What we'll build, step by step</h1>
+    <div class="content">
+      <div class="grid grid-3">
+        <div class="card"><div class="pill good" style="margin-bottom:10px;">01</div><h3>Tokenization</h3><p>Splitting text into subwords with BPE / WordPiece.</p></div>
+        <div class="card"><div class="pill good" style="margin-bottom:10px;">02</div><h3>Vocabulary &amp; IDs</h3><p>Why tokens need integer addresses.</p></div>
+        <div class="card"><div class="pill good" style="margin-bottom:10px;">03</div><h3>Embedding Lookup</h3><p>Turning IDs into vectors via a trainable table.</p></div>
+        <div class="card"><div class="pill good" style="margin-bottom:10px;">04</div><h3>Learning Embeddings</h3><p>How masked-language-modeling shapes the table.</p></div>
+        <div class="card"><div class="pill good" style="margin-bottom:10px;">05</div><h3>Attention (Q,K,V)</h3><p>Worked numeric example: "teach" + "##er".</p></div>
+        <div class="card"><div class="pill good" style="margin-bottom:10px;">06</div><h3>Static vs. Contextual</h3><p>Why meaning shifts after every layer.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SLIDE 3 — WHY SUBWORDS -->
+  <section class="slide">
+    <div class="eyebrow">Step 1 · Tokenization</div>
+    <h1 class="title">Why subwords? The three options</h1>
+    <p class="sub">Neural nets only process numbers — so text must be chopped into discrete units first.</p>
+    <div class="content">
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="pill bad">✕ Out-of-vocabulary</div>
+          <h3 style="margin-top:12px;">Whole words</h3>
+          <p>Unbounded vocabulary — typos, names, made-up words break it.</p>
+          <div class="codeblock" style="margin-top:14px; font-size:12.5px;">"teacherification" → ???</div>
+        </div>
+        <div class="card">
+          <div class="pill bad" style="background:var(--amber-tint); color:var(--amber);">✕ Sequences too long</div>
+          <h3 style="margin-top:12px;">Characters</h3>
+          <p>No OOV problem, but the model must assemble meaning from tiny pieces.</p>
+          <div class="codeblock" style="margin-top:14px; font-size:12.5px;">T-e-a-c-h-e-r → 7 tokens</div>
+        </div>
+        <div class="card" style="background:var(--teal-deep); border:none;">
+          <div class="pill good">✓ Best of both</div>
+          <h3 style="margin-top:12px; color:#fff;">Subwords</h3>
+          <p style="color:#DCE7E4;">Common words stay whole; rare words split into reusable fragments.</p>
+          <div class="codeblock" style="margin-top:14px; font-size:12.5px; background:rgba(255,255,255,0.1); color:#BFEAE0; border-color:rgba(255,255,255,0.2);">teach + ##er → 2 tokens</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SLIDE 4 — BPE MERGE ALGORITHM -->
+  <section class="slide">
+    <div class="eyebrow">Step 1 · Tokenization</div>
+    <h1 class="title">How the vocabulary gets built</h1>
+    <p class="sub">BPE / WordPiece is trained once, separately, before the model — pure frequency counting, no meaning involved.</p>
+    <div class="content" style="justify-content:center;">
+      <div class="step-row">
+        <div class="step-num">1</div>
+        <div class="step-text"><h4>Start with characters</h4><p class="mono">t · e · a · c · h · e · r — every character is its own token</p></div>
+      </div>
+      <div class="step-row">
+        <div class="step-num">2</div>
+        <div class="step-text"><h4>Count frequent pairs</h4><p>Scan the corpus: which adjacent token pairs co-occur most often?</p></div>
+      </div>
+      <div class="step-row">
+        <div class="step-num">3</div>
+        <div class="step-text"><h4>Merge the top pair</h4><p class="mono">"t"+"e" → "te", then "te"+"a" → "tea" … repeated thousands of times</p></div>
+      </div>
+      <div class="step-row" style="margin-bottom:0;">
+        <div class="step-num">4</div>
+        <div class="step-text"><h4>Stop at target size</h4><p>Halt once vocabulary reaches ~30,000–50,000 entries.</p></div>
+      </div>
+      <div class="callout" style="margin-top:10px;"><b>Key point:</b> "##er" becomes its own token simply because "X+er" patterns were extremely common — not because anyone taught the algorithm grammar.</div>
+    </div>
+  </section>
+
+  <!-- SLIDE 5 — PIPELINE -->
+  <section class="slide">
+    <div class="eyebrow">Step 1 → 2 · Pipeline</div>
+    <h1 class="title">Text → tokens → IDs → embeddings</h1>
+    <div class="content" style="justify-content:center; gap:10px;">
+      <div class="vstack">
+        <div class="flow">
+          <div class="box" style="flex:0 0 170px; background:var(--teal-deep); color:#EAF4F1; font-weight:700; display:flex; align-items:center; font-size:13px;">TEXT</div>
+          <div class="box mono" style="font-size:15px;">"The teacher graded papers"</div>
+        </div>
+        <div style="text-align:center; color:var(--teal); font-size:18px;">↓</div>
+        <div class="flow">
+          <div class="box" style="flex:0 0 170px; background:var(--teal-deep); color:#EAF4F1; font-weight:700; display:flex; align-items:center; font-size:13px;">TOKENS</div>
+          <div class="box mono" style="font-size:15px; color:var(--teal-deep);">["The", "teach", "##er", "graded", "papers"]</div>
+        </div>
+        <div style="text-align:center; color:var(--teal); font-size:18px;">↓</div>
+        <div class="flow">
+          <div class="box" style="flex:0 0 170px; background:var(--teal-deep); color:#EAF4F1; font-weight:700; display:flex; align-items:center; font-size:13px;">TOKEN IDs</div>
+          <div class="box mono" style="font-size:15px; color:var(--teal-deep);">[101, 5234, 2891, 9102, 4455]</div>
+        </div>
+        <div style="text-align:center; color:var(--teal); font-size:18px;">↓</div>
+        <div class="flow">
+          <div class="box" style="flex:0 0 170px; background:var(--teal-deep); color:#EAF4F1; font-weight:700; display:flex; align-items:center; font-size:13px;">EMBEDDINGS</div>
+          <div class="box mono" style="font-size:15px; color:var(--teal-deep);">[vec₁₀₁, vec₅₂₃₄, vec₂₈₉₁, vec₉₁₀₂, vec₄₄₅₅]</div>
+        </div>
+      </div>
+      <p style="text-align:center; font-style:italic; color:var(--muted); font-size:12.5px; margin-top:6px;">Each arrow is a lookup, not a computation — until the embedding stage, nothing has been "learned" yet.</p>
+    </div>
+  </section>
+
+  <!-- SLIDE 6 — EMBEDDING MATRIX -->
+  <section class="slide">
+    <div class="eyebrow">Step 2 · IDs &amp; Lookup</div>
+    <h1 class="title">The embedding matrix: one row per token</h1>
+    <div class="content">
+      <div class="grid grid-2" style="align-items:stretch;">
+        <div class="card">
+          <h3>Why we need an ID</h3>
+          <ul class="bullets">
+            <li>An ID is just an address — "go look up row #2891."</li>
+            <li>The number itself carries no meaning; it's a consistent <b>key</b>, not a value.</li>
+            <li>Same token → same ID, every time — this consistency is what lets one embedding be learned per token.</li>
+          </ul>
+          <div class="codeblock" style="margin-top:14px;">vocab = {
+  "the":    101,
+  "teach":  5234,
+  "##er":   2891,
+  "graded": 9102
+}</div>
+        </div>
+        <div class="card" style="background:var(--teal-deep); border:none; color:#fff;">
+          <p class="mono" style="color:#BFEAE0; font-size:12px; margin-bottom:14px;">embedding_matrix.shape = (vocab_size, embedding_dim)</p>
+          <div class="vstack" style="gap:8px;">
+            <div style="display:flex; background:rgba(255,255,255,0.06); border-radius:6px; overflow:hidden;">
+              <div class="mono" style="width:70px; padding:10px; background:rgba(255,255,255,0.08); text-align:center; font-size:12.5px;">101</div>
+              <div class="mono" style="padding:10px; font-size:12px; color:#9FC6BE;">the → [ ... 768 learned numbers ... ]</div>
+            </div>
+            <div style="display:flex; background:rgba(255,255,255,0.06); border-radius:6px; overflow:hidden;">
+              <div class="mono" style="width:70px; padding:10px; background:rgba(255,255,255,0.08); text-align:center; font-size:12.5px;">5234</div>
+              <div class="mono" style="padding:10px; font-size:12px; color:#9FC6BE;">teach → [ ... 768 learned numbers ... ]</div>
+            </div>
+            <div style="display:flex; background:#C77B36; border-radius:6px; overflow:hidden;">
+              <div class="mono" style="width:70px; padding:10px; background:rgba(0,0,0,0.12); text-align:center; font-size:12.5px; font-weight:700;">2891</div>
+              <div class="mono" style="padding:10px; font-size:12px; color:#FFF3E5; font-weight:600;">##er → [0.13, -0.42, 0.91, ..., 0.07]</div>
+            </div>
+            <div style="display:flex; background:rgba(255,255,255,0.06); border-radius:6px; overflow:hidden;">
+              <div class="mono" style="width:70px; padding:10px; background:rgba(255,255,255,0.08); text-align:center; font-size:12.5px;">9102</div>
+              <div class="mono" style="padding:10px; font-size:12px; color:#9FC6BE;">graded → [ ... 768 learned numbers ... ]</div>
+            </div>
+          </div>
+          <p style="margin-top:16px; font-size:12.5px; font-style:italic; color:#DCE7E4;">Row 2891 IS the embedding of "##er" — pure lookup, no computation.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SLIDE 7 — ##er NOT A WORD -->
+  <section class="slide">
+    <div class="eyebrow">Step 2 · Vocabulary</div>
+    <h1 class="title">"##er" isn't a word — and that's fine</h1>
+    <p class="sub">An embedding only requires a vocabulary slot, not linguistic legitimacy.</p>
+    <div class="content">
+      <div class="grid grid-2">
+        <div class="card" style="background:#EEF5F0;">
+          <h3 style="color:#2E7D4F;">Real whole words</h3>
+          <div class="vstack" style="margin-top:12px; gap:10px;">
+            <div class="mono" style="background:#fff; border:1px solid #CFE6D6; border-radius:8px; padding:12px 16px; font-size:14px; color:#2E7D4F;">the</div>
+            <div class="mono" style="background:#fff; border:1px solid #CFE6D6; border-radius:8px; padding:12px 16px; font-size:14px; color:#2E7D4F;">cat</div>
+            <div class="mono" style="background:#fff; border:1px solid #CFE6D6; border-radius:8px; padding:12px 16px; font-size:14px; color:#2E7D4F;">teacher</div>
+          </div>
+        </div>
+        <div class="card" style="background:var(--teal-deep); border:none;">
+          <h3 style="color:#9FE0D2;">Subword fragments (still tokens!)</h3>
+          <div class="vstack" style="margin-top:12px; gap:10px;">
+            <div class="mono" style="background:rgba(255,255,255,0.08); border-radius:8px; padding:12px 16px; font-size:14px; color:#EAF4F1;">un</div>
+            <div class="mono" style="background:rgba(255,255,255,0.08); border-radius:8px; padding:12px 16px; font-size:14px; color:#EAF4F1;">##ing</div>
+            <div class="mono" style="background:rgba(255,255,255,0.08); border-radius:8px; padding:12px 16px; font-size:14px; color:#EAF4F1;">##er</div>
+            <div class="mono" style="background:rgba(255,255,255,0.08); border-radius:8px; padding:12px 16px; font-size:14px; color:#EAF4F1;">##tion</div>
+          </div>
+        </div>
+      </div>
+      <div class="callout" style="margin-top:20px;"><b>Both columns get treated identically:</b> vocabulary entry → integer ID → row in the embedding matrix. "Is this a real word" is a human-language question the model never asks.</div>
+    </div>
+  </section>
+
+  <!-- SLIDE 8 — MLM LEARNING -->
+  <section class="slide">
+    <div class="eyebrow">Step 3 · Learning</div>
+    <h1 class="title">How embeddings actually get learned</h1>
+    <p class="sub">Masked Language Modeling (BERT-style): hide a token, predict it, correct the embeddings.</p>
+    <div class="content">
+      <div class="grid grid-3" style="grid-template-columns: repeat(4,1fr);">
+        <div class="card"><div class="pill" style="background:var(--rose-tint); color:var(--rose);">1 · Mask</div><p class="mono" style="margin-top:10px; font-size:12px;">"The teach [MASK] graded papers"</p></div>
+        <div class="card"><div class="pill" style="background:var(--amber-tint); color:var(--amber);">2 · Predict</div><p style="margin-top:10px; font-size:12.5px;">Model outputs a probability over all ~30K vocab tokens.</p></div>
+        <div class="card"><div class="pill" style="background:var(--amber-tint); color:var(--amber);">3 · Compare</div><p style="margin-top:10px; font-size:12.5px;">True answer = "##er" — compute cross-entropy loss.</p></div>
+        <div class="card" style="background:var(--teal-deep); border:none;"><div class="pill good">4 · Backprop</div><p style="margin-top:10px; font-size:12.5px; color:#DCE7E4;">Gradient flows back into embedding["##er"] and neighbors.</p></div>
+      </div>
+      <div class="card" style="background:#22332C; margin-top:20px; border:none;">
+        <h3 style="color:#9FE0D2;">Why repetition makes it meaningful, not random</h3>
+        <ul class="bullets light" style="margin-top:10px;">
+          <li>"##er" appears after thousands of different stems (teach, play, fast, sing…) across the corpus.</li>
+          <li>Each time, the gradient nudges its vector toward whatever makes prediction more accurate.</li>
+          <li>Random nudges in inconsistent directions cancel out; consistent statistical patterns survive and accumulate.</li>
+          <li>The surviving vector is the cheapest (lowest-loss) compromise that's useful across all of "##er"'s real contexts.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- SLIDE 9 — TOY SETUP -->
+  <section class="slide">
+    <div class="eyebrow">Step 4 · Attention</div>
+    <h1 class="title">Toy example: "teach" + "##er"</h1>
+    <p class="sub">Using 4-dimensional vectors (real models use 768+) so every number is traceable.</p>
+    <div class="content">
+      <div class="grid grid-2">
+        <div class="card">
+          <h3>Raw embeddings (lookup)</h3>
+          <div class="codeblock" style="margin-top:10px;">embedding("teach") = [0.9, 0.1, 0.2, 0.8]
+embedding("##er")  = [0.1, 0.9, 0.7, 0.1]</div>
+        </div>
+        <div class="card" style="background:var(--panel-tint); box-shadow:none;">
+          <h3>Interpretation (illustrative)</h3>
+          <p style="margin-top:10px;"><b>"teach"</b> points toward a "verb / action" direction in vector space.<br><b>"##er"</b> points toward an "agentive suffix" direction.</p>
+        </div>
+      </div>
+      <h3 style="margin: 22px 0 12px 2px;">Q, K, V — three learned projections</h3>
+      <div class="grid grid-3">
+        <div class="card" style="background:var(--teal-deep); border:none;"><h3 style="color:#fff;">Query (Q)</h3><p style="color:#DCE7E4; font-style:italic;">"What am I looking for?"</p></div>
+        <div class="card" style="background:var(--teal); border:none;"><h3 style="color:#fff;">Key (K)</h3><p style="color:#E6F2EF; font-style:italic;">"What do I offer to others?"</p></div>
+        <div class="card" style="background:var(--amber-tint); border:none;"><h3 style="color:var(--amber);">Value (V)</h3><p style="color:#8A5A28; font-style:italic;">"What information do I actually carry?"</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SLIDE 10 — Q K V TABLE + SCORES -->
+  <section class="slide">
+    <div class="eyebrow">Step 4 · Attention</div>
+    <h1 class="title">Computing the attention score</h1>
+    <div class="content">
+      <table class="cmp" style="margin-bottom:18px;">
+        <tr><th>Token</th><th>Query (Q)</th><th>Key (K)</th><th>Value (V)</th></tr>
+        <tr><td class="mono">"teach"</td><td class="mono">[0.8, 0.2, 0.1, 0.3]</td><td class="mono">[0.7, 0.1, 0.2, 0.4]</td><td class="mono">[1.0, 0.3, 0.0, 0.5]</td></tr>
+        <tr><td class="mono">"##er"</td><td class="mono">[0.2, 0.8, 0.6, 0.1]</td><td class="mono">[0.1, 0.9, 0.5, 0.2]</td><td class="mono">[0.2, 1.0, 0.4, 0.1]</td></tr>
+      </table>
+      <p style="font-weight:600; margin: 0 0 10px 2px;">Score = Query(##er) · Key(token) — dot product</p>
+      <div class="grid grid-2">
+        <div class="card">
+          <h3 style="color:var(--teal);">score(##er → teach)</h3>
+          <div class="codeblock" style="margin-top:10px;">= (0.2×0.7)+(0.8×0.1)+(0.6×0.2)+(0.1×0.4)
+= 0.14+0.08+0.12+0.04 = 0.38</div>
+        </div>
+        <div class="card" style="background:var(--teal-deep); border:none;">
+          <h3 style="color:#9FE0D2;">score(##er → ##er)</h3>
+          <div class="codeblock" style="margin-top:10px; background:rgba(255,255,255,0.08); color:#EAF4F1; border-color:rgba(255,255,255,0.15);">= (0.2×0.1)+(0.8×0.9)+(0.6×0.5)+(0.1×0.2)
+= 0.02+0.72+0.30+0.02 = 1.06</div>
+        </div>
+      </div>
+      <p style="font-style:italic; color:var(--muted); font-size:12.5px; margin-top:16px;">Higher score = the model judges this token more relevant to attend to.</p>
+    </div>
+  </section>
+
+  <!-- SLIDE 11 — SOFTMAX + WEIGHTED SUM -->
+  <section class="slide">
+    <div class="eyebrow">Step 4 · Attention</div>
+    <h1 class="title">Softmax → weighted sum → new vector</h1>
+    <div class="content">
+      <div class="callout" style="margin-bottom:16px;">
+        <b>1. Softmax the scores:</b> <span class="mono">softmax([0.38, 1.06]) ≈ [0.34, 0.66]</span><br>
+        <span style="font-style:italic;">"##er" places 34% of its attention on "teach" and 66% on itself.</span>
+      </div>
+      <div class="card" style="margin-bottom:18px;">
+        <h3>2. Weighted sum of Values → new representation of "##er"</h3>
+        <div class="codeblock" style="margin-top:10px;">new_##er = 0.34×[1.0, 0.3, 0.0, 0.5] + 0.66×[0.2, 1.0, 0.4, 0.1]
+         = [0.34, 0.10, 0.00, 0.17] + [0.13, 0.66, 0.26, 0.07]
+         = [0.47, 0.76, 0.26, 0.24]</div>
+      </div>
+      <div class="grid grid-2">
+        <div class="card" style="background:var(--rose-tint); box-shadow:none;">
+          <h3 style="color:var(--rose);">BEFORE (raw lookup)</h3>
+          <p class="mono" style="font-size:18px; color:var(--rose); margin-top:8px;">[0.1, 0.9, 0.7, 0.1]</p>
+          <p style="font-style:italic; font-size:12px; margin-top:8px;">Same every time "##er" appears</p>
+        </div>
+        <div class="card" style="background:var(--teal-deep); border:none;">
+          <h3 style="color:#9FE0D2;">AFTER (post-attention)</h3>
+          <p class="mono" style="font-size:18px; color:#fff; margin-top:8px;">[0.47, 0.76, 0.26, 0.24]</p>
+          <p style="font-style:italic; font-size:12px; margin-top:8px; color:#DCE7E4;">Shifted toward "teach" — context-specific</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SLIDE 12 — RECAP -->
+  <section class="slide">
+    <div class="eyebrow">Recap</div>
+    <h1 class="title">Static embedding vs. contextual representation</h1>
+    <div class="content">
+      <table class="cmp" style="margin-bottom:18px;">
+        <tr><th></th><th>Word2Vec-style embedding</th><th style="background:var(--amber); color:#fff;">Transformer token embedding</th></tr>
+        <tr><td>Unit</td><td>Whole word</td><td>Subword piece (word or fragment)</td></tr>
+        <tr><td>Trained by</td><td>Predicting neighbor words for that word alone</td><td>Predicting next/masked token, jointly with all weights</td></tr>
+        <tr><td>Standalone meaning?</td><td>Yes — reflects typical context</td><td>No — only a starting point</td></tr>
+        <tr><td>Changes with context?</td><td>Never — fixed forever</td><td>Yes — reshaped by attention every layer</td></tr>
+      </table>
+      <div class="card" style="background:var(--teal-deep); border:none;">
+        <h3 style="color:#9FE0D2;">The big picture</h3>
+        <ul class="bullets light" style="margin-top:10px;">
+          <li>Tokenization splits text into reusable, frequency-discovered pieces — no OOV problem, manageable sequence length.</li>
+          <li>The embedding matrix is just a trainable lookup table — one row per vocabulary ID, learned end-to-end via backprop.</li>
+          <li>Attention (Q·K → softmax → weighted V) reshapes each token's vector using every other token in the sequence.</li>
+          <li>Meaning isn't stored in any single embedding — it emerges from repeated context-mixing across layers.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<button class="arrow-btn left" onclick="go(-1)" aria-label="Previous slide">‹</button>
+<button class="arrow-btn right" onclick="go(1)" aria-label="Next slide">›</button>
+<div class="nav" id="nav"></div>
+<div class="pageno" id="pageno">01 / 12</div>
+<div class="brandmark">TEXT → TENSORS</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+  let idx = 0;
+
+  const nav = document.getElementById('nav');
+  for(let i=0;i<total;i++){
+    const d = document.createElement('div');
+    d.className = 'dot' + (i===0?' active':'');
+    d.onclick = () => { idx = i; render(); };
+    nav.appendChild(d);
+  }
+
+  function render(){
+    slides.forEach((s,i)=> s.classList.toggle('active', i===idx));
+    document.querySelectorAll('.dot').forEach((d,i)=> d.classList.toggle('active', i===idx));
+    document.getElementById('pageno').textContent =
+      String(idx+1).padStart(2,'0') + ' / ' + String(total).padStart(2,'0');
+    document.getElementById('progress').style.width = ((idx+1)/total*100) + '%';
+  }
+
+  function go(delta){
+    idx = Math.min(total-1, Math.max(0, idx+delta));
+    render();
+  }
+
+  document.addEventListener('keydown', (e)=>{
+    if(e.key === 'ArrowRight' || e.key === ' ') go(1);
+    if(e.key === 'ArrowLeft') go(-1);
+  });
+
+  // basic swipe support
+  let touchX = null;
+  document.addEventListener('touchstart', e => touchX = e.touches[0].clientX);
+  document.addEventListener('touchend', e => {
+    if(touchX === null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    if(dx > 50) go(-1);
+    if(dx < -50) go(1);
+    touchX = null;
+  });
+
+  render();
+</script>
+
+</body>
+</html>

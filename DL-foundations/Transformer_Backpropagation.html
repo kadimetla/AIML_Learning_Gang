@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Backpropagation in Transformers</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FBFAF6; --panel:#FFFFFF; --panel-tint:#EFF3EE;
+    --ink:#233129; --slate:#5C6B62; --muted:#8C9A91;
+    --teal:#2B6E68; --teal-deep:#1D4F4B;
+    --amber:#C77B36; --amber-tint:#F7E9D8;
+    --rose:#B25450; --rose-tint:#F6E4E2;
+    --line:#E2E6DE; --code-bg:#F1F3EE;
+    --shadow:0 6px 24px rgba(35,49,41,0.08);
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; background:var(--bg); color:var(--ink); }
+  body{ font-family:'Inter', system-ui, sans-serif; }
+  .deck{ width:100vw; height:100vh; position:relative; }
+  .slide{
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    padding:64px 90px 90px 90px;
+    opacity:0; visibility:hidden; transform:translateY(14px);
+    transition:opacity .35s ease, transform .35s ease;
+    overflow-y:auto;
+  }
+  .slide.active{ opacity:1; visibility:visible; transform:none; }
+  .eyebrow{ font-family:'JetBrains Mono',monospace; font-size:12.5px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:var(--teal); margin-bottom:14px; }
+  h1.title{ font-family:'Source Serif 4',serif; font-weight:700; font-size:38px; line-height:1.14; margin:0 0 10px 0; max-width:920px; }
+  p.sub{ font-size:15px; color:var(--slate); margin:0 0 24px 0; max-width:850px; line-height:1.5; }
+  .content{ display:flex; flex-direction:column; }
+  .pageno{ position:absolute; bottom:28px; right:40px; font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--muted); }
+  .brandmark{ position:absolute; bottom:28px; left:40px; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:.06em; }
+  .progress{ position:absolute; top:0; left:0; height:4px; background:var(--teal); transition:width .35s ease; z-index:50; }
+  .nav{ position:absolute; bottom:22px; left:50%; transform:translateX(-50%); display:flex; gap:8px; z-index:60; }
+  .dot{ width:7px; height:7px; border-radius:50%; background:var(--line); cursor:pointer; transition:all .2s; }
+  .dot.active{ background:var(--teal); width:22px; border-radius:4px; }
+  .arrow-btn{ position:absolute; top:50%; transform:translateY(-50%); width:44px; height:44px; border-radius:50%; background:var(--panel); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; cursor:pointer; box-shadow:var(--shadow); z-index:60; color:var(--teal); font-size:18px; }
+  .arrow-btn:hover{ background:var(--panel-tint); }
+  .arrow-btn.left{ left:22px; } .arrow-btn.right{ right:22px; }
+  .grid{ display:grid; gap:18px; }
+  .grid-3{ grid-template-columns:repeat(3,1fr); } .grid-2{ grid-template-columns:repeat(2,1fr); } .grid-4{ grid-template-columns:repeat(4,1fr); }
+  .card{ background:var(--panel); border-radius:14px; padding:18px 20px; box-shadow:var(--shadow); border:1px solid var(--line); }
+  .card h3{ margin:0 0 8px 0; font-size:15px; font-weight:700; }
+  .card p{ margin:0; font-size:12.5px; color:var(--slate); line-height:1.5; }
+  .pill{ display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:700; padding:4px 10px; border-radius:20px; }
+  .pill.good{ background:#E2F0E6; color:#2E7D4F; } .pill.bad{ background:var(--rose-tint); color:var(--rose); } .pill.warn{ background:var(--amber-tint); color:var(--amber); }
+  code,.mono{ font-family:'JetBrains Mono',monospace; }
+  .codeblock{ background:var(--code-bg); border-radius:10px; padding:14px 16px; font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--teal-deep); line-height:1.6; white-space:pre; overflow:auto; border:1px solid var(--line); }
+  .callout{ background:var(--panel-tint); border-radius:12px; padding:14px 18px; font-size:12.5px; color:var(--slate); line-height:1.55; }
+  .callout b{ color:var(--ink); }
+  .step-row{ display:flex; align-items:flex-start; gap:16px; margin-bottom:14px; }
+  .step-num{ width:36px; height:36px; min-width:36px; border-radius:50%; background:var(--teal-deep); color:#EAF4F1; font-family:'Source Serif 4',serif; font-weight:700; display:flex; align-items:center; justify-content:center; font-size:15px; }
+  .step-text h4{ margin:0 0 3px 0; font-size:14px; } .step-text p{ margin:0; font-size:12px; color:var(--slate); }
+  ul.bullets{ margin:0; padding-left:18px; } ul.bullets li{ font-size:12.5px; color:var(--slate); margin-bottom:7px; line-height:1.5; } ul.bullets li b{ color:var(--ink); }
+  ul.bullets.light li{ color:#DCE7E4; } ul.bullets.light li b{ color:#fff; }
+  table.cmp{ width:100%; border-collapse:collapse; font-size:12px; }
+  table.cmp th,table.cmp td{ text-align:left; padding:9px 12px; border-bottom:1px solid var(--line); }
+  table.cmp th{ background:var(--teal-deep); color:#fff; font-weight:600; }
+  table.cmp td:first-child{ font-weight:600; color:var(--ink); }
+  table.cmp td{ color:var(--slate); } table.cmp tr:last-child td{ border-bottom:none; }
+  .flow{ display:flex; align-items:stretch; }
+  .flow .box{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 15px; flex:1; box-shadow:var(--shadow); }
+  .flow .arrow{ display:flex; align-items:center; justify-content:center; width:38px; color:var(--teal); font-size:17px; }
+  .vstack{ display:flex; flex-direction:column; gap:10px; }
+  .hero-bg{ position:absolute; top:-100px; right:-120px; width:480px; height:480px; border-radius:50%; background:radial-gradient(circle at 30% 30%, #DCEFE9, #FBFAF6 70%); z-index:0; }
+  .hero-bg2{ position:absolute; bottom:-160px; right:60px; width:300px; height:300px; border-radius:50%; background:radial-gradient(circle at 30% 30%, var(--amber-tint), transparent 70%); z-index:0; opacity:.7; }
+  .relz{ position:relative; z-index:1; }
+  .layer-stack{ display:flex; flex-direction:column; gap:6px; }
+  .layer-box{ border-radius:8px; padding:10px 14px; font-size:12px; font-family:'JetBrains Mono'; display:flex; justify-content:space-between; align-items:center; }
+  @media (max-width:900px){ .slide{padding:36px 28px;} h1.title{font-size:26px;} .grid-3,.grid-2,.grid-4{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+<div class="deck" id="deck">
+
+<!-- 1 TITLE -->
+<section class="slide active">
+  <div class="hero-bg"></div><div class="hero-bg2"></div>
+  <div class="relz" style="margin-top:auto; margin-bottom:auto;">
+    <div class="eyebrow">Training the architecture</div>
+    <h1 class="title" style="font-size:50px;">How Transformers<br>Use Backpropagation</h1>
+    <p class="sub" style="font-size:16.5px; font-style:italic;">Tracing the gradient as it flows backward through attention, feed-forward layers, and into the embedding table.</p>
+    <div style="display:flex; gap:12px; margin-top:26px; flex-wrap:wrap;">
+      <span class="mono" style="background:var(--teal-deep); color:#EAF4F1; padding:9px 16px; border-radius:8px; font-size:12px; font-weight:600;">Loss → Logits</span>
+      <span class="mono" style="background:var(--teal-deep); color:#EAF4F1; padding:9px 16px; border-radius:8px; font-size:12px; font-weight:600;">→ FFN</span>
+      <span class="mono" style="background:var(--teal-deep); color:#EAF4F1; padding:9px 16px; border-radius:8px; font-size:12px; font-weight:600;">→ Attention (Q,K,V)</span>
+      <span class="mono" style="background:var(--teal-deep); color:#EAF4F1; padding:9px 16px; border-radius:8px; font-size:12px; font-weight:600;">→ Embeddings</span>
+    </div>
+  </div>
+</section>
+
+<!-- 2 AGENDA -->
+<section class="slide">
+  <div class="eyebrow">Roadmap</div>
+  <h1 class="title">Following the gradient backward through the stack</h1>
+  <div class="content">
+    <div class="grid grid-3">
+      <div class="card"><div class="pill good">01</div><h3 style="margin-top:10px;">What Gets Trained</h3><p>Every learnable matrix in a transformer layer.</p></div>
+      <div class="card"><div class="pill good">02</div><h3 style="margin-top:10px;">Forward Recap</h3><p>One layer's forward computation, in order.</p></div>
+      <div class="card"><div class="pill good">03</div><h3 style="margin-top:10px;">Loss → Logits</h3><p>Where the gradient signal originates.</p></div>
+      <div class="card"><div class="pill good">04</div><h3 style="margin-top:10px;">Backprop Through FFN</h3><p>Gradient flow through the feed-forward block.</p></div>
+      <div class="card"><div class="pill good">05</div><h3 style="margin-top:10px;">Backprop Through Attention</h3><p>How gradients reach Wq, Wk, Wv.</p></div>
+      <div class="card"><div class="pill good">06</div><h3 style="margin-top:10px;">Residuals &amp; Embeddings</h3><p>Why skip connections save the gradient — and where it finally lands.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 3 WHAT GETS TRAINED -->
+<section class="slide">
+  <div class="eyebrow">Step 1 · Parameters</div>
+  <h1 class="title">Every learnable piece in one transformer layer</h1>
+  <p class="sub">Backprop doesn't just touch attention — it touches every matrix that participated in the forward pass.</p>
+  <div class="content">
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>Inside self-attention</h3>
+        <ul class="bullets" style="margin-top:8px;">
+          <li><b>Wq, Wk, Wv</b> — project embeddings into Query, Key, Value spaces</li>
+          <li><b>Wo</b> — output projection that recombines multi-head outputs</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Inside the feed-forward block</h3>
+        <ul class="bullets" style="margin-top:8px;">
+          <li><b>W1, b1</b> — first linear layer (expands dimension, e.g. 768→3072)</li>
+          <li><b>W2, b2</b> — second linear layer (projects back down, e.g. 3072→768)</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Normalization</h3>
+        <ul class="bullets" style="margin-top:8px;">
+          <li><b>γ, β</b> — learnable scale and shift in each LayerNorm</li>
+        </ul>
+      </div>
+      <div class="card" style="background:var(--teal-deep); border:none;">
+        <h3 style="color:#9FE0D2;">The embedding table</h3>
+        <ul class="bullets light" style="margin-top:8px;">
+          <li>One row per vocabulary token — the very first thing touched in the forward pass, and the very last thing updated in the backward pass</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:18px;">A model like BERT-base stacks <b>12 of these layers</b> — every single matrix above exists independently per layer, and backprop updates all of them, every training step.</div>
+  </div>
+</section>
+
+<!-- 4 FORWARD RECAP -->
+<section class="slide">
+  <div class="eyebrow">Step 2 · Forward Recap</div>
+  <h1 class="title">One layer's forward pass, in order</h1>
+  <p class="sub">Backprop simply reverses this exact sequence — so the forward order tells us the backward order too.</p>
+  <div class="content">
+    <div class="layer-stack">
+      <div class="layer-box" style="background:var(--panel-tint); color:var(--ink);">① Input embeddings + positional encoding <span>x</span></div>
+      <div class="layer-box" style="background:var(--teal); color:#fff;">② Self-attention: Q=xWq, K=xWk, V=xWv → softmax(QKᵗ/√d)·V <span>→ attn_out</span></div>
+      <div class="layer-box" style="background:var(--panel-tint); color:var(--ink);">③ Residual add + LayerNorm <span>x + attn_out</span></div>
+      <div class="layer-box" style="background:var(--amber-tint); color:var(--amber);">④ Feed-forward: W2·ReLU(W1·x + b1) + b2 <span>→ ffn_out</span></div>
+      <div class="layer-box" style="background:var(--panel-tint); color:var(--ink);">⑤ Residual add + LayerNorm <span>x + ffn_out</span></div>
+      <div class="layer-box" style="background:var(--teal-deep); color:#EAF4F1;">⑥ (After all layers) Output projection → logits → softmax <span>→ probabilities</span></div>
+      <div class="layer-box" style="background:var(--rose); color:#fff;">⑦ Cross-entropy loss against the true token <span>→ L</span></div>
+    </div>
+    <div class="callout" style="margin-top:16px;">Backprop runs this list <b>bottom to top</b> — starting at ⑦ and working back to ①, applying the chain rule at every arrow.</div>
+  </div>
+</section>
+
+<!-- 5 LOSS TO LOGITS -->
+<section class="slide">
+  <div class="eyebrow">Step 3 · Loss → Logits</div>
+  <h1 class="title">Where the gradient signal originates</h1>
+  <p class="sub">Next-token or masked-token prediction: cross-entropy loss against the vocabulary distribution.</p>
+  <div class="content">
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>The softmax + cross-entropy gradient</h3>
+        <div class="codeblock" style="margin-top:10px;">∂L/∂logit_i = p_i − y_i
+
+p_i = predicted probability of token i
+y_i = 1 if i is the correct token, else 0</div>
+        <p style="margin-top:10px;">This is the famously clean result of combining softmax with cross-entropy — the gradient is just "predicted minus actual."</p>
+      </div>
+      <div class="card" style="background:var(--panel-tint); box-shadow:none;">
+        <h3>Concretely, for "##er"</h3>
+        <p>If the model assigned "##er" only 20% probability when it should have been the correct answer (100%):</p>
+        <div class="codeblock" style="margin-top:10px;">∂L/∂logit(##er) = 0.20 − 1.0 = −0.80</div>
+        <p style="margin-top:10px;">Negative gradient → increasing this logit would reduce the loss → training pushes it up.</p>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:18px;">Every other vocabulary token that was incorrectly given <i>some</i> probability gets a small positive gradient too — training pushes their logits <b>down</b> slightly, since <span class="mono">y_i = 0</span> for them.</div>
+  </div>
+</section>
+
+<!-- 6 BACKPROP THROUGH FFN -->
+<section class="slide">
+  <div class="eyebrow">Step 4 · Backprop Through FFN</div>
+  <h1 class="title">Gradient flow through the feed-forward block</h1>
+  <p class="sub">Same chain-rule mechanics as any feed-forward network — just embedded inside a much bigger architecture.</p>
+  <div class="content">
+    <div class="step-row">
+      <div class="step-num">1</div>
+      <div class="step-text"><h4>Gradient arrives from above</h4><p class="mono">∂L/∂ffn_out — handed down from the residual connection after this block</p></div>
+    </div>
+    <div class="step-row">
+      <div class="step-num">2</div>
+      <div class="step-text"><h4>Through the second linear layer</h4><p class="mono">∂L/∂W2 = ReLU_out · ∂L/∂ffn_out   (outer product)  |  ∂L/∂ReLU_out = W2ᵗ · ∂L/∂ffn_out</p></div>
+    </div>
+    <div class="step-row">
+      <div class="step-num">3</div>
+      <div class="step-text"><h4>Through the ReLU</h4><p class="mono">∂L/∂z1 = ∂L/∂ReLU_out × [1 if z1 &gt; 0 else 0]   — gradient zeroed wherever the activation was inactive</p></div>
+    </div>
+    <div class="step-row" style="margin-bottom:0;">
+      <div class="step-num">4</div>
+      <div class="step-text"><h4>Through the first linear layer</h4><p class="mono">∂L/∂W1 = x · ∂L/∂z1   |   ∂L/∂x_ffn = W1ᵗ · ∂L/∂z1  ← this continues backward into the residual sum</p></div>
+    </div>
+    <div class="callout" style="margin-top:14px;"><b>Notice the pattern:</b> every linear layer's weight gradient is an outer product of "what flowed in" and "what gradient flowed out" — identical in form to the toy 2-layer network, just with matrices instead of scalars.</div>
+  </div>
+</section>
+
+<!-- 7 BACKPROP THROUGH ATTENTION -->
+<section class="slide">
+  <div class="eyebrow">Step 5 · Backprop Through Attention</div>
+  <h1 class="title">How the gradient reaches Wq, Wk, Wv</h1>
+  <p class="sub">More moving parts than the FFN — softmax and the Q·Kᵗ product each need their own local derivative.</p>
+  <div class="content">
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>1. Through the weighted sum of V</h3>
+        <div class="codeblock" style="margin-top:8px;">output = Σ weight_i · V_i
+
+∂L/∂V_i    = weight_i · ∂L/∂output
+∂L/∂weight_i = V_i · ∂L/∂output</div>
+      </div>
+      <div class="card">
+        <h3>2. Through softmax</h3>
+        <p style="margin-top:4px;">Softmax's Jacobian couples every output to every input — increasing one attention weight necessarily decreases the others (they must sum to 1):</p>
+        <div class="codeblock" style="margin-top:8px; font-size:11.5px;">∂weight_i/∂score_j = weight_i(δ_ij − weight_j)</div>
+      </div>
+      <div class="card">
+        <h3>3. Through the dot product</h3>
+        <div class="codeblock" style="margin-top:8px;">score = Q·Kᵗ / √d
+
+∂L/∂Q = (∂L/∂score · K) / √d
+∂L/∂K = (∂L/∂score · Q) / √d</div>
+      </div>
+      <div class="card" style="background:var(--teal-deep); border:none;">
+        <h3 style="color:#9FE0D2;">4. Into the projection matrices</h3>
+        <div class="codeblock" style="margin-top:8px; background:rgba(255,255,255,0.08); color:#EAF4F1; border-color:rgba(255,255,255,0.15);">∂L/∂Wq = xᵗ · ∂L/∂Q
+∂L/∂Wk = xᵗ · ∂L/∂K
+∂L/∂Wv = xᵗ · ∂L/∂V</div>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:16px;">All three gradients (<span class="mono">∂L/∂Q, ∂L/∂K, ∂L/∂V</span>) ultimately flow back into the <b>same shared input embedding x</b> — since Q, K, and V were all computed from it. Their contributions simply add together.</div>
+  </div>
+</section>
+
+<!-- 8 RESIDUALS -->
+<section class="slide">
+  <div class="eyebrow">Step 6 · Residual Connections</div>
+  <h1 class="title">Why skip connections save the gradient</h1>
+  <p class="sub">Deep stacks of layers risk the "vanishing gradient" problem — residuals are the architectural fix.</p>
+  <div class="content">
+    <div class="grid grid-2">
+      <div class="card" style="background:var(--rose-tint); box-shadow:none;">
+        <h3 style="color:var(--rose);">Without residuals</h3>
+        <p>Each layer's gradient gets multiplied by that layer's local derivative. Stack 12+ layers, and repeated multiplication of values &lt;1 can shrink the gradient toward zero by the time it reaches early layers — they barely learn.</p>
+      </div>
+      <div class="card" style="background:var(--teal-deep); border:none;">
+        <h3 style="color:#9FE0D2;">With residuals</h3>
+        <p style="color:#DCE7E4;">Each block computes <span class="mono" style="color:#fff;">output = x + F(x)</span>. Differentiating a sum just adds 1 to the gradient path:</p>
+        <div class="codeblock" style="margin-top:8px; background:rgba(255,255,255,0.08); color:#EAF4F1; border-color:rgba(255,255,255,0.15);">∂output/∂x = 1 + ∂F(x)/∂x</div>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:18px;">That <b>"+1"</b> guarantees a direct, undiminished path for the gradient straight back to the input of every block — regardless of how small <span class="mono">∂F(x)/∂x</span> becomes. This is why transformers can stack dozens of layers and still train end-to-end.</div>
+  </div>
+</section>
+
+<!-- 9 INTO THE EMBEDDING TABLE -->
+<section class="slide">
+  <div class="eyebrow">Step 6 · Final Destination</div>
+  <h1 class="title">Where the gradient finally lands: the embedding table</h1>
+  <p class="sub">After flowing backward through every layer, the gradient reaches the very first lookup of the forward pass.</p>
+  <div class="content">
+    <div class="vstack">
+      <div class="flow">
+        <div class="box" style="flex:0 0 200px; background:var(--rose); color:#fff; font-weight:700; display:flex; align-items:center; font-size:12px;">∂L/∂logits</div>
+        <div class="box mono" style="font-size:12.5px;">Starts at the loss, flows back through the output projection</div>
+      </div>
+      <div style="text-align:center; color:var(--teal); font-size:16px;">↓</div>
+      <div class="flow">
+        <div class="box" style="flex:0 0 200px; background:var(--teal); color:#fff; font-weight:700; display:flex; align-items:center; font-size:12px;">∂L/∂layer_12 ... ∂L/∂layer_1</div>
+        <div class="box mono" style="font-size:12.5px;">Passes through every FFN and attention block, each adding its own chain-rule term</div>
+      </div>
+      <div style="text-align:center; color:var(--teal); font-size:16px;">↓</div>
+      <div class="flow">
+        <div class="box" style="flex:0 0 200px; background:var(--teal-deep); color:#EAF4F1; font-weight:700; display:flex; align-items:center; font-size:12px;">∂L/∂embedding["##er"]</div>
+        <div class="box mono" style="font-size:12.5px; color:var(--teal-deep);">embedding["##er"] -= lr × ∂L/∂embedding["##er"]</div>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:18px;"><b>Only the rows that were actually used</b> in this batch's sentences get a nonzero gradient and get updated. A token's embedding only improves on steps where that exact token appeared — which is why frequent tokens like "##er" converge faster than rare ones.</div>
+  </div>
+</section>
+
+<!-- 10 RECAP -->
+<section class="slide">
+  <div class="eyebrow">Recap</div>
+  <h1 class="title">The full gradient journey, end to end</h1>
+  <div class="content">
+    <table class="cmp" style="margin-bottom:18px;">
+      <tr><th>Stage</th><th>What backprop computes here</th></tr>
+      <tr><td>Loss → Logits</td><td>∂L/∂logit = predicted probability − actual (one-hot) label</td></tr>
+      <tr><td>Through FFN</td><td>Standard linear-layer chain rule, gated by the ReLU derivative</td></tr>
+      <tr><td>Through Attention</td><td>Gradient splits across softmax, the Q·Kᵗ product, then into Wq, Wk, Wv</td></tr>
+      <tr><td>Through Residuals</td><td>"+1" term guarantees gradient reaches early layers undiminished</td></tr>
+      <tr><td>Into Embeddings</td><td>Only embedding rows used in this batch get updated, nudged opposite their gradient</td></tr>
+    </table>
+    <div class="card" style="background:var(--teal-deep); border:none;">
+      <h3 style="color:#9FE0D2;">The big picture</h3>
+      <ul class="bullets light" style="margin-top:10px;">
+        <li>Transformers don't need a special version of backprop — it's the same chain rule used in any neural network.</li>
+        <li>What's different is the <i>shape</i> of the computation: attention adds softmax and dot-product derivatives into the chain.</li>
+        <li>Residual connections are what make 12, 24, or 96-layer stacks trainable at all — without them, gradients would vanish before reaching early layers.</li>
+        <li>Every parameter — Wq/Wk/Wv, FFN weights, LayerNorm scales, and embedding rows — is updated by the exact same rule: subtract a small step in the direction of the gradient.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<button class="arrow-btn left" onclick="go(-1)" aria-label="Previous slide">‹</button>
+<button class="arrow-btn right" onclick="go(1)" aria-label="Next slide">›</button>
+<div class="nav" id="nav"></div>
+<div class="pageno" id="pageno"></div>
+<div class="brandmark">TRANSFORMERS × BACKPROP</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length; let idx = 0;
+  const nav = document.getElementById('nav');
+  for(let i=0;i<total;i++){
+    const d = document.createElement('div'); d.className = 'dot' + (i===0?' active':'');
+    d.onclick = () => { idx=i; render(); }; nav.appendChild(d);
+  }
+  function render(){
+    slides.forEach((s,i)=> s.classList.toggle('active', i===idx));
+    document.querySelectorAll('.dot').forEach((d,i)=> d.classList.toggle('active', i===idx));
+    document.getElementById('pageno').textContent = String(idx+1).padStart(2,'0') + ' / ' + String(total).padStart(2,'0');
+    document.getElementById('progress').style.width = ((idx+1)/total*100) + '%';
+  }
+  function go(delta){ idx = Math.min(total-1, Math.max(0, idx+delta)); render(); }
+  document.addEventListener('keydown', (e)=>{ if(e.key==='ArrowRight'||e.key===' ') go(1); if(e.key==='ArrowLeft') go(-1); });
+  let touchX=null;
+  document.addEventListener('touchstart', e=> touchX=e.touches[0].clientX);
+  document.addEventListener('touchend', e=>{
+    if(touchX===null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    if(dx>50) go(-1); if(dx<-50) go(1); touchX=null;
+  });
+  render();
+</script>
+</body>
+</html>

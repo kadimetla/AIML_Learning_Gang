@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Backpropagation — A Mechanical Deep Dive</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FBFAF6; --panel:#FFFFFF; --panel-tint:#EFF3EE;
+    --ink:#233129; --slate:#5C6B62; --muted:#8C9A91;
+    --teal:#2B6E68; --teal-deep:#1D4F4B;
+    --amber:#C77B36; --amber-tint:#F7E9D8;
+    --rose:#B25450; --rose-tint:#F6E4E2;
+    --line:#E2E6DE; --code-bg:#F1F3EE;
+    --shadow:0 6px 24px rgba(35,49,41,0.08);
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; background:var(--bg); color:var(--ink); }
+  body{ font-family:'Inter', system-ui, sans-serif; }
+  .deck{ width:100vw; height:100vh; position:relative; }
+  .slide{
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    padding:64px 90px 90px 90px;
+    opacity:0; visibility:hidden; transform:translateY(14px);
+    transition:opacity .35s ease, transform .35s ease;
+    overflow-y:auto;
+  }
+  .slide.active{ opacity:1; visibility:visible; transform:none; }
+  .eyebrow{ font-family:'JetBrains Mono',monospace; font-size:12.5px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:var(--teal); margin-bottom:14px; }
+  h1.title{ font-family:'Source Serif 4',serif; font-weight:700; font-size:40px; line-height:1.14; margin:0 0 10px 0; max-width:920px; }
+  p.sub{ font-size:15.5px; color:var(--slate); margin:0 0 26px 0; max-width:850px; line-height:1.5; }
+  .content{ display:flex; flex-direction:column; }
+  .pageno{ position:absolute; bottom:28px; right:40px; font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--muted); }
+  .brandmark{ position:absolute; bottom:28px; left:40px; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:.06em; }
+  .progress{ position:absolute; top:0; left:0; height:4px; background:var(--teal); transition:width .35s ease; z-index:50; }
+  .nav{ position:absolute; bottom:22px; left:50%; transform:translateX(-50%); display:flex; gap:8px; z-index:60; }
+  .dot{ width:7px; height:7px; border-radius:50%; background:var(--line); cursor:pointer; transition:all .2s; }
+  .dot.active{ background:var(--teal); width:22px; border-radius:4px; }
+  .arrow-btn{ position:absolute; top:50%; transform:translateY(-50%); width:44px; height:44px; border-radius:50%; background:var(--panel); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; cursor:pointer; box-shadow:var(--shadow); z-index:60; color:var(--teal); font-size:18px; }
+  .arrow-btn:hover{ background:var(--panel-tint); }
+  .arrow-btn.left{ left:22px; } .arrow-btn.right{ right:22px; }
+  .grid{ display:grid; gap:20px; }
+  .grid-3{ grid-template-columns:repeat(3,1fr); } .grid-2{ grid-template-columns:repeat(2,1fr); } .grid-4{ grid-template-columns:repeat(4,1fr); }
+  .card{ background:var(--panel); border-radius:14px; padding:20px 22px; box-shadow:var(--shadow); border:1px solid var(--line); }
+  .card h3{ margin:0 0 8px 0; font-size:15.5px; font-weight:700; }
+  .card p{ margin:0; font-size:13px; color:var(--slate); line-height:1.5; }
+  .pill{ display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; padding:4px 10px; border-radius:20px; }
+  .pill.good{ background:#E2F0E6; color:#2E7D4F; } .pill.bad{ background:var(--rose-tint); color:var(--rose); } .pill.warn{ background:var(--amber-tint); color:var(--amber); }
+  code,.mono{ font-family:'JetBrains Mono',monospace; }
+  .codeblock{ background:var(--code-bg); border-radius:10px; padding:15px 18px; font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--teal-deep); line-height:1.65; white-space:pre; overflow:auto; border:1px solid var(--line); }
+  .callout{ background:var(--panel-tint); border-radius:12px; padding:15px 20px; font-size:13px; color:var(--slate); line-height:1.55; }
+  .callout b{ color:var(--ink); }
+  .step-row{ display:flex; align-items:flex-start; gap:18px; margin-bottom:16px; }
+  .step-num{ width:38px; height:38px; min-width:38px; border-radius:50%; background:var(--teal-deep); color:#EAF4F1; font-family:'Source Serif 4',serif; font-weight:700; display:flex; align-items:center; justify-content:center; font-size:16px; }
+  .step-text h4{ margin:0 0 3px 0; font-size:14.5px; } .step-text p{ margin:0; font-size:12.5px; color:var(--slate); }
+  ul.bullets{ margin:0; padding-left:18px; } ul.bullets li{ font-size:13px; color:var(--slate); margin-bottom:8px; line-height:1.5; } ul.bullets li b{ color:var(--ink); }
+  ul.bullets.light li{ color:#DCE7E4; } ul.bullets.light li b{ color:#fff; }
+  table.cmp{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  table.cmp th,table.cmp td{ text-align:left; padding:10px 13px; border-bottom:1px solid var(--line); }
+  table.cmp th{ background:var(--teal-deep); color:#fff; font-weight:600; }
+  table.cmp td:first-child{ font-weight:600; color:var(--ink); }
+  table.cmp td{ color:var(--slate); } table.cmp tr:last-child td{ border-bottom:none; }
+  .flow{ display:flex; align-items:stretch; }
+  .flow .box{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; flex:1; box-shadow:var(--shadow); }
+  .flow .arrow{ display:flex; align-items:center; justify-content:center; width:42px; color:var(--teal); font-size:18px; }
+  .vstack{ display:flex; flex-direction:column; gap:12px; }
+  .hero-bg{ position:absolute; top:-100px; right:-120px; width:480px; height:480px; border-radius:50%; background:radial-gradient(circle at 30% 30%, #DCEFE9, #FBFAF6 70%); z-index:0; }
+  .hero-bg2{ position:absolute; bottom:-160px; right:60px; width:300px; height:300px; border-radius:50%; background:radial-gradient(circle at 30% 30%, var(--amber-tint), transparent 70%); z-index:0; opacity:.7; }
+  .relz{ position:relative; z-index:1; }
+  .nn-node{ width:46px; height:46px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono'; font-size:12px; font-weight:600; }
+  @media (max-width:900px){ .slide{padding:36px 28px;} h1.title{font-size:28px;} .grid-3,.grid-2,.grid-4{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+<div class="deck" id="deck">
+
+<!-- 1 TITLE -->
+<section class="slide active">
+  <div class="hero-bg"></div><div class="hero-bg2"></div>
+  <div class="relz" style="margin-top:auto; margin-bottom:auto;">
+    <div class="eyebrow">How neural networks learn</div>
+    <h1 class="title" style="font-size:54px;">Backpropagation<br>A Mechanical Deep Dive</h1>
+    <p class="sub" style="font-size:17px; font-style:italic;">From a wrong guess to a corrected weight — tracing the exact arithmetic, step by step.</p>
+    <div style="display:flex; gap:12px; margin-top:26px; flex-wrap:wrap;">
+      <span class="mono" style="background:var(--teal-deep); color:#EAF4F1; padding:9px 16px; border-radius:8px; font-size:12.5px; font-weight:600;">Forward pass</span>
+      <span class="mono" style="background:var(--teal-deep); color:#EAF4F1; padding:9px 16px; border-radius:8px; font-size:12.5px; font-weight:600;">Loss</span>
+      <span class="mono" style="background:var(--teal-deep); color:#EAF4F1; padding:9px 16px; border-radius:8px; font-size:12.5px; font-weight:600;">Chain rule</span>
+      <span class="mono" style="background:var(--teal-deep); color:#EAF4F1; padding:9px 16px; border-radius:8px; font-size:12.5px; font-weight:600;">Gradient descent</span>
+    </div>
+  </div>
+</section>
+
+<!-- 2 AGENDA -->
+<section class="slide">
+  <div class="eyebrow">Roadmap</div>
+  <h1 class="title">What we'll trace, step by step</h1>
+  <div class="content">
+    <div class="grid grid-3">
+      <div class="card"><div class="pill good">01</div><h3 style="margin-top:10px;">Forward Pass</h3><p>How a network turns input into a prediction.</p></div>
+      <div class="card"><div class="pill good">02</div><h3 style="margin-top:10px;">Loss Function</h3><p>Turning "wrongness" into a single number.</p></div>
+      <div class="card"><div class="pill good">03</div><h3 style="margin-top:10px;">The Chain Rule</h3><p>The one piece of calculus that makes this all work.</p></div>
+      <div class="card"><div class="pill good">04</div><h3 style="margin-top:10px;">Toy Network</h3><p>A tiny 2-layer net with real numbers throughout.</p></div>
+      <div class="card"><div class="pill good">05</div><h3 style="margin-top:10px;">Backward Pass</h3><p>Computing gradients layer by layer, in reverse.</p></div>
+      <div class="card"><div class="pill good">06</div><h3 style="margin-top:10px;">Weight Update</h3><p>Turning gradients into an actual parameter nudge.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 3 FORWARD PASS CONCEPT -->
+<section class="slide">
+  <div class="eyebrow">Step 1 · Forward Pass</div>
+  <h1 class="title">What a network does before it learns anything</h1>
+  <p class="sub">A forward pass is just repeated matrix multiplication + a nonlinearity, layer after layer.</p>
+  <div class="content">
+    <div class="flow" style="margin-bottom:24px;">
+      <div class="box" style="text-align:center;"><div class="nn-node" style="background:var(--panel-tint); color:var(--teal-deep); margin:0 auto 8px;">x</div><p style="font-size:12px; color:var(--slate); margin:0;">Input</p></div>
+      <div class="arrow">→</div>
+      <div class="box" style="text-align:center;"><div class="nn-node" style="background:var(--teal); color:#fff; margin:0 auto 8px;">W·x+b</div><p style="font-size:12px; color:var(--slate); margin:0;">Linear layer</p></div>
+      <div class="arrow">→</div>
+      <div class="box" style="text-align:center;"><div class="nn-node" style="background:var(--amber-tint); color:var(--amber); margin:0 auto 8px;">σ()</div><p style="font-size:12px; color:var(--slate); margin:0;">Activation</p></div>
+      <div class="arrow">→</div>
+      <div class="box" style="text-align:center;"><div class="nn-node" style="background:var(--teal-deep); color:#EAF4F1; margin:0 auto 8px;">ŷ</div><p style="font-size:12px; color:var(--slate); margin:0;">Prediction</p></div>
+    </div>
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>The linear step</h3>
+        <p>Every layer computes a weighted sum of its inputs plus a bias:</p>
+        <div class="codeblock" style="margin-top:10px;">z = W·x + b</div>
+        <p style="margin-top:10px;">W and b are the learnable parameters — everything backprop will eventually adjust.</p>
+      </div>
+      <div class="card">
+        <h3>The nonlinearity</h3>
+        <p>Without an activation function, stacking layers would just collapse into one big linear function. A nonlinearity (ReLU, sigmoid, etc.) lets the network represent curves, not just lines.</p>
+        <div class="codeblock" style="margin-top:10px;">a = σ(z)     e.g. σ(z) = max(0, z)   ← ReLU</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 4 LOSS FUNCTION -->
+<section class="slide">
+  <div class="eyebrow">Step 2 · Loss Function</div>
+  <h1 class="title">Turning "wrong" into a number you can differentiate</h1>
+  <p class="sub">The loss function is the single quantity backpropagation is trying to shrink.</p>
+  <div class="content">
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>Mean Squared Error (regression)</h3>
+        <div class="codeblock" style="margin-top:10px;">L = (ŷ − y)²</div>
+        <p style="margin-top:10px;">Penalizes the squared distance between prediction <span class="mono">ŷ</span> and true value <span class="mono">y</span>. Bigger misses get punished disproportionately more.</p>
+      </div>
+      <div class="card">
+        <h3>Cross-Entropy (classification)</h3>
+        <div class="codeblock" style="margin-top:10px;">L = −log(p_correct_class)</div>
+        <p style="margin-top:10px;">Penalizes low confidence in the correct class. If the model assigns the true class only 1% probability, the loss is large; near 100%, loss approaches zero.</p>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:20px;"><b>Why it has to be differentiable:</b> backpropagation works by computing the slope (gradient) of the loss with respect to every weight. If the loss function isn't smooth and differentiable, there's no slope to compute — and no signal to learn from.</div>
+  </div>
+</section>
+
+<!-- 5 CHAIN RULE -->
+<section class="slide">
+  <div class="eyebrow">Step 3 · The Chain Rule</div>
+  <h1 class="title">The one calculus idea that makes this all work</h1>
+  <p class="sub">Backpropagation is the chain rule, applied repeatedly, layer by layer, in reverse.</p>
+  <div class="content">
+    <div class="card" style="margin-bottom:20px;">
+      <h3>The idea in one line</h3>
+      <p style="margin-top:8px;">If <span class="mono">y</span> depends on <span class="mono">x</span> through an intermediate variable <span class="mono">u</span>, then the effect of a small change in <span class="mono">x</span> on <span class="mono">y</span> is the <i>product</i> of each step's local effect:</p>
+      <div class="codeblock" style="margin-top:10px; font-size:15px;">dy/dx  =  dy/du  ×  du/dx</div>
+    </div>
+    <div class="grid grid-2">
+      <div class="card" style="background:var(--panel-tint); box-shadow:none;">
+        <h3>Why neural nets need this</h3>
+        <p>A network is a long chain of nested functions: <span class="mono">loss(activation(linear(activation(linear(x)))))</span>. To know how a weight buried deep in layer 1 affects the final loss, you have to multiply together the local derivative at <i>every layer</i> in between.</p>
+      </div>
+      <div class="card" style="background:var(--teal-deep); border:none;">
+        <h3 style="color:#9FE0D2;">The mechanical consequence</h3>
+        <p style="color:#DCE7E4;">This is why backprop runs <b style="color:#fff;">backward</b> — from the loss toward the input. Each layer only needs to know two things: its local derivative, and the gradient handed to it from the layer after it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 6 TOY NETWORK SETUP -->
+<section class="slide">
+  <div class="eyebrow">Step 4 · Toy Network</div>
+  <h1 class="title">A tiny network we can compute by hand</h1>
+  <p class="sub">One input, one hidden neuron, one output neuron — small enough to trace every number.</p>
+  <div class="content">
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>Architecture</h3>
+        <div class="codeblock" style="margin-top:10px;">Input:        x = 2.0
+Hidden layer: h = ReLU(w1·x + b1)
+Output layer: ŷ = w2·h + b2
+Loss:         L = (ŷ − y)²,   target y = 10.0</div>
+      </div>
+      <div class="card" style="background:var(--panel-tint); box-shadow:none;">
+        <h3>Initial parameters</h3>
+        <div class="codeblock" style="margin-top:10px;">w1 = 1.5,  b1 = 0.0
+w2 = 2.0,  b2 = 0.0</div>
+        <p style="margin-top:10px;">These are exactly what backprop will adjust — there's nothing else "learnable" in this network.</p>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:20px;">We'll run one full forward pass, compute the loss, then run backward through both layers to see exactly how <span class="mono">w1</span> and <span class="mono">w2</span> get corrected.</div>
+  </div>
+</section>
+
+<!-- 7 FORWARD PASS NUMERIC -->
+<section class="slide">
+  <div class="eyebrow">Step 4 · Toy Network</div>
+  <h1 class="title">Forward pass: plugging in the numbers</h1>
+  <div class="content">
+    <div class="vstack">
+      <div class="flow">
+        <div class="box" style="flex:0 0 190px; background:var(--teal-deep); color:#EAF4F1; font-weight:700; display:flex; align-items:center; font-size:12.5px;">HIDDEN PRE-ACT</div>
+        <div class="box mono" style="font-size:14.5px;">z1 = w1·x + b1 = 1.5×2.0 + 0.0 = 3.0</div>
+      </div>
+      <div class="flow">
+        <div class="box" style="flex:0 0 190px; background:var(--teal-deep); color:#EAF4F1; font-weight:700; display:flex; align-items:center; font-size:12.5px;">HIDDEN ACTIVATION</div>
+        <div class="box mono" style="font-size:14.5px;">h = ReLU(3.0) = 3.0   (positive, so ReLU passes it through)</div>
+      </div>
+      <div class="flow">
+        <div class="box" style="flex:0 0 190px; background:var(--teal-deep); color:#EAF4F1; font-weight:700; display:flex; align-items:center; font-size:12.5px;">OUTPUT</div>
+        <div class="box mono" style="font-size:14.5px;">ŷ = w2·h + b2 = 2.0×3.0 + 0.0 = 6.0</div>
+      </div>
+      <div class="flow">
+        <div class="box" style="flex:0 0 190px; background:var(--rose); color:#fff; font-weight:700; display:flex; align-items:center; font-size:12.5px;">LOSS</div>
+        <div class="box mono" style="font-size:14.5px; color:var(--rose);">L = (ŷ − y)² = (6.0 − 10.0)² = 16.0</div>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:20px;">The network predicted <b>6.0</b> when the true answer was <b>10.0</b> — a loss of <b>16.0</b>. Backprop's job: figure out exactly how to nudge <span class="mono">w1</span> and <span class="mono">w2</span> to shrink that number.</div>
+  </div>
+</section>
+
+<!-- 8 BACKWARD: OUTPUT LAYER -->
+<section class="slide">
+  <div class="eyebrow">Step 5 · Backward Pass</div>
+  <h1 class="title">Backward step 1 — the output layer</h1>
+  <p class="sub">We start at the loss and move backward, computing one local derivative at a time.</p>
+  <div class="content">
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>∂L/∂ŷ — how loss reacts to the prediction</h3>
+        <div class="codeblock" style="margin-top:10px;">L = (ŷ − y)²
+∂L/∂ŷ = 2(ŷ − y) = 2×(6.0 − 10.0) = −8.0</div>
+        <p style="margin-top:10px;">Negative means: increasing <span class="mono">ŷ</span> would <i>decrease</i> the loss (makes sense — we undershot).</p>
+      </div>
+      <div class="card">
+        <h3>∂L/∂w2 — how loss reacts to w2</h3>
+        <div class="codeblock" style="margin-top:10px;">ŷ = w2·h + b2  →  ∂ŷ/∂w2 = h = 3.0
+
+∂L/∂w2 = ∂L/∂ŷ × ∂ŷ/∂w2
+       = −8.0 × 3.0 = −24.0</div>
+        <p style="margin-top:10px;"><b>This is the chain rule in action</b> — multiplying the loss's sensitivity to ŷ by ŷ's sensitivity to w2.</p>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:20px;">We also need <span class="mono">∂L/∂h = ∂L/∂ŷ × ∂ŷ/∂h = −8.0 × w2 = −8.0 × 2.0 = −16.0</span> — this is the gradient we hand down to the hidden layer next.</div>
+  </div>
+</section>
+
+<!-- 9 BACKWARD: HIDDEN LAYER -->
+<section class="slide">
+  <div class="eyebrow">Step 5 · Backward Pass</div>
+  <h1 class="title">Backward step 2 — the hidden layer</h1>
+  <p class="sub">Same chain rule, one layer further back — this time passing through the ReLU activation too.</p>
+  <div class="content">
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>∂h/∂z1 — the ReLU derivative</h3>
+        <div class="codeblock" style="margin-top:10px;">ReLU'(z) = 1 if z > 0, else 0
+z1 = 3.0  (positive)  →  ∂h/∂z1 = 1</div>
+        <p style="margin-top:10px;">ReLU just passes the gradient through unchanged when the input was positive — and would have zeroed it out entirely if z1 had been negative.</p>
+      </div>
+      <div class="card">
+        <h3>∂L/∂w1 — how loss reacts to w1</h3>
+        <div class="codeblock" style="margin-top:10px;">z1 = w1·x + b1  →  ∂z1/∂w1 = x = 2.0
+
+∂L/∂w1 = ∂L/∂h × ∂h/∂z1 × ∂z1/∂w1
+       = (−16.0) × 1 × 2.0 = −32.0</div>
+        <p style="margin-top:10px;">Three terms multiplied together — the full chain from loss, through the activation, through the linear layer, down to w1.</p>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:20px;"><b>This is the whole algorithm:</b> at every layer, multiply the gradient handed down from above by that layer's own local derivative, and pass the result further back. No layer needs to "see" the loss directly — only the gradient relayed to it.</div>
+  </div>
+</section>
+
+<!-- 10 WEIGHT UPDATE -->
+<section class="slide">
+  <div class="eyebrow">Step 6 · Weight Update</div>
+  <h1 class="title">Turning gradients into an actual correction</h1>
+  <p class="sub">Gradient descent: move every weight a small step in the direction that reduces the loss.</p>
+  <div class="content">
+    <div class="card" style="margin-bottom:20px;">
+      <h3>The update rule</h3>
+      <div class="codeblock" style="margin-top:10px; font-size:15px;">w_new = w_old − learning_rate × ∂L/∂w</div>
+      <p style="margin-top:10px;">The gradient tells us the direction of <i>steepest increase</i> in loss — so we subtract it to move in the direction that <i>decreases</i> loss.</p>
+    </div>
+    <div class="grid grid-2">
+      <div class="card" style="background:var(--panel-tint); box-shadow:none;">
+        <h3>Updating w2 (learning rate = 0.01)</h3>
+        <div class="codeblock" style="margin-top:10px;">w2_new = 2.0 − 0.01×(−24.0)
+       = 2.0 + 0.24 = 2.24</div>
+      </div>
+      <div class="card" style="background:var(--teal-deep); border:none;">
+        <h3 style="color:#9FE0D2;">Updating w1 (learning rate = 0.01)</h3>
+        <div class="codeblock" style="margin-top:10px; background:rgba(255,255,255,0.08); color:#EAF4F1; border-color:rgba(255,255,255,0.15);">w1_new = 1.5 − 0.01×(−32.0)
+       = 1.5 + 0.32 = 1.82</div>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:18px;">Both weights <b>increased</b> — correctly, since the network undershot the target (predicted 6.0, needed 10.0). A second forward pass with these new weights will produce a prediction closer to 10.0, and the loss will be lower.</div>
+  </div>
+</section>
+
+<!-- 11 RECAP -->
+<section class="slide">
+  <div class="eyebrow">Recap</div>
+  <h1 class="title">What backpropagation actually is</h1>
+  <div class="content">
+    <table class="cmp" style="margin-bottom:20px;">
+      <tr><th>Phase</th><th>What happens</th><th>Direction</th></tr>
+      <tr><td>Forward pass</td><td>Input flows through layers, producing a prediction and a loss</td><td>Input → Output</td></tr>
+      <tr><td>Backward pass</td><td>Chain rule applied repeatedly to compute ∂Loss/∂(every weight)</td><td>Output → Input</td></tr>
+      <tr><td>Weight update</td><td>Each weight nudged opposite its gradient, scaled by learning rate</td><td>Applied everywhere at once</td></tr>
+    </table>
+    <div class="card" style="background:var(--teal-deep); border:none;">
+      <h3 style="color:#9FE0D2;">The big picture</h3>
+      <ul class="bullets light" style="margin-top:10px;">
+        <li>Backprop is just the chain rule, applied once per layer, moving from the loss backward to the inputs.</li>
+        <li>Every layer only needs its own local derivative and the gradient handed to it from above — no global view required.</li>
+        <li>Gradients tell you direction and magnitude; gradient descent decides how big a step to actually take.</li>
+        <li>Repeat across millions of examples, and weights that are statistically useful for reducing loss survive and strengthen — this is the entire mechanism behind "learning."</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<button class="arrow-btn left" onclick="go(-1)" aria-label="Previous slide">‹</button>
+<button class="arrow-btn right" onclick="go(1)" aria-label="Next slide">›</button>
+<div class="nav" id="nav"></div>
+<div class="pageno" id="pageno"></div>
+<div class="brandmark">BACKPROPAGATION</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length; let idx = 0;
+  const nav = document.getElementById('nav');
+  for(let i=0;i<total;i++){
+    const d = document.createElement('div'); d.className = 'dot' + (i===0?' active':'');
+    d.onclick = () => { idx=i; render(); }; nav.appendChild(d);
+  }
+  function render(){
+    slides.forEach((s,i)=> s.classList.toggle('active', i===idx));
+    document.querySelectorAll('.dot').forEach((d,i)=> d.classList.toggle('active', i===idx));
+    document.getElementById('pageno').textContent = String(idx+1).padStart(2,'0') + ' / ' + String(total).padStart(2,'0');
+    document.getElementById('progress').style.width = ((idx+1)/total*100) + '%';
+  }
+  function go(delta){ idx = Math.min(total-1, Math.max(0, idx+delta)); render(); }
+  document.addEventListener('keydown', (e)=>{ if(e.key==='ArrowRight'||e.key===' ') go(1); if(e.key==='ArrowLeft') go(-1); });
+  let touchX=null;
+  document.addEventListener('touchstart', e=> touchX=e.touches[0].clientX);
+  document.addEventListener('touchend', e=>{
+    if(touchX===null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    if(dx>50) go(-1); if(dx<-50) go(1); touchX=null;
+  });
+  render();
+</script>
+</body>
+</html>

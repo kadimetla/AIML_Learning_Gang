@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Linear to Nonlinear — How Activation Functions Bend the Line</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FBFAF6; --panel:#FFFFFF; --panel-tint:#EFF3EE;
+    --ink:#233129; --slate:#5C6B62; --muted:#8C9A91;
+    --teal:#2B6E68; --teal-deep:#1D4F4B;
+    --amber:#C77B36; --amber-tint:#F7E9D8;
+    --rose:#B25450; --rose-tint:#F6E4E2;
+    --line:#E2E6DE; --code-bg:#F1F3EE;
+    --shadow:0 6px 24px rgba(35,49,41,0.08);
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; background:var(--bg); color:var(--ink); }
+  body{ font-family:'Inter', system-ui, sans-serif; }
+  .deck{ width:100vw; height:100vh; position:relative; }
+  .slide{
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    padding:64px 90px 90px 90px;
+    opacity:0; visibility:hidden; transform:translateY(14px);
+    transition:opacity .35s ease, transform .35s ease;
+    overflow-y:auto;
+  }
+  .slide.active{ opacity:1; visibility:visible; transform:none; }
+  .eyebrow{ font-family:'JetBrains Mono',monospace; font-size:12.5px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:var(--teal); margin-bottom:14px; }
+  h1.title{ font-family:'Source Serif 4',serif; font-weight:700; font-size:38px; line-height:1.14; margin:0 0 10px 0; max-width:920px; }
+  p.sub{ font-size:15px; color:var(--slate); margin:0 0 24px 0; max-width:850px; line-height:1.5; }
+  .content{ display:flex; flex-direction:column; }
+  .pageno{ position:absolute; bottom:28px; right:40px; font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--muted); }
+  .brandmark{ position:absolute; bottom:28px; left:40px; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:.06em; }
+  .progress{ position:absolute; top:0; left:0; height:4px; background:var(--teal); transition:width .35s ease; z-index:50; }
+  .nav{ position:absolute; bottom:22px; left:50%; transform:translateX(-50%); display:flex; gap:8px; z-index:60; }
+  .dot{ width:7px; height:7px; border-radius:50%; background:var(--line); cursor:pointer; transition:all .2s; }
+  .dot.active{ background:var(--teal); width:22px; border-radius:4px; }
+  .arrow-btn{ position:absolute; top:50%; transform:translateY(-50%); width:44px; height:44px; border-radius:50%; background:var(--panel); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; cursor:pointer; box-shadow:var(--shadow); z-index:60; color:var(--teal); font-size:18px; }
+  .arrow-btn:hover{ background:var(--panel-tint); }
+  .arrow-btn.left{ left:22px; } .arrow-btn.right{ right:22px; }
+  .grid{ display:grid; gap:18px; }
+  .grid-3{ grid-template-columns:repeat(3,1fr); } .grid-2{ grid-template-columns:repeat(2,1fr); } .grid-4{ grid-template-columns:repeat(4,1fr); }
+  .card{ background:var(--panel); border-radius:14px; padding:18px 20px; box-shadow:var(--shadow); border:1px solid var(--line); }
+  .card h3{ margin:0 0 8px 0; font-size:15px; font-weight:700; }
+  .card p{ margin:0; font-size:12.5px; color:var(--slate); line-height:1.5; }
+  .pill{ display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:700; padding:4px 10px; border-radius:20px; }
+  .pill.good{ background:#E2F0E6; color:#2E7D4F; } .pill.bad{ background:var(--rose-tint); color:var(--rose); } .pill.warn{ background:var(--amber-tint); color:var(--amber); }
+  code,.mono{ font-family:'JetBrains Mono',monospace; }
+  .codeblock{ background:var(--code-bg); border-radius:10px; padding:14px 16px; font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--teal-deep); line-height:1.6; white-space:pre; overflow:auto; border:1px solid var(--line); }
+  .callout{ background:var(--panel-tint); border-radius:12px; padding:14px 18px; font-size:12.5px; color:var(--slate); line-height:1.55; }
+  .callout b{ color:var(--ink); }
+  .step-row{ display:flex; align-items:flex-start; gap:16px; margin-bottom:14px; }
+  .step-num{ width:36px; height:36px; min-width:36px; border-radius:50%; background:var(--teal-deep); color:#EAF4F1; font-family:'Source Serif 4',serif; font-weight:700; display:flex; align-items:center; justify-content:center; font-size:15px; }
+  .step-text h4{ margin:0 0 3px 0; font-size:14px; } .step-text p{ margin:0; font-size:12px; color:var(--slate); }
+  ul.bullets{ margin:0; padding-left:18px; } ul.bullets li{ font-size:12.5px; color:var(--slate); margin-bottom:7px; line-height:1.5; } ul.bullets li b{ color:var(--ink); }
+  ul.bullets.light li{ color:#DCE7E4; } ul.bullets.light li b{ color:#fff; }
+  table.cmp{ width:100%; border-collapse:collapse; font-size:12px; }
+  table.cmp th,table.cmp td{ text-align:left; padding:9px 12px; border-bottom:1px solid var(--line); }
+  table.cmp th{ background:var(--teal-deep); color:#fff; font-weight:600; }
+  table.cmp td:first-child{ font-weight:600; color:var(--ink); }
+  table.cmp td{ color:var(--slate); } table.cmp tr:last-child td{ border-bottom:none; }
+  .vstack{ display:flex; flex-direction:column; gap:10px; }
+  .hero-bg{ position:absolute; top:-100px; right:-120px; width:480px; height:480px; border-radius:50%; background:radial-gradient(circle at 30% 30%, #DCEFE9, #FBFAF6 70%); z-index:0; }
+  .hero-bg2{ position:absolute; bottom:-160px; right:60px; width:300px; height:300px; border-radius:50%; background:radial-gradient(circle at 30% 30%, var(--amber-tint), transparent 70%); z-index:0; opacity:.7; }
+  .relz{ position:relative; z-index:1; }
+  svg.plot{ background:#fff; border-radius:10px; border:1px solid var(--line); }
+  @media (max-width:900px){ .slide{padding:36px 28px;} h1.title{font-size:26px;} .grid-3,.grid-2,.grid-4{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+<div class="deck" id="deck">
+
+<!-- 1 TITLE -->
+<section class="slide active">
+  <div class="hero-bg"></div><div class="hero-bg2"></div>
+  <div class="relz" style="margin-top:auto; margin-bottom:auto;">
+    <div class="eyebrow">Where the bend comes from</div>
+    <h1 class="title" style="font-size:50px;">From a Straight Line<br>to a Curve</h1>
+    <p class="sub" style="font-size:16.5px; font-style:italic;">How a simple threshold rule like ReLU turns linear arithmetic into something that can learn curves, bends, and thresholds.</p>
+    <div style="display:flex; gap:12px; margin-top:26px; flex-wrap:wrap;">
+      <span class="mono" style="background:var(--teal-deep); color:#EAF4F1; padding:9px 16px; border-radius:8px; font-size:12px; font-weight:600;">What is linear?</span>
+      <span class="mono" style="background:var(--teal-deep); color:#EAF4F1; padding:9px 16px; border-radius:8px; font-size:12px; font-weight:600;">The ReLU proof</span>
+      <span class="mono" style="background:var(--teal-deep); color:#EAF4F1; padding:9px 16px; border-radius:8px; font-size:12px; font-weight:600;">Stitching hinges into curves</span>
+    </div>
+  </div>
+</section>
+
+<!-- 2 AGENDA -->
+<section class="slide">
+  <div class="eyebrow">Roadmap</div>
+  <h1 class="title">What we'll prove and build</h1>
+  <div class="content">
+    <div class="grid grid-3">
+      <div class="card"><div class="pill good">01</div><h3 style="margin-top:10px;">Definition of Linear</h3><p>The two mathematical tests every linear function must pass.</p></div>
+      <div class="card"><div class="pill good">02</div><h3 style="margin-top:10px;">Stacking Linear Layers</h3><p>Why pure linear layers always collapse into one line.</p></div>
+      <div class="card"><div class="pill good">03</div><h3 style="margin-top:10px;">Meet ReLU</h3><p>The threshold rule, and what it actually does to numbers.</p></div>
+      <div class="card"><div class="pill good">04</div><h3 style="margin-top:10px;">Proving It's Nonlinear</h3><p>Running ReLU through the additivity/homogeneity tests.</p></div>
+      <div class="card"><div class="pill good">05</div><h3 style="margin-top:10px;">One Hinge → Many Hinges</h3><p>How several ReLU units stitch together into a curve.</p></div>
+      <div class="card"><div class="pill good">06</div><h3 style="margin-top:10px;">Other Activations</h3><p>Sigmoid, tanh, GELU — same idea, different shapes.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 3 DEFINITION OF LINEAR -->
+<section class="slide">
+  <div class="eyebrow">Step 1 · What "Linear" Means</div>
+  <h1 class="title">The two tests every linear function must pass</h1>
+  <p class="sub">"Linear" isn't a vibe — it's a precise mathematical property with two checkable conditions.</p>
+  <div class="content">
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>1. Additivity</h3>
+        <div class="codeblock" style="margin-top:10px;">f(x1 + x2) = f(x1) + f(x2)</div>
+        <p style="margin-top:10px;">Feeding in a sum gives the same result as summing the individual outputs.</p>
+      </div>
+      <div class="card">
+        <h3>2. Homogeneity</h3>
+        <div class="codeblock" style="margin-top:10px;">f(a·x) = a·f(x)</div>
+        <p style="margin-top:10px;">Scaling the input scales the output by exactly the same factor — including negative scalars.</p>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:20px;"><b>If a function fails either test, it's nonlinear — full stop.</b> This gives us a clean, mechanical way to check any function, rather than relying on "does it look like a curve."</div>
+  </div>
+</section>
+
+<!-- 4 STACKING LINEAR LAYERS COLLAPSES -->
+<section class="slide">
+  <div class="eyebrow">Step 2 · The Collapse Problem</div>
+  <h1 class="title">Why stacking linear layers never helps</h1>
+  <p class="sub">No matter how many linear layers you chain, the result is still just one straight line.</p>
+  <div class="content">
+    <div class="card" style="margin-bottom:18px;">
+      <h3>The algebra</h3>
+      <div class="codeblock" style="margin-top:10px;">Layer 1: h = W1·x
+Layer 2: y = W2·h = W2·(W1·x) = (W2·W1)·x
+
+Let W_combined = W2·W1  →  y = W_combined · x</div>
+      <p style="margin-top:10px;">Two matrix multiplications in a row are mathematically identical to <i>one</i> combined matrix multiplication.</p>
+    </div>
+    <div class="grid grid-2">
+      <div class="card" style="background:var(--rose-tint); box-shadow:none;">
+        <h3 style="color:var(--rose);">10 linear layers</h3>
+        <p>Still collapses to one effective matrix. Stacking depth adds zero extra representational power.</p>
+      </div>
+      <div class="card" style="background:var(--teal-deep); border:none;">
+        <h3 style="color:#9FE0D2;">The fix needed</h3>
+        <p style="color:#DCE7E4;">Something has to break this collapsibility — a function that <i>cannot</i> be re-expressed as a single matrix multiply. That's exactly the job of an activation function.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 5 MEET RELU -->
+<section class="slide">
+  <div class="eyebrow">Step 3 · Meet ReLU</div>
+  <h1 class="title">A threshold rule: keep it, or zero it</h1>
+  <p class="sub">Rectified Linear Unit — possibly the simplest nonlinear function that works.</p>
+  <div class="content">
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>The rule</h3>
+        <div class="codeblock" style="margin-top:10px;">ReLU(z) = z      if z &gt; 0
+ReLU(z) = 0      if z ≤ 0
+
+(equivalently: ReLU(z) = max(0, z))</div>
+      </div>
+      <div class="card" style="background:var(--panel-tint); box-shadow:none;">
+        <svg class="plot" viewBox="0 0 240 160" width="100%" height="160">
+          <line x1="20" y1="140" x2="220" y2="140" stroke="#C9D2CB" stroke-width="1"/>
+          <line x1="120" y1="10" x2="120" y2="150" stroke="#C9D2CB" stroke-width="1"/>
+          <polyline points="20,140 120,140 220,40" fill="none" stroke="#2B6E68" stroke-width="3"/>
+          <text x="20" y="155" font-size="9" fill="#8C9A91">-2</text>
+          <text x="200" y="155" font-size="9" fill="#8C9A91">+2</text>
+          <text x="125" y="20" font-size="9" fill="#8C9A91">slope = 1</text>
+          <text x="35" y="132" font-size="9" fill="#8C9A91">slope = 0</text>
+        </svg>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:18px;">Two completely different behaviors stitched together at <span class="mono">z = 0</span>: flat (slope 0) on the left, rising (slope 1) on the right. That seam is where all the nonlinearity lives.</div>
+  </div>
+</section>
+
+<!-- 6 PROVING NONLINEARITY -->
+<section class="slide">
+  <div class="eyebrow">Step 4 · The Proof</div>
+  <h1 class="title">Running ReLU through both tests</h1>
+  <p class="sub">Concrete numbers — not hand-waving — showing exactly where linearity breaks.</p>
+  <div class="content">
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>Homogeneity test (scalar = −1)</h3>
+        <div class="codeblock" style="margin-top:10px;">z = 2,  a = -1
+
+ReLU(a·z) = ReLU(-2) = 0
+a·ReLU(z) = -1 × ReLU(2) = -1 × 2 = -2
+
+0 ≠ -2   →  FAILS</div>
+      </div>
+      <div class="card" style="background:var(--teal-deep); border:none;">
+        <h3 style="color:#9FE0D2;">Additivity test</h3>
+        <div class="codeblock" style="margin-top:10px; background:rgba(255,255,255,0.08); color:#EAF4F1; border-color:rgba(255,255,255,0.15);">z1 = 3,  z2 = -5
+
+ReLU(z1) + ReLU(z2) = 3 + 0 = 3
+ReLU(z1 + z2)        = ReLU(-2) = 0
+
+3 ≠ 0   →  FAILS</div>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:18px;"><b>Why this matters mechanically:</b> clipping negative values throws away information asymmetrically. The contribution of z2 = -5 simply vanishes when clipped — under true linearity it would have been preserved and able to partially cancel z1. That asymmetric information loss is the entire mechanism.</div>
+  </div>
+</section>
+
+<!-- 7 ONE HINGE -->
+<section class="slide">
+  <div class="eyebrow">Step 5 · One Hinge</div>
+  <h1 class="title">A single ReLU unit = one bend in the line</h1>
+  <p class="sub">h = ReLU(w1·x + b1) is flat, then becomes a straight line, with the bend located wherever w1·x + b1 crosses zero.</p>
+  <div class="content">
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>Where the hinge sits</h3>
+        <div class="codeblock" style="margin-top:10px;">w1·x + b1 = 0
+        x = -b1 / w1   ← the hinge location</div>
+        <p style="margin-top:10px;">Changing <span class="mono">b1</span> slides the hinge left/right. Changing <span class="mono">w1</span> changes the steepness after the hinge.</p>
+      </div>
+      <div class="card" style="background:var(--panel-tint); box-shadow:none;">
+        <svg class="plot" viewBox="0 0 240 160" width="100%" height="160">
+          <line x1="20" y1="140" x2="220" y2="140" stroke="#C9D2CB" stroke-width="1"/>
+          <line x1="20" y1="10" x2="20" y2="150" stroke="#C9D2CB" stroke-width="1"/>
+          <polyline points="20,130 90,130 220,20" fill="none" stroke="#C77B36" stroke-width="3"/>
+          <circle cx="90" cy="130" r="4" fill="#B25450"/>
+          <text x="65" y="148" font-size="9" fill="#8C9A91">hinge</text>
+        </svg>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:18px;">One hinge alone still can't fit a curve like a parabola — it only gives you <i>one</i> bend. You need <b>multiple</b> hinges, placed at different locations, to approximate something more complex.</div>
+  </div>
+</section>
+
+<!-- 8 MANY HINGES → CURVE -->
+<section class="slide">
+  <div class="eyebrow">Step 5 · Many Hinges</div>
+  <h1 class="title">Stitching hinges together into a curve</h1>
+  <p class="sub">Sum several ReLU units, each with its own hinge location and steepness, and the result approximates any shape.</p>
+  <div class="content">
+    <div class="card" style="margin-bottom:18px;">
+      <h3>The sum</h3>
+      <div class="codeblock" style="margin-top:10px;">y = w2_1·ReLU(w1_1·x+b1_1) + w2_2·ReLU(w1_2·x+b1_2) + ... + b2</div>
+      <p style="margin-top:10px;">Each term contributes its own hinge. Different inputs activate different subsets of hinges — and only the <i>active</i> ones receive a gradient during training for that input.</p>
+    </div>
+    <div class="grid grid-3">
+      <div class="card" style="text-align:center;">
+        <svg class="plot" viewBox="0 0 200 120" width="100%" height="110">
+          <polyline points="10,90 60,90 190,20" fill="none" stroke="#2B6E68" stroke-width="2.5"/>
+        </svg>
+        <p style="margin-top:6px;"><b>2 units</b><br>rough "V"</p>
+      </div>
+      <div class="card" style="text-align:center;">
+        <svg class="plot" viewBox="0 0 200 120" width="100%" height="110">
+          <polyline points="10,90 50,85 80,60 110,40 140,30 190,20" fill="none" stroke="#2B6E68" stroke-width="2.5"/>
+        </svg>
+        <p style="margin-top:6px;"><b>5 units</b><br>coarse curve</p>
+      </div>
+      <div class="card" style="text-align:center;">
+        <svg class="plot" viewBox="0 0 200 120" width="100%" height="110">
+          <path d="M10,90 Q60,95 100,60 T190,20" fill="none" stroke="#2B6E68" stroke-width="2.5"/>
+        </svg>
+        <p style="margin-top:6px;"><b>50 units</b><br>visually smooth</p>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:16px;">This is the mechanical version of the <b>universal approximation theorem</b>: enough straight-line pieces, stitched at the right breakpoints, become indistinguishable from a smooth curve — without the network ever "understanding" curvature.</div>
+  </div>
+</section>
+
+<!-- 9 FITTING Y=X^2 -->
+<section class="slide">
+  <div class="eyebrow">Worked Example</div>
+  <h1 class="title">Fitting y = x² with two ReLU units</h1>
+  <div class="content">
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>Setup</h3>
+        <div class="codeblock" style="margin-top:10px;">h1 = ReLU(w1_1·x + b1_1)   ← handles x &gt; 0
+h2 = ReLU(w1_2·x + b1_2)   ← handles x &lt; 0
+ŷ  = w2_1·h1 + w2_2·h2 + b2</div>
+      </div>
+      <div class="card" style="background:var(--panel-tint); box-shadow:none;">
+        <h3>At x = 2 (only h1 active)</h3>
+        <div class="codeblock" style="margin-top:10px;">h1 = ReLU(2) = 2.0
+h2 = ReLU(-2) = 0.0   ← clipped, zero gradient too
+
+∂L/∂w1_2 = 0   (h2 untouched by this example)</div>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:18px;"><b>The specialization mechanism:</b> positive-x examples only ever update h1's weights; negative-x examples only ever update h2's weights. Each unit naturally specializes to the region of input space where it's switched on — nobody assigns these roles, gradient descent discovers them.</div>
+  </div>
+</section>
+
+<!-- 10 OTHER ACTIVATIONS -->
+<section class="slide">
+  <div class="eyebrow">Step 6 · Beyond ReLU</div>
+  <h1 class="title">Same idea, different shapes</h1>
+  <p class="sub">ReLU isn't the only nonlinearity — every option breaks linearity its own way.</p>
+  <div class="content">
+    <table class="cmp">
+      <tr><th>Function</th><th>Shape</th><th>Where it breaks linearity</th></tr>
+      <tr><td>ReLU</td><td class="mono">max(0, z)</td><td>Hard clip at zero — sharp hinge</td></tr>
+      <tr><td>Sigmoid</td><td class="mono">1 / (1 + e⁻ᶻ)</td><td>Smooth S-curve, squashes to (0, 1)</td></tr>
+      <tr><td>Tanh</td><td class="mono">(eᶻ−e⁻ᶻ)/(eᶻ+e⁻ᶻ)</td><td>Smooth S-curve, squashes to (−1, 1)</td></tr>
+      <tr><td>GELU</td><td class="mono">z·Φ(z)</td><td>Smooth, probabilistic gating — used in BERT/GPT</td></tr>
+    </table>
+    <div class="callout" style="margin-top:18px;">All four fail the additivity/homogeneity tests for the same underlying reason: each treats different regions of the input differently — clipping, squashing, or gating — in a way no single matrix multiplication could replicate.</div>
+  </div>
+</section>
+
+<!-- 11 RECAP -->
+<section class="slide">
+  <div class="eyebrow">Recap</div>
+  <h1 class="title">How a threshold becomes a curve-fitter</h1>
+  <div class="content">
+    <div class="card" style="background:var(--teal-deep); border:none;">
+      <h3 style="color:#9FE0D2;">The big picture</h3>
+      <ul class="bullets light" style="margin-top:10px;">
+        <li>Linear means passing the additivity and homogeneity tests — stacking linear layers alone can never produce a function that fails them.</li>
+        <li>ReLU's asymmetric clipping (pass positive, zero negative) is enough to fail both tests — proven with concrete numbers, not intuition.</li>
+        <li>One ReLU unit creates exactly one hinge; many units, summed together, stitch into a piecewise-linear approximation of any curve.</li>
+        <li>Gradient descent naturally specializes each unit to the input region where it's active — nobody assigns this division of labor by hand.</li>
+        <li>Other activations (sigmoid, tanh, GELU) break linearity differently — but always by treating some regions of input differently from others.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<button class="arrow-btn left" onclick="go(-1)" aria-label="Previous slide">‹</button>
+<button class="arrow-btn right" onclick="go(1)" aria-label="Next slide">›</button>
+<div class="nav" id="nav"></div>
+<div class="pageno" id="pageno"></div>
+<div class="brandmark">LINEAR → NONLINEAR</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length; let idx = 0;
+  const nav = document.getElementById('nav');
+  for(let i=0;i<total;i++){
+    const d = document.createElement('div'); d.className = 'dot' + (i===0?' active':'');
+    d.onclick = () => { idx=i; render(); }; nav.appendChild(d);
+  }
+  function render(){
+    slides.forEach((s,i)=> s.classList.toggle('active', i===idx));
+    document.querySelectorAll('.dot').forEach((d,i)=> d.classList.toggle('active', i===idx));
+    document.getElementById('pageno').textContent = String(idx+1).padStart(2,'0') + ' / ' + String(total).padStart(2,'0');
+    document.getElementById('progress').style.width = ((idx+1)/total*100) + '%';
+  }
+  function go(delta){ idx = Math.min(total-1, Math.max(0, idx+delta)); render(); }
+  document.addEventListener('keydown', (e)=>{ if(e.key==='ArrowRight'||e.key===' ') go(1); if(e.key==='ArrowLeft') go(-1); });
+  let touchX=null;
+  document.addEventListener('touchstart', e=> touchX=e.touches[0].clientX);
+  document.addEventListener('touchend', e=>{
+    if(touchX===null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    if(dx>50) go(-1); if(dx<-50) go(1); touchX=null;
+  });
+  render();
+</script>
+</body>
+</html>
