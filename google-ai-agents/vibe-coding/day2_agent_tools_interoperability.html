@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Day 2 · Agent Tools & Interoperability</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{--acc:#2563EB;--acl:#EFF6FF;--acb:#BFDBFE;--acc2:#7C3AED;--acc3:#059669;--warn:#D97706;--warnl:#FFFBEB;--warnb:#FDE68A;--danger:#DC2626;--dangerl:#FEF2F2;--dangerb:#FECACA;}
+html,body{width:100%;height:100%;font-family:'Inter',sans-serif;overflow:hidden;background:#fff;color:#1A2040;}
+.deck{width:100%;height:100%;position:relative;}
+.slide{position:absolute;inset:0;display:none;flex-direction:column;padding:42px 68px 52px;overflow:hidden;background:#fff;}
+.slide.active{display:flex;}.slide.fi{animation:fi .28s ease forwards;}
+@keyframes fi{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+.eyebrow{font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--acc);margin-bottom:12px;}
+h1{font-size:clamp(1.9rem,3.5vw,2.8rem);font-weight:900;letter-spacing:-.025em;line-height:1.06;color:#1A2040;}
+h2{font-size:clamp(1.25rem,2.1vw,1.75rem);font-weight:800;letter-spacing:-.02em;color:#1A2040;margin-bottom:18px;}
+h3{font-size:.9rem;font-weight:700;color:#1A2040;margin-bottom:5px;}
+p,li{font-size:.86rem;line-height:1.72;color:#4B5563;}
+strong{color:#1A2040;font-weight:700;}
+code{font-family:'JetBrains Mono',monospace;font-size:.74rem;background:var(--acl);padding:1px 5px;border-radius:3px;border:1px solid var(--acb);color:var(--acc);}
+pre{font-family:'JetBrains Mono',monospace;font-size:.7rem;background:#F8F9FC;border:1px solid #E2E6F0;border-radius:9px;padding:13px 15px;line-height:1.7;overflow:hidden;color:#374151;}
+.kw{color:var(--acc);font-weight:600;} .cm{color:#9CA3AF;font-style:italic;} .str{color:var(--acc3);}
+.div{width:100%;height:1px;background:#E2E6F0;margin:13px 0;}
+.card{background:#F8F9FC;border:1px solid #E2E6F0;border-radius:11px;padding:15px 17px;box-shadow:0 1px 3px rgba(26,32,64,.04);}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:13px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:18px;flex:1;}
+.col{display:flex;flex-direction:column;gap:11px;}
+.tag{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:2px 7px;border-radius:4px;border:1px solid;margin-bottom:8px;}
+.tb{background:var(--acl);color:var(--acc);border-color:var(--acb);}
+.tg{background:#ECFDF5;color:#059669;border-color:#A7F3D0;}
+.ta{background:var(--warnl);color:var(--warn);border-color:var(--warnb);}
+.tr{background:var(--dangerl);color:var(--danger);border-color:var(--dangerb);}
+.tp{background:#F5F3FF;color:#7C3AED;border-color:#DDD6FE;}
+.alert{border-radius:9px;padding:11px 14px;border:1px solid;font-size:.79rem;line-height:1.55;}
+.ab{background:var(--acl);border-color:var(--acb);color:var(--acc);}
+.ag{background:#ECFDF5;border-color:#A7F3D0;color:#059669;}
+.aa{background:var(--warnl);border-color:var(--warnb);color:var(--warn);}
+.ar{background:var(--dangerl);border-color:var(--dangerb);color:var(--danger);}
+.ap{background:#F5F3FF;border-color:#DDD6FE;color:#7C3AED;}
+.q{border-left:3px solid var(--acc);padding:14px 18px;background:var(--acl);border-radius:0 9px 9px 0;margin-bottom:12px;}
+.qt{font-size:.98rem;font-style:italic;line-height:1.65;color:#1A2040;}
+.qa{font-family:'JetBrains Mono',monospace;font-size:10px;color:#8693AE;margin-top:8px;}
+.ci{display:flex;align-items:flex-start;gap:8px;font-size:.81rem;color:#4B5563;line-height:1.55;margin-bottom:5px;}
+.ck{flex-shrink:0;margin-top:1px;}
+/* PROTO CARDS */
+.proto-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;flex:1;}
+.proto{border-radius:11px;padding:15px 16px;border:1px solid;display:flex;flex-direction:column;gap:5px;}
+.pi{font-size:1.3rem;}.pn{font-size:.86rem;font-weight:800;}.pn2{font-family:'JetBrains Mono',monospace;font-size:.67rem;margin-bottom:4px;}
+.pd{font-size:.73rem;color:#4B5563;line-height:1.5;flex:1;}
+/* FLOW */
+.flow{display:flex;align-items:center;margin:14px 0;}
+.fn{flex:1;border-radius:9px;padding:12px;text-align:center;border:1px solid var(--acb);background:var(--acl);}
+.fl{font-size:.75rem;font-weight:700;color:var(--acc);margin-bottom:3px;}
+.fs{font-size:.68rem;color:#6B7280;line-height:1.4;}
+.fa{color:#CDD2E8;font-size:.9rem;padding:0 7px;flex-shrink:0;}
+/* NxM */
+.nm{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:10px 0;}
+.nm-box{border-radius:9px;padding:14px;border:1px solid;}
+.nm-lbl{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:.1em;margin-bottom:8px;}
+.nm-code{font-family:'JetBrains Mono',monospace;font-size:.69rem;line-height:1.75;color:#374151;}
+.nm-eff{font-family:'JetBrains Mono',monospace;font-size:.73rem;font-weight:700;margin-top:8px;}
+/* TABLE */
+table{width:100%;border-collapse:collapse;font-size:.78rem;}
+thead th{text-align:left;padding:8px 12px;font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.1em;color:#8693AE;font-weight:600;border-bottom:2px solid #E2E6F0;}
+td{padding:8px 12px;border-bottom:1px solid #E2E6F0;color:#4B5563;vertical-align:top;}
+td:first-child{font-weight:600;color:#1A2040;}
+/* COVER */
+.cover-bg{background:linear-gradient(135deg,#FFFFFF 0%,#EFF6FF 50%,#EFF6FF 100%);justify-content:center;gap:24px;}
+.g-dots{display:flex;gap:5px;align-items:center;}
+.gd{width:9px;height:9px;border-radius:50%;}
+/* NAV */
+.nav{position:fixed;bottom:0;left:0;right:0;height:46px;background:rgba(255,255,255,.93);border-top:1px solid #E2E6F0;display:flex;align-items:center;padding:0 24px;gap:11px;backdrop-filter:blur(8px);z-index:100;box-shadow:0 -1px 10px rgba(26,32,64,.05);}
+.nb{background:#F8F9FC;border:1px solid #E2E6F0;color:#8693AE;border-radius:6px;width:30px;height:27px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:.8rem;transition:all .15s;font-family:'JetBrains Mono',monospace;user-select:none;}
+.nb:hover{border-color:var(--acc);color:var(--acc);background:var(--acl);}
+.nc{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#8693AE;}
+.ndw{display:flex;gap:5px;margin-left:4px;}
+.nd{width:5px;height:5px;border-radius:50%;background:#CDD2E8;cursor:pointer;transition:all .2s;}
+.nd.on{background:var(--acc);transform:scale(1.35);}
+.nt{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#8693AE;letter-spacing:.1em;margin-left:auto;}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+
+<!-- S0 COVER -->
+<div class="slide cover-bg active fi" id="s0">
+  <div class="eyebrow" style="display:flex;align-items:center;gap:10px">
+    <div class="g-dots"><div class="gd" style="background:#4285F4"></div><div class="gd" style="background:#EA4335"></div><div class="gd" style="background:#FBBC05"></div><div class="gd" style="background:#34A853"></div></div>
+    Google Vibe Coding Course · Day 2 · May 2026
+  </div>
+  <h1>Agent Tools &<br><span style="background:linear-gradient(135deg,#2563EB,#7C3AED);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">Interoperability</span></h1>
+  <p style="font-size:1rem;color:#6B7280;max-width:560px;line-height:1.65;margin-top:4px">How MCP, A2A, A2UI, AP2, and UCP transform isolated agents into a global, modular, interoperable virtual workforce.</p>
+  <p style="font-size:.8rem;color:#9CA3AF">Authors: Kanchana Patlolla, Łukasz Olejniczak, Pier Paolo Ippolito</p>
+  <div class="div"></div>
+  <div style="display:flex;gap:18px;flex-wrap:wrap">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:.75rem;padding:5px 12px;background:var(--acl);border:1px solid var(--acb);border-radius:6px;color:var(--acc)">🔌 MCP — USB-C for agents</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:.75rem;padding:5px 12px;background:#F5F3FF;border:1px solid #DDD6FE;border-radius:6px;color:#7C3AED">🤝 A2A — Factory Radio</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:.75rem;padding:5px 12px;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:6px;color:#059669">🖥 A2UI — Generative Display</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:.75rem;padding:5px 12px;background:var(--warnl);border:1px solid var(--warnb);border-radius:6px;color:var(--warn)">💳 AP2 + UCP — Agent Commerce</div>
+  </div>
+  <p style="font-size:.72rem;color:#9CA3AF;margin-top:10px">13 slides · ← → keys or nav buttons</p>
+</div>
+
+
+<!-- S1 THE PROTOCOL STACK -->
+<div class="slide fi" id="s1">
+  <div class="eyebrow">The Big Picture</div>
+  <h2>The Protocol Ecosystem: Industry Standards for Agent Machinery</h2>
+  <div class="q">
+    <p class="qt">If Agentic Engineering is the factory floor you are orchestrating, then MCP, A2A, A2UI, AP2, and UCP are the Industry Standards — the uniform nuts and bolts, data formats, and communication channels that let your machinery safely interact with the rest of the world.</p>
+    <p class="qa">— Patlolla, Olejniczak, Ippolito · Google · May 2026</p>
+  </div>
+  <div class="proto-row">
+    <div class="proto" style="background:var(--acl);border-color:var(--acb)"><div class="pi">🔌</div><div class="pn" style="color:var(--acc)">MCP</div><div class="pn2" style="color:var(--acc)">"USB-C" · Model Context Protocol</div><div class="pd">Connects any model to any tool — databases, filesystems, web APIs — through one standardized socket. Eliminates bespoke wrappers. O(N+M) instead of O(N×M).</div></div>
+    <div class="proto" style="background:#F5F3FF;border-color:#DDD6FE"><div class="pi">🤝</div><div class="pn" style="color:#7C3AED">A2A</div><div class="pn2" style="color:#7C3AED">"Factory Radio" · Agent-to-Agent Protocol</div><div class="pd">Allows specialized agents to discover, negotiate, delegate tasks across network boundaries. Developed by Google, donated to Linux Foundation. Now adopted by 150+ orgs.</div></div>
+    <div class="proto" style="background:#ECFDF5;border-color:#A7F3D0"><div class="pi">🖥</div><div class="pn" style="color:#059669">A2UI</div><div class="pn2" style="color:#059669">"Generative Display" · Agent-to-UI</div><div class="pd">Agents declare UI intent (not raw code). Framework-agnostic: the same message renders in React, Flutter, SwiftUI. Security model: agents can't inject executable code — only request components from a trusted catalog.</div></div>
+    <div class="proto" style="background:var(--warnl);border-color:var(--warnb)"><div class="pi">💳</div><div class="pn" style="color:var(--warn)">AP2</div><div class="pn2" style="color:var(--warn)">"Parent's Credit Card" · Agent Payments</div><div class="pd">Agents execute autonomous transactions within strict pre-authorized spending rules. Encrypted promissory notes instead of raw card numbers. Rules block violations instantly.</div></div>
+    <div class="proto" style="background:var(--dangerl);border-color:var(--dangerb)"><div class="pi">🌐</div><div class="pn" style="color:var(--danger)">UCP</div><div class="pn2" style="color:var(--danger)">"Supply Chain" · Universal Commerce Protocol</div><div class="pd">Universal translator between agents and merchants. Standardizes menu browsing, order building, delivery negotiation. Prior to UCP: every merchant was a different custom integration.</div></div>
+    <div class="proto" style="background:#F8F9FC;border-color:#E2E6F0"><div class="pi">⚡</div><div class="pn" style="color:#1A2040">OpenResponses + Interactions API</div><div class="pn2" style="color:#8693AE">"Power Plugs" · Stateful LLM Inference</div><div class="pd">Modern API approaches supporting long-running tasks. Blur the line between a stateless single turn and a stateful agent — the bridge between chatbots and full agents.</div></div>
+  </div>
+  <div class="alert ab" style="margin-top:12px">Without open standards every agent is an isolated "custom machine in a garage." With these protocols your harness becomes a <strong>modular, plug-and-play platform</strong> — and you shift from Conductor to Orchestrator.</div>
+</div>
+
+
+<!-- S2 MCP: DISCOVERY / CONFIG / CONNECT -->
+<div class="slide fi" id="s2">
+  <div class="eyebrow">MCP Deep Dive</div>
+  <h2>MCP for the Vibe Coder: Discovery → Configuration → Connection</h2>
+  <div class="flow">
+    <div class="fn"><div class="fl">🔍 1. DISCOVERY</div><div class="fs"><strong>Public Registries</strong><br>registry.modelcontextprotocol.io<br>github.com/mcp<br>Unvetted — prototypes only<br><br><strong>Official 3P Endpoints</strong><br>Google Maps, BigQuery, Docs<br>Managed, pre-vetted<br><br><strong>Internal Registries</strong><br>API gateway or GCP Agent Registry<br>Governed enterprise tools</div></div>
+    <div class="fa">→</div>
+    <div class="fn"><div class="fl">⚙️ 2. CONFIGURATION</div><div class="fs">Specify server scope & permissions<br>Set up env files for API credentials<br>(Personal Access Tokens, OAuth)<br>Define read/write permissions<br>Protect filesystem access<br><br>Checklist:<br>✅ Check prerequisites<br>✅ Identify scope & access criteria<br>✅ Include specs in coding agent<br>✅ Authentication setup</div></div>
+    <div class="fa">→</div>
+    <div class="fn"><div class="fl">🔗 3. CONNECTION</div><div class="fs"><strong>stdio transport</strong><br>Local/prototype mode<br>JSON-RPC 2.0 over stdin/stdout<br>Zero network setup<br>Agent treats tool as local process<br><br><strong>SSE over HTTP</strong><br>Remote deployed agents<br>Real-time streaming over HTTP<br>Fewer deps, always up-to-date<br>Higher burden on cloud server</div></div>
+  </div>
+  <div class="split">
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--acc)">
+        <div class="tag tb">Debugging Transport Problems</div>
+        <h3>Don't blindly tweak the system prompt</h3>
+        <p style="font-size:.77rem">When the agent hallucinates parameters, calls wrong tools, or fails to parse payloads — debug the transport pipes directly:</p>
+        <div class="ci" style="margin-top:8px"><span class="ck">🔵</span><span><strong>MCP Inspector:</strong> Native dev tool. Local web panel to manually query any MCP server, view active tool schemas, test payload inputs, inspect raw JSON-RPC 2.0 packets — without your main agent workflow</span></div>
+        <div class="ci"><span class="ck">🔵</span><span><strong>Chrome DevTools:</strong> For web-based dev environments or SSE connections. Trace incoming web streams, check server latencies</span></div>
+      </div>
+      <div class="alert aa">⚠️ <strong>Security first:</strong> If using public community servers, do not pass credentials. Consider Model Armor to avoid security issues. Always look for official instructions where possible.</div>
+    </div>
+    <div class="col">
+      <div class="card" style="border-top:3px solid #059669">
+        <div class="tag tg">Key Insight</div>
+        <h3>Consumption over Creation</h3>
+        <p style="font-size:.78rem">For the vibe coder, the priority is <strong>consuming</strong> existing MCP servers, not creating custom ones. You do not want to spend hours writing custom server configurations. You want to hook into existing public and private registries to instantly give your agent "plug-and-play" superpowers.</p>
+      </div>
+      <div class="card" style="border-top:3px solid #7C3AED">
+        <div class="tag tp">The AGENTS.md Tip</div>
+        <h3>Always begin by thinking deeply</h3>
+        <p style="font-size:.78rem">Include in your AGENTS.md: state assumptions, surface trade-offs, halt for clarification on ambiguity. Write <strong>only the minimum code</strong> required. Make highly surgical changes — restrict edits only to lines necessary for the request.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S3 NxM PROBLEM -->
+<div class="slide fi" id="s3">
+  <div class="eyebrow">MCP · Integration Math</div>
+  <h2>Solving the N×M Prototyping Problem</h2>
+  <p style="font-size:.84rem;margin-bottom:12px">With 5 LLMs and 10 tools, traditional development requires <strong>50 bespoke integrations</strong>. When one API changes, multiple parser loops break simultaneously. MCP reduces this to <strong>15</strong>.</p>
+  <div class="nm">
+    <div class="nm-box" style="background:var(--dangerl);border-color:var(--dangerb)">
+      <div class="nm-lbl" style="color:var(--danger)">❌ Traditional Integration: O(N × M)</div>
+      <pre class="nm-code" style="background:transparent;border:none;padding:0">[Gemini 3.1 Pro]  ──── [BigQuery wrapper]
+[Gemini 3.1 Pro]  ──── [GitHub wrapper]
+[Gemini Flash]    ──── [BigQuery wrapper]  ← DUPLICATE
+[Gemini Flash]    ──── [GitHub wrapper]   ← DUPLICATE
+[GPT-4o]          ──── [BigQuery wrapper] ← DUPLICATE
+[Local LLM]       ──── [BigQuery wrapper] ← DUPLICATE
+...and so on for every combination</pre>
+      <div class="nm-eff" style="color:var(--danger)">5 models × 10 tools = 50 integration points to maintain</div>
+      <p style="font-size:.73rem;color:var(--danger);margin-top:6px">One API version change → multiple parser loops break → engineering hours wasted on plumbing instead of product</p>
+    </div>
+    <div class="nm-box" style="background:#ECFDF5;border-color:#A7F3D0">
+      <div class="nm-lbl" style="color:#059669">✅ MCP Interoperability: O(N + M)</div>
+      <pre class="nm-code" style="background:transparent;border:none;padding:0">[Gemini 3.1 Pro] ──┐                 ┌── [BigQuery MCP]
+[Gemini Flash]   ──┼── [MCP Hub] ────┼── [GitHub MCP]
+[GPT-4o]         ──┤                 ├── [Google Drive MCP]
+[Local LLM]      ──┘                 └── [Jira MCP]
+
+   4 model clients + 4 MCP servers = 8 connections</pre>
+      <div class="nm-eff" style="color:#059669">5 models + 10 tools = 15 integration points only</div>
+      <p style="font-size:.73rem;color:#059669;margin-top:6px">One API changes → one MCP server update → all models automatically benefit. Zero custom wrappers per model-tool pair.</p>
+    </div>
+  </div>
+  <div class="g3" style="flex:1">
+    <div class="card" style="border-top:3px solid var(--acc)">
+      <div class="tag tb">Benefit 1</div><h3>Standard Transports</h3>
+      <p style="font-size:.77rem">By standardizing tool definitions, you connect <code>stdio</code> or <code>SSE</code> transports directly into your agent's harness without writing integration code. The agent just calls tools — it doesn't know or care about the underlying transport layer.</p>
+    </div>
+    <div class="card" style="border-top:3px solid #059669">
+      <div class="tag tg">Benefit 2</div><h3>Clean Context Windows</h3>
+      <p style="font-size:.77rem">Use RAG for tools: dynamically load tool definitions from a registry only when needed. Drop them when the task is complete. Prevents <strong>attention dilution</strong> where too many tool schemas degrade the model's decision-making quality.</p>
+    </div>
+    <div class="card" style="border-top:3px solid #7C3AED">
+      <div class="tag tp">Benefit 3</div><h3>Shift to Orchestrator Mode</h3>
+      <p style="font-size:.77rem">Standardized protocols eliminate low-leverage plumbing work. Every hour not spent on custom JSON parsers is an hour directing high-level intent. You become an Orchestrator defining goals, not a Conductor debugging serialization.</p>
+    </div>
+  </div>
+</div>
+
+
+<!-- S4 MCP BEST PRACTICES -->
+<div class="slide fi" id="s4">
+  <div class="eyebrow">MCP · Vibe Coder Toolkit</div>
+  <h2>MCP Best Practices: Do's, Don'ts & Pitfalls</h2>
+  <div class="split">
+    <div class="col">
+      <div style="font-size:.82rem;font-weight:800;color:#059669;margin-bottom:8px">✅ DO (Best Practices)</div>
+      <div class="card" style="border-left:4px solid #059669">
+        <div class="ci"><span class="ck" style="color:#059669">✅</span><span><strong>Audit public servers before connecting.</strong> Always review the source code of open-source MCP servers before attaching them to an agent with access to your local filesystem or credentials. Open-source ≠ safe.</span></div>
+        <div class="ci"><span class="ck" style="color:#059669">✅</span><span><strong>Use RAG for tools.</strong> Keep context clean. Dynamically load tool definitions only when needed — drop them when the task completes. Every schema token competes with reasoning tokens.</span></div>
+        <div class="ci"><span class="ck" style="color:#059669">✅</span><span><strong>Leverage internal API gateways & registries.</strong> Internal tools come with governance, approved schemas, and security reviews already applied. Don't reinvent what your org already governs.</span></div>
+        <div class="ci"><span class="ck" style="color:#059669">✅</span><span><strong>Include HITL (Human-in-the-Loop).</strong> Show tool inputs to the user before calling the MCP server. Prevents malicious or accidental data exfiltration — especially critical for write operations.</span></div>
+        <div class="ci"><span class="ck" style="color:#059669">✅</span><span><strong>Log tool usage.</strong> Every MCP tool call should be logged for audit purposes. Non-negotiable for enterprise deployments and compliance requirements.</span></div>
+        <div class="ci"><span class="ck" style="color:#059669">✅</span><span><strong>Use MCP Inspector for debugging.</strong> When an agent hallucinates tool arguments, inspect raw JSON-RPC 2.0 packets — don't blindly tweak the system prompt. Debug the pipe, not the prompt.</span></div>
+      </div>
+    </div>
+    <div class="col">
+      <div style="font-size:.82rem;font-weight:800;color:var(--danger);margin-bottom:8px">❌ DON'T (Common Pitfalls)</div>
+      <div class="card" style="border-left:4px solid var(--danger)">
+        <div class="ci"><span class="ck" style="color:var(--danger)">❌</span><span><strong>Don't build if you can consume.</strong> Resist the urge to write custom REST API wrappers. Always search for an existing MCP server first. The whole point is the "universal outlet" philosophy.</span></div>
+        <div class="ci"><span class="ck" style="color:var(--danger)">❌</span><span><strong>Don't use unverified public MCPs in production.</strong> Open-source MCP servers are great for weekend prototypes but carry security and reliability risks. Never tie core business logic to unvetted public endpoints.</span></div>
+        <div class="ci"><span class="ck" style="color:var(--danger)">❌</span><span><strong>Don't hardcode credentials.</strong> Never paste API keys or auth tokens directly into an agent's prompt or local scripts. Always use environment variables. This is non-negotiable.</span></div>
+        <div class="ci"><span class="ck" style="color:var(--danger)">❌</span><span><strong>Don't connect to production databases.</strong> Use dev environments with non-production or obfuscated data. LLMs are great at helping design and test apps — leverage them safely first.</span></div>
+        <div class="ci"><span class="ck" style="color:var(--danger)">❌</span><span><strong>Don't use it for writes when possible.</strong> If connecting to real data, set the MCP server to read-only mode. Execute all queries as read-only until you're fully confident in the agent's behavior.</span></div>
+        <div class="ci"><span class="ck" style="color:var(--danger)">❌</span><span><strong>Don't grant wide project access.</strong> Scope the MCP server to a specific project only — limiting access to only that project's resources. Principle of least privilege, always.</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S5 A2A EVOLUTION -->
+<div class="slide fi" id="s5">
+  <div class="eyebrow">A2A Protocol</div>
+  <h2>A2A: The Evolution of Agentic Architecture</h2>
+  <p style="font-size:.84rem;margin-bottom:14px">The trajectory of agentic architectures mirrors the most significant shift in software history: <strong>Monolith → Microservices</strong>. The same principles apply, the same ceilings get hit.</p>
+  <div class="g3" style="margin-bottom:14px">
+    <div class="card" style="border-top:3px solid var(--danger)">
+      <div class="tag tr">Stage 1 · The Monolith</div>
+      <h3>Swiss Army Knife Agent</h3>
+      <p style="font-size:.77rem">One massive prompt handles everything — DB queries, UI rendering, testing, billing. Fast to prototype on a weekend. Hits the "Monolithic Ceiling" fast:</p>
+      <div class="ci" style="margin-top:6px"><span style="color:var(--danger);font-size:.8rem">▸</span><span style="font-size:.75rem"><strong>Scaling friction:</strong> Can't optimize DB logic without confusing UI logic in the same prompt. More tools = worse decision-making. Search space too large → hallucinated parameters</span></div>
+      <div class="ci"><span style="color:var(--danger);font-size:.8rem">▸</span><span style="font-size:.75rem"><strong>Context overload:</strong> System instructions + dozens of tool schemas + conversation history = maxed out working memory</span></div>
+      <div class="ci"><span style="color:var(--danger);font-size:.8rem">▸</span><span style="font-size:.75rem"><strong>Single point of failure:</strong> One bad tool or instruction → entire agent hallucinates or crashes</span></div>
+    </div>
+    <div class="card" style="border-top:3px solid var(--warn)">
+      <div class="tag ta">Stage 2 · Internal Specialization</div>
+      <h3>Logical Sub-Agents (Still Monolith)</h3>
+      <p style="font-size:.77rem">Partitions a monolithic agent into focused sub-agents sharing the same runtime. No network boundaries. Lowers hallucinations via specialization:</p>
+      <div class="ci" style="margin-top:6px"><span style="color:var(--warn);font-size:.8rem">▸</span><span style="font-size:.75rem"><strong>Reduced search space:</strong> DB agent only has query tools → far fewer tool-call errors and hallucinations</span></div>
+      <div class="ci"><span style="color:var(--warn);font-size:.8rem">▸</span><span style="font-size:.75rem"><strong>Attention focus:</strong> Each LLM focuses on one domain → sharper, more reliable reasoning</span></div>
+      <div class="ci"><span style="color:var(--warn);font-size:.8rem">▸</span><span style="font-size:.75rem"><strong>High signal-to-noise:</strong> Orchestrator routes tasks → sub-agents maintain clean context windows</span></div>
+    </div>
+    <div class="card" style="border-top:3px solid #059669">
+      <div class="tag tg">Stage 3 · Distributed A2A</div>
+      <h3>True Micro-Agent Architecture</h3>
+      <p style="font-size:.77rem">Domain-specific agents deployed independently, communicating via A2A across network boundaries. Google, Salesforce, ServiceNow, Workday deploy their own A2A-capable agents:</p>
+      <div class="ci" style="margin-top:6px"><span style="color:#059669;font-size:.8rem">▸</span><span style="font-size:.75rem"><strong>Build vs. Buy:</strong> Use official specialist agents maintained by domain experts. Don't maintain Salesforce-specific prompt logic yourself — the integration tax is too high</span></div>
+      <div class="ci"><span style="color:#059669;font-size:.8rem">▸</span><span style="font-size:.75rem"><strong>A2A as HTTP for agents:</strong> Just as HTTP standardized the web, A2A standardizes the virtual workforce — language/framework agnostic</span></div>
+      <div class="ci"><span style="color:#059669;font-size:.8rem">▸</span><span style="font-size:.75rem"><strong>Global virtual workforce:</strong> A specialist built in one part of the world can be discovered and "hired" by an Orchestrator across the globe</span></div>
+    </div>
+  </div>
+  <div class="alert ab">
+    <strong>Key analogy:</strong> Tools are passive instruments. A specialist is a collaborative partner. When you hire that specialist, they hit edge cases and consult you — they don't accept one blueprint and disappear. A2A handles this multi-turn collaborative state cleanly. Standard tool APIs (fire-and-forget) cannot.
+  </div>
+</div>
+
+
+<!-- S6 A2A ARCHITECTURE -->
+<div class="slide fi" id="s6">
+  <div class="eyebrow">A2A Protocol · Architecture</div>
+  <h2>Bounded vs. Unbounded Domains · The GOTO Problem · Agent Cards</h2>
+  <div class="split" style="flex:1">
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--danger)">
+        <div class="tag tr">The GOTO Problem in Agentic Architecture</div>
+        <h3>Why agents can't be treated as simple tools</h3>
+        <p style="font-size:.77rem">A standard tool or API operates on a fire-and-forget mechanism. Real-world software environments contain the digital equivalent of crooked walls: ambiguous data structures, misleading requirements, conflicting user preferences.</p>
+        <p style="font-size:.77rem;margin-top:8px">Forcing an agent into a tool wrapper introduces the architectural equivalent of a GOTO statement: control flow leaves the expected, structured context. The agent might hit an interrupted state, request more information, and never return — if the user changes their mind mid-flow.</p>
+        <p style="font-size:.77rem;margin-top:8px">A2A provides a paradigm that isolates this messy, multi-turn state — allows the domain agent to pause, reach back out to the Orchestrator, negotiate, and resume without losing conversational state.</p>
+      </div>
+      <div class="alert ab">
+        <strong>"Does the caller need a result, or another participant to take responsibility?"</strong> — That's the cleanest framing for the tool-vs-agent decision. The smell test: if your central agent prompt is becoming an accidental workflow engine, you needed A2A semantics three months ago.
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--acc)">
+        <div class="tag tb">The Agent Card</div>
+        <h3>Standardized "CV" for the AI World</h3>
+        <p style="font-size:.77rem">Every agent publishes an Agent Card — a machine-readable identity that outlines:</p>
+        <div class="ci" style="margin-top:8px"><span style="color:var(--acc);font-size:.8rem">▸</span><span style="font-size:.76rem"><strong>Capabilities:</strong> What tasks the agent can perform and what inputs it expects</span></div>
+        <div class="ci"><span style="color:var(--acc);font-size:.8rem">▸</span><span style="font-size:.76rem"><strong>Security & Compliance:</strong> Data handling policies, permission requirements, trust level</span></div>
+        <div class="ci"><span style="color:var(--acc);font-size:.8rem">▸</span><span style="font-size:.76rem"><strong>Interaction Schemas:</strong> How other agents should communicate via the A2A protocol</span></div>
+      </div>
+      <div class="card" style="border-top:3px solid #7C3AED">
+        <div class="tag tp">Agent Registries</div>
+        <h3>Two Paths for Discovery</h3>
+        <div class="ci" style="margin-top:6px"><span style="color:#7C3AED;font-size:.8rem">🌍</span><span style="font-size:.76rem"><strong>Public Registries (Marketplaces):</strong> Global talent agency. Developers list specialist agents for the world to find. Build a specialist and license it to thousands of orchestrators globally. Agent-as-a-Service (AaaS) model.</span></div>
+        <div class="ci"><span style="color:#7C3AED;font-size:.8rem">🔐</span><span style="font-size:.76rem"><strong>Private Registries (Enterprise):</strong> Secure, governed environment. Internal teams build specialist agents and register them for cross-department use. Expertise shared without compromising security boundaries.</span></div>
+      </div>
+      <pre><span class="cm"># Direct endpoint integration</span>
+billing_agent = RemoteA2aAgent(
+  name=<span class="str">"billing_agent"</span>,
+  endpoint=<span class="str">"https://api.vendor.com/v1/billing/a2a"</span>
+)
+<span class="cm"># Or discover via registry</span>
+agent = registry.get_remote_a2a_agent(
+  agent_name=<span class="str">f"projects/{pid}/agents/AGENT_ID"</span>
+)</pre>
+    </div>
+  </div>
+</div>
+
+
+<!-- S7 A2UI ARCHITECTURE -->
+<div class="slide fi" id="s7">
+  <div class="eyebrow">A2UI · Agent-to-UI</div>
+  <h2>A2UI: Closing the Communication Gap Between Agents and Humans</h2>
+  <div class="split" style="flex:1">
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--danger)">
+        <div class="tag tr">The Problem</div>
+        <h3>Agents Return JSON. Humans Need Visuals.</h3>
+        <p style="font-size:.77rem">When you ask a colleague "How did Q4 perform by region?" they don't hand you a spreadsheet. They sketch a chart, circle standout regions, add context. This is how humans share insights.</p>
+        <p style="font-size:.77rem;margin-top:8px">Yet our agents return raw JSON. You then build the chart yourself: import libraries, configure axes, manage state. This context-switching breaks the vibe coding flow.</p>
+        <p style="font-size:.77rem;margin-top:8px"><strong>Running arbitrary LLM-generated UI code poses security risks:</strong> code injection, XSS attacks, uncontrolled side effects.</p>
+      </div>
+      <div class="card" style="border-top:3px solid #059669">
+        <div class="tag tg">The A2UI Solution</div>
+        <h3>Sheet Music, Not a Recording</h3>
+        <p style="font-size:.77rem">A2UI is a framework-agnostic standard for declaring UI intent. Think of it like sheet music: the same score plays on piano, orchestra, or synthesizer — each instrument interprets it natively.</p>
+        <p style="font-size:.77rem;margin-top:8px">The agent writes the intent (what to render, how it composes). Any renderer (React, Flutter, SwiftUI, Lit) performs it natively on the user's actual device.</p>
+        <p style="font-size:.77rem;margin-top:8px"><strong>Security model:</strong> Agents can't inject executable code. They can only request components from a trusted catalog. The catalog defines what's available — agents arrange them. Like LEGO blocks where the blocks are your design system components.</p>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--acc)">
+        <div class="tag tb">A2UI v0.9 Message Format</div>
+        <pre style="font-size:.68rem">{
+  <span class="str">"version"</span>: <span class="str">"v0.9"</span>,
+  <span class="str">"updateComponents"</span>: {
+    <span class="str">"surfaceId"</span>: <span class="str">"main"</span>,
+    <span class="str">"components"</span>: [
+      {<span class="str">"id"</span>: <span class="str">"root"</span>, <span class="str">"component"</span>: <span class="str">"Column"</span>,
+       <span class="str">"children"</span>: [<span class="str">"title"</span>, <span class="str">"summary"</span>, <span class="str">"export"</span>]},
+      {<span class="str">"id"</span>: <span class="str">"title"</span>, <span class="str">"component"</span>: <span class="str">"Text"</span>,
+       <span class="str">"text"</span>: <span class="str">"Q4 Sales"</span>, <span class="str">"variant"</span>: <span class="str">"h1"</span>},
+      {<span class="str">"id"</span>: <span class="str">"summary"</span>, <span class="str">"component"</span>: <span class="str">"Text"</span>,
+       <span class="str">"text"</span>: <span class="str">"Revenue grew 12% QoQ"</span>},
+      {<span class="str">"id"</span>: <span class="str">"export"</span>, <span class="str">"component"</span>: <span class="str">"Button"</span>,
+       <span class="str">"action"</span>: {<span class="str">"event"</span>: {<span class="str">"name"</span>: <span class="str">"export_csv"</span>}}}
+    ]
+  }
+}</pre>
+        <p style="font-size:.72rem;color:#6B7280;margin-top:6px">Flat adjacency list referenced by ID. LLM generates incrementally. Client updates without full re-render. No React code required in the message.</p>
+      </div>
+      <div class="card">
+        <div class="tag tb">Basic Catalog (18 Components)</div>
+        <table style="font-size:.72rem">
+          <thead><tr><th>Category</th><th>Components</th></tr></thead>
+          <tbody>
+            <tr><td>Layout</td><td>Row, Column, List</td></tr>
+            <tr><td>Display</td><td>Text, Image, Icon, Divider</td></tr>
+            <tr><td>Containers</td><td>Card, Modal, Tabs</td></tr>
+            <tr><td>Interactive</td><td>Button, TextField, CheckBox, Slider, DateTimeInput, ChoicePicker</td></tr>
+          </tbody>
+        </table>
+        <p style="font-size:.71rem;color:#6B7280;margin-top:6px">Production frontends should bring their own catalog — map existing design-system components to A2UI types. The agent doesn't change; only the renderer's catalog mapping changes.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S8 A2UI TWO PATTERNS -->
+<div class="slide fi" id="s8">
+  <div class="eyebrow">A2UI · Implementation Patterns</div>
+  <h2>Two Patterns for Generating A2UI · Canvas Integration</h2>
+  <div class="g2" style="margin-bottom:14px">
+    <div class="card" style="border-top:3px solid var(--acc)">
+      <div class="tag tb">Pattern 1: LLM Generates the UI</div>
+      <h3>LLM Owns the Layout Decision</h3>
+      <p style="font-size:.78rem">The model emits A2UI directly. It adapts the interface to user intent — the same agent handles "compare these regions" and "show me trends" with different interfaces each time. Use the official <code>a2ui-agent-sdk</code>: the <code>A2uiSchemaManager</code> builds a system prompt embedding the catalog schema and worked examples automatically.</p>
+      <div class="alert ab" style="margin-top:10px"><strong>Best for:</strong> Intent-driven queries where the user's need shapes the layout. Example: "Compare Q4 sales by region" → agent decides what chart type, what filters to show.</div>
+    </div>
+    <div class="card" style="border-top:3px solid #059669">
+      <div class="tag tg">Pattern 2: Tool Returns Fixed A2UI</div>
+      <h3>Deterministic Template (No LLM Tokens Spent on UI)</h3>
+      <p style="font-size:.78rem">A tool call returns a fixed A2UI structure. One tool call, fully predictable output. Best when the layout is deterministic from inputs: every region's dashboard looks the same, every booking form has the same fields. The tool acts as a server-side template. The <code>A2uiPartConverter</code> intercepts the tool's response and routes it to the client as an A2UI part.</p>
+      <div class="alert ag" style="margin-top:10px"><strong>Best for:</strong> Structured queries where the layout is always the same. Example: "Show me my dashboard" → always the same layout, only the data changes.</div>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="tag ta">When to Use Each Pattern</div>
+      <table>
+        <thead><tr><th>Query</th><th>Return</th></tr></thead>
+        <tbody>
+          <tr><td>"What's the average?"</td><td>Data (text) — no UI needed</td></tr>
+          <tr><td>"Compare these regions"</td><td>UI generated by LLM (Pattern 1)</td></tr>
+          <tr><td>"Show me my dashboard"</td><td>UI built by tool (Pattern 2)</td></tr>
+          <tr><td>API-to-API call</td><td>Data (JSON) — no UI</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card">
+      <div class="tag tb">Canvas + A2UI: Interactive Artifacts</div>
+      <h3>Traditional chat is linear and static</h3>
+      <p style="font-size:.77rem">Canvas creates a persistent workspace where both agent and user can edit simultaneously. Instead of scrolling through chat history, you have a living document. The agent modifies sections. You edit manually. Both changes reflected in real-time.</p>
+      <p style="font-size:.77rem;margin-top:6px">The UI isn't just rendered — it's a <strong>communication medium</strong>. The agent observes your interactions and responds accordingly. Combining canvas persistence with A2UI interactivity creates genuinely useful co-creation workflows.</p>
+      <div class="alert ab" style="margin-top:8px"><strong>Hybrid output tip:</strong> Return both <code>"data"</code> and <code>"ui"</code> fields. API clients use data, human-facing clients render the A2UI message.</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S9 AP2 + UCP -->
+<div class="slide fi" id="s9">
+  <div class="eyebrow">AP2 & UCP · Agent Commerce</div>
+  <h2>AP2 + UCP: Enabling Autonomous Agent Commerce</h2>
+  <div class="q" style="border-color:var(--warn);background:var(--warnl)">
+    <p class="qt">Imagine you're starving at 2:00 AM. Too busy studying to stop, so you deploy your AI Smart Assistant to get food. Here's how UCP and AP2 split the workload to get that burrito to your dorm lobby.</p>
+    <p class="qa">— Day 2 whitepaper analogy, Google, May 2026</p>
+  </div>
+  <div class="split" style="flex:1">
+    <div class="col">
+      <div class="card" style="border-top:3px solid #059669">
+        <div class="tag tg">UCP · Universal Commerce Protocol</div>
+        <h3>"The Ultimate Food Delivery App"</h3>
+        <p style="font-size:.78rem">UCP is the <strong>universal translator between agents and merchants</strong>. Every merchant publishes their catalog in a standard machine language. Your AI uses UCP to:</p>
+        <div class="ci" style="margin-top:8px"><span style="color:#059669">▸</span><span style="font-size:.77rem">Ask "Are you still open? Do you have vegetarian options?" — real-time availability check</span></div>
+        <div class="ci"><span style="color:#059669">▸</span><span style="font-size:.77rem">Build an order: "One chicken burrito, no onions, add sour cream, side of chips"</span></div>
+        <div class="ci"><span style="color:#059669">▸</span><span style="font-size:.77rem">Receive back: tax, delivery fee, expected arrival time — all in standard format</span></div>
+        <div class="ci"><span style="color:#059669">▸</span><span style="font-size:.77rem">Compare across multiple merchants and select best option autonomously</span></div>
+        <p style="font-size:.76rem;color:#6B7280;margin-top:8px">Before UCP: discovery and info possible, but interactions with each provider had to be orchestrated individually via custom code. UCP standardizes the interaction so non-humans can transact with each other seamlessly.</p>
+      </div>
+      <div class="card">
+        <div class="tag tg">Key UCP Properties</div>
+        <div class="ci"><span style="color:#059669">✅</span><span style="font-size:.77rem">Typed schemas for catalog, orders, availability</span></div>
+        <div class="ci"><span style="color:#059669">✅</span><span style="font-size:.77rem">Open source and vendor-neutral</span></div>
+        <div class="ci"><span style="color:#059669">✅</span><span style="font-size:.77rem">Unified integration — one implementation, every provider</span></div>
+        <div class="ci"><span style="color:#059669">✅</span><span style="font-size:.77rem">Extensible architecture for custom commerce scenarios</span></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--warn)">
+        <div class="tag ta">AP2 · Agent Payments Protocol</div>
+        <h3>"The Parent's Credit Card with Strict Rules"</h3>
+        <p style="font-size:.78rem">AP2 is the open, shared protocol for <strong>secure, compliant transactions between agents and merchants</strong>. Your AI pays for things within rules you set:</p>
+        <div class="ci" style="margin-top:8px"><span style="color:var(--warn)">🛡</span><span style="font-size:.77rem"><strong>The Mandate (Guardrails):</strong> You pre-approve a digital rule: "You can spend up to $25 at Taco Bell" — scoped spending authority</span></div>
+        <div class="ci"><span style="color:var(--warn)">🤝</span><span style="font-size:.77rem"><strong>The Handshake:</strong> Agent shows encrypted "promissory note" signed by you. Restaurant's bank verifies the digital signature — no raw card numbers ever transmitted</span></div>
+        <div class="ci"><span style="color:var(--warn)">🚫</span><span style="font-size:.77rem"><strong>No hidden fees:</strong> If merchant tries to charge $50 instead of $18.50, AP2 blocks it instantly — violates the signed authorization</span></div>
+        <div class="ci"><span style="color:var(--warn)">📋</span><span style="font-size:.77rem"><strong>Full auditability:</strong> Every transaction cryptographically attributable to the specific agent and the human who authorized it</span></div>
+      </div>
+      <div class="card">
+        <div class="tag ta">UCP vs AP2 — Clean Separation</div>
+        <table>
+          <thead><tr><th>UCP</th><th>AP2</th></tr></thead>
+          <tbody>
+            <tr><td>Decides what to buy</td><td>Handles how to pay</td></tr>
+            <tr><td>Menu, catalog, order building</td><td>Authorization, wallet, payment</td></tr>
+            <tr><td>Integrates with any merchant</td><td>Integrates with payment processors</td></tr>
+            <tr><td>Shared commerce language</td><td>Authenticity of intent + accountability</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S10 AGENT-AS-A-SERVICE -->
+<div class="slide fi" id="s10">
+  <div class="eyebrow">A2A · Monetization</div>
+  <h2>Agent-as-a-Service (AaaS): The New Software Business Model</h2>
+  <div class="split" style="flex:1">
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--acc)">
+        <div class="tag tb">The Business Model Shift</div>
+        <h3>From SaaS → AaaS</h3>
+        <p style="font-size:.78rem">Following the success of Software-as-a-Service, the A2A protocol naturally enables <strong>Agent-as-a-Service</strong>. Specialized agents offered in consumption-based models through various sales channels.</p>
+        <p style="font-size:.78rem;margin-top:8px">In the A2A era, a developer can build a specialist agent for "Real-time Regulatory Compliance" — whether as a monolith or distributed app — and expose it as an A2A-compliant service that orchestrators globally can discover and hire.</p>
+      </div>
+      <div class="card" style="border-top:3px solid #7C3AED">
+        <div class="tag tp">Google Cloud Marketplace</div>
+        <h3>The Distribution Engine</h3>
+        <p style="font-size:.78rem">Independent agent vendors can list their A2A agents on the marketplace to leverage the existing base of Google Cloud enterprise customers. Customers procure specialists while using their existing GCP financial commitments.</p>
+        <p style="font-size:.78rem;margin-top:8px">The marketplace handles complex billing natively: hybrid pricing ("flat fee + usage") — predictable base fee plus compute/token-based overages. Agents registered become directly accessible to Gemini Enterprise app users across the entire organization.</p>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="border-top:3px solid #059669">
+        <div class="tag tg">x402 / L402 Micropayments</div>
+        <h3>Machine-to-Machine Transactions</h3>
+        <p style="font-size:.78rem">For developers who want to avoid managing user accounts, A2A supports permissionless, machine-to-machine microtransactions via the x402 standard:</p>
+        <div class="ci" style="margin-top:8px"><span style="color:#059669">1.</span><span style="font-size:.77rem">Server intercepts request and if "unpaid" returns HTTP 402 Payment Required + machine-readable invoice</span></div>
+        <div class="ci"><span style="color:#059669">2.</span><span style="font-size:.77rem">Calling agent executes payment autonomously</span></div>
+        <div class="ci"><span style="color:#059669">3.</span><span style="font-size:.77rem">Agent retries request with cryptographic proof-of-payment token</span></div>
+        <p style="font-size:.76rem;color:#6B7280;margin-top:8px">Provides standardized pay-per-call endpoints with completely stateless, automated billing. No human involved in the transaction.</p>
+      </div>
+      <div class="alert ab">
+        <strong>Strategic opportunity:</strong> The developer who builds the best "Real-time Regulatory Compliance" agent and lists it on A2A registries becomes the de-facto global provider for that domain — without needing to build enterprise sales, billing infrastructure, or distribution channels. The protocol handles all of that.
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S11 PUTTING IT ALL TOGETHER -->
+<div class="slide fi" id="s11">
+  <div class="eyebrow">Synthesis</div>
+  <h2>Building a Virtual Data & Execution Team in an Afternoon</h2>
+  <p style="font-size:.84rem;margin-bottom:14px">This paper's core promise: using these protocols, a vibe coder can construct a virtual team in <strong>a single afternoon</strong> — without writing bespoke wrappers for any of it.</p>
+  <div class="g3" style="flex:1">
+    <div class="card" style="border-top:3px solid var(--acc)">
+      <div style="font-size:1.5rem;margin-bottom:8px">🔌</div>
+      <div class="tag tb">MCP Layer</div>
+      <h3>Tools (Data & Execution)</h3>
+      <p style="font-size:.76rem">Connect your agent to BigQuery, GitHub, Google Drive, Jira, Salesforce — in minutes using pre-built MCP servers. No custom REST wrappers. No token refresh logic. No JSON parsers. The agent's harness gets plug-and-play superpowers instantly.</p>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:.68rem;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:6px;padding:8px;margin-top:8px;color:var(--acc)">Tools: BigQuery + GitHub + Drive<br>Transport: SSE (remote) or stdio (local)<br>Auth: .env file, never in prompt</div>
+    </div>
+    <div class="card" style="border-top:3px solid #7C3AED">
+      <div style="font-size:1.5rem;margin-bottom:8px">🤝</div>
+      <div class="tag tp">A2A Layer</div>
+      <h3>Specialists (Domain Agents)</h3>
+      <p style="font-size:.76rem">Connect to domain specialist agents — Salesforce billing agent, Workday HR agent, a regulatory compliance agent — via A2A without knowing how each was built. Agent Cards tell your orchestrator what they can do and how to talk to them.</p>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:.68rem;background:#F5F3FF;border:1px solid #DDD6FE;border-radius:6px;padding:8px;margin-top:8px;color:#7C3AED">billing = RemoteA2aAgent(endpoint=...)<br>hr = registry.get_agent("hr_agent")<br>orchestrator delegates to specialists</div>
+    </div>
+    <div class="card" style="border-top:3px solid #059669">
+      <div style="font-size:1.5rem;margin-bottom:8px">🖥</div>
+      <div class="tag tg">A2UI Layer</div>
+      <h3>Interface (Generative Surfaces)</h3>
+      <p style="font-size:.76rem">Agent returns interactive UI alongside data — no frontend code. Human operators see charts, tables, forms instead of JSON blobs. They interact with the output and the agent observes those interactions and responds accordingly.</p>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:.68rem;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:6px;padding:8px;margin-top:8px;color:#059669">A2uiSchemaManager builds system prompt<br>Agent emits &lt;a2ui-json&gt; blocks<br>Renderer: React/Flutter/SwiftUI/Lit</div>
+    </div>
+    <div class="card" style="border-top:3px solid var(--warn)">
+      <div style="font-size:1.5rem;margin-bottom:8px">💳</div>
+      <div class="tag ta">AP2 + UCP Layer</div>
+      <h3>Commerce (Autonomous Transactions)</h3>
+      <p style="font-size:.76rem">When the agent needs to transact — purchase cloud resources, order supplies, pay for API calls — AP2 and UCP handle it within pre-authorized policy rules. No raw credentials. Full audit trail. Human approved the mandate; agent executes within it.</p>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:.68rem;background:#FFFBEB;border:1px solid #FDE68A;border-radius:6px;padding:8px;margin-top:8px;color:#D97706">Mandate: "max $500/month on cloud"<br>UCP: catalog + order building<br>AP2: encrypted payment execution</div>
+    </div>
+    <div class="card" style="border-top:3px solid #1A2040">
+      <div style="font-size:1.5rem;margin-bottom:8px">⚡</div>
+      <div class="tag" style="background:#F8F9FC;color:#8693AE;border-color:#E2E6F0">Foundation</div>
+      <h3>OpenResponses + Interactions API</h3>
+      <p style="font-size:.76rem">The power plug layer: modern API approaches supporting long-running tasks. Blurs the line between a stateless single turn and a stateful agent. The bridge that makes all other protocols viable in production.</p>
+    </div>
+    <div class="card" style="background:var(--acl);border-color:var(--acb)">
+      <div style="font-size:1.5rem;margin-bottom:8px">🏭</div>
+      <div class="tag tb">The Result</div>
+      <h3 style="color:var(--acc)">Modular, Plug-and-Play Platform</h3>
+      <p style="font-size:.76rem">By adopting these standardized layers, organizations eliminate crushing technical debt from bespoke integrations. Developers become architects of a global, autonomous workforce — not mechanics wiring fragile APIs. As standards mature, entirely new economies of scale unlock.</p>
+    </div>
+  </div>
+</div>
+
+
+<!-- S12 SUMMARY -->
+<div class="slide fi" id="s12">
+  <div class="eyebrow">Day 2 · Summary</div>
+  <h2>Key Takeaways: The Protocol Stack</h2>
+  <div class="g2" style="flex:1">
+    <div class="col">
+      <div class="card" style="border-left:4px solid var(--acc)">
+        <div class="tag tb">MCP</div>
+        <h3>The Foundation: Solving O(N×M)</h3>
+        <div class="ci"><span>🔌</span><span style="font-size:.78rem">Discover: public registries → official 3P → internal registries</span></div>
+        <div class="ci"><span>⚙️</span><span style="font-size:.78rem">Configure: env files for creds, scope/permissions, never hardcode</span></div>
+        <div class="ci"><span>🔗</span><span style="font-size:.78rem">Connect: stdio (local) or SSE over HTTP (remote). Verify with handshake</span></div>
+        <div class="ci"><span>🐛</span><span style="font-size:.78rem">Debug: MCP Inspector for raw JSON-RPC packets, not system prompt tweaks</span></div>
+        <div class="ci"><span>🛡</span><span style="font-size:.78rem">Don't: hardcode creds, use unvetted MCPs in production, connect to prod DB</span></div>
+      </div>
+      <div class="card" style="border-left:4px solid #7C3AED">
+        <div class="tag tp">A2A</div>
+        <h3>Specialization as Scaling Mechanism</h3>
+        <div class="ci"><span>📊</span><span style="font-size:.78rem">Evolution: Monolith → Internal sub-agents → Distributed micro-agents (mirrors Monolith→Microservices)</span></div>
+        <div class="ci"><span>🪪</span><span style="font-size:.78rem">Agent Card: machine-readable CV with capabilities, security, interaction schemas</span></div>
+        <div class="ci"><span>🌍</span><span style="font-size:.78rem">Registries: public marketplaces (AaaS) + private enterprise (internal governance)</span></div>
+        <div class="ci"><span>🔄</span><span style="font-size:.78rem">A2A fills the GOTO problem: multi-turn collaborative state that tools can't handle</span></div>
+        <div class="ci"><span>💼</span><span style="font-size:.78rem">Build vs. Buy: use official specialist agents rather than maintaining domain-specific prompts yourself</span></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="border-left:4px solid #059669">
+        <div class="tag tg">A2UI</div>
+        <h3>From JSON Blobs to Interactive Interfaces</h3>
+        <div class="ci"><span>🎼</span><span style="font-size:.78rem">Sheet music model: agent declares intent, renderer performs natively on any framework</span></div>
+        <div class="ci"><span>🛡</span><span style="font-size:.78rem">Security: agents can't inject executable code — only request from trusted catalog</span></div>
+        <div class="ci"><span>📐</span><span style="font-size:.78rem">Two patterns: LLM-generated (intent-driven) vs tool-as-template (deterministic)</span></div>
+        <div class="ci"><span>🎨</span><span style="font-size:.78rem">Canvas + A2UI = persistent, co-editable workspace between human and agent</span></div>
+        <div class="ci"><span>🔀</span><span style="font-size:.78rem">Hybrid output: return both data + UI — API clients ignore UI, human clients render it</span></div>
+      </div>
+      <div class="card" style="border-left:4px solid var(--warn)">
+        <div class="tag ta">AP2 + UCP</div>
+        <h3>Agent Commerce: Transact Within Policy</h3>
+        <div class="ci"><span>🛒</span><span style="font-size:.78rem">UCP: universal translator (catalog, ordering, availability). What to buy.</span></div>
+        <div class="ci"><span>💳</span><span style="font-size:.78rem">AP2: secure wallet (encryption, authorization, guardrails). How to pay safely.</span></div>
+        <div class="ci"><span>📋</span><span style="font-size:.78rem">AaaS: specialist agents become globally discoverable, licensable, monetizable services</span></div>
+        <div class="ci"><span>💰</span><span style="font-size:.78rem">x402 micropayments: fully machine-to-machine pay-per-call without account management</span></div>
+      </div>
+      <div class="alert ab">
+        <strong>The North Star:</strong> Without protocols, you're a plumber building custom pipes. With MCP + A2A + A2UI + AP2/UCP, you're an <strong>architect</strong> where standard connectors let components self-assemble. This is the shift from Conductor to Orchestrator.
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /deck -->
+
+<div class="nav">
+  <div class="nb" onclick="go(-1)">←</div>
+  <div class="nb" onclick="go(1)">→</div>
+  <span class="nc" id="ct">1 / 13</span>
+  <div class="ndw" id="dts"></div>
+  <span class="nt" id="nt">COVER</span>
+</div>
+
+<script>
+const TITLES=['COVER','PROTOCOL ECOSYSTEM','MCP: DISCOVERY→CONFIG→CONNECT','NxM PROBLEM SOLVED','MCP BEST PRACTICES','A2A: EVOLUTION','A2A: ARCHITECTURE','A2UI: ARCHITECTURE','A2UI: TWO PATTERNS','AP2 + UCP COMMERCE','AGENT-AS-A-SERVICE','PUTTING IT TOGETHER','DAY 2 SUMMARY'];
+const slides=document.querySelectorAll('.slide');
+const dts=document.getElementById('dts');
+let cur=0;
+slides.forEach((_,i)=>{const d=document.createElement('div');d.className='nd'+(i===0?' on':'');d.onclick=()=>goTo(i);dts.appendChild(d);});
+function goTo(n){slides[cur].classList.remove('active','fi');slides[cur].style.display='none';cur=Math.max(0,Math.min(n,slides.length-1));slides[cur].style.display='flex';requestAnimationFrame(()=>slides[cur].classList.add('active','fi'));document.querySelectorAll('.nd').forEach((d,i)=>d.classList.toggle('on',i===cur));document.getElementById('ct').textContent=`${cur+1} / ${slides.length}`;document.getElementById('nt').textContent=TITLES[cur]||'';}
+function go(d){goTo(cur+d);}
+document.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key===' ')go(1);if(e.key==='ArrowLeft')go(-1);});
+slides.forEach((s,i)=>{if(i!==0)s.style.display='none';});
+</script>
+</body>
+</html>

@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Day 3 · Agent Skills</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{--acc:#7C3AED;--acl:#F5F3FF;--acb:#DDD6FE;--g:#059669;--gl:#ECFDF5;--gb:#A7F3D0;--b:#2563EB;--bl:#EFF6FF;--bb:#BFDBFE;--warn:#D97706;--warnl:#FFFBEB;--warnb:#FDE68A;--danger:#DC2626;--dangerl:#FEF2F2;--dangerb:#FECACA;}
+html,body{width:100%;height:100%;font-family:'Inter',sans-serif;overflow:hidden;background:#fff;color:#1A2040;}
+.deck{width:100%;height:100%;position:relative;}
+.slide{position:absolute;inset:0;display:none;flex-direction:column;padding:40px 66px 50px;overflow:hidden;background:#fff;}
+.slide.active{display:flex;}.slide.fi{animation:fi .28s ease forwards;}
+@keyframes fi{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+.eyebrow{font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--acc);margin-bottom:12px;}
+h1{font-size:clamp(1.9rem,3.4vw,2.7rem);font-weight:900;letter-spacing:-.025em;line-height:1.06;color:#1A2040;}
+h2{font-size:clamp(1.2rem,2.1vw,1.72rem);font-weight:800;letter-spacing:-.02em;color:#1A2040;margin-bottom:18px;}
+h3{font-size:.89rem;font-weight:700;color:#1A2040;margin-bottom:5px;}
+p,li{font-size:.85rem;line-height:1.72;color:#4B5563;}
+strong{color:#1A2040;font-weight:700;}
+code{font-family:'JetBrains Mono',monospace;font-size:.74rem;background:var(--acl);padding:1px 5px;border-radius:3px;border:1px solid var(--acb);color:var(--acc);}
+pre{font-family:'JetBrains Mono',monospace;font-size:.7rem;background:#F8F9FC;border:1px solid #E2E6F0;border-radius:9px;padding:12px 14px;line-height:1.7;overflow:hidden;color:#374151;}
+.kw{color:var(--b);font-weight:600;}.cm{color:#9CA3AF;font-style:italic;}.str{color:var(--g);}
+.div{width:100%;height:1px;background:#E2E6F0;margin:12px 0;}
+.card{background:#F8F9FC;border:1px solid #E2E6F0;border-radius:11px;padding:14px 16px;box-shadow:0 1px 3px rgba(26,32,64,.04);}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:11px;}
+.g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:17px;flex:1;}
+.col{display:flex;flex-direction:column;gap:10px;}
+.tag{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:2px 7px;border-radius:4px;border:1px solid;margin-bottom:7px;}
+.tp{background:var(--acl);color:var(--acc);border-color:var(--acb);}
+.tg{background:var(--gl);color:var(--g);border-color:var(--gb);}
+.tb{background:var(--bl);color:var(--b);border-color:var(--bb);}
+.ta{background:var(--warnl);color:var(--warn);border-color:var(--warnb);}
+.tr{background:var(--dangerl);color:var(--danger);border-color:var(--dangerb);}
+.alert{border-radius:9px;padding:11px 14px;border:1px solid;font-size:.79rem;line-height:1.55;}
+.ap{background:var(--acl);border-color:var(--acb);color:var(--acc);}
+.ag{background:var(--gl);border-color:var(--gb);color:var(--g);}
+.ab{background:var(--bl);border-color:var(--bb);color:var(--b);}
+.aa{background:var(--warnl);border-color:var(--warnb);color:var(--warn);}
+.ar{background:var(--dangerl);border-color:var(--dangerb);color:var(--danger);}
+.q{border-left:3px solid var(--acc);padding:13px 18px;background:var(--acl);border-radius:0 9px 9px 0;margin-bottom:12px;}
+.qt{font-size:.95rem;font-style:italic;line-height:1.65;color:#1A2040;}
+.qa{font-family:'JetBrains Mono',monospace;font-size:10px;color:#8693AE;margin-top:8px;}
+.ci{display:flex;align-items:flex-start;gap:8px;font-size:.8rem;color:#4B5563;line-height:1.55;margin-bottom:5px;}
+.ck{flex-shrink:0;margin-top:1px;}
+/* SKILL TREE */
+.stree{font-family:'JetBrains Mono',monospace;font-size:.72rem;background:#F8F9FC;border:1px solid #E2E6F0;border-radius:9px;padding:13px 15px;line-height:1.95;color:#374151;}
+.sh{color:var(--acc);font-weight:700;}.sr{color:var(--g);font-weight:700;}.sc{color:#9CA3AF;}
+/* DISC LEVELS */
+.dl{border-radius:8px;padding:11px 14px;border:1px solid;margin-bottom:8px;}
+/* SKILL TEMPLATE */
+.tmpl{font-family:'JetBrains Mono',monospace;font-size:.7rem;background:#F8F9FC;border:1px solid var(--acb);border-radius:9px;padding:13px;line-height:1.8;color:#374151;overflow:hidden;}
+.tm-key{color:var(--acc);font-weight:600;}.tm-val{color:var(--g);}.tm-sec{color:var(--b);font-weight:600;}.tm-cm{color:#9CA3AF;}
+/* TABLE */
+table{width:100%;border-collapse:collapse;font-size:.77rem;}
+thead th{text-align:left;padding:7px 10px;font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.1em;color:#8693AE;font-weight:600;border-bottom:2px solid #E2E6F0;}
+td{padding:7px 10px;border-bottom:1px solid #E2E6F0;color:#4B5563;vertical-align:top;}
+td:first-child{font-weight:600;color:#1A2040;}
+/* EVAL FAIL */
+.ef{border-radius:9px;padding:12px 14px;border:1px solid;}
+/* NAV */
+.nav{position:fixed;bottom:0;left:0;right:0;height:46px;background:rgba(255,255,255,.93);border-top:1px solid #E2E6F0;display:flex;align-items:center;padding:0 24px;gap:11px;backdrop-filter:blur(8px);z-index:100;box-shadow:0 -1px 10px rgba(26,32,64,.05);}
+.nb{background:#F8F9FC;border:1px solid #E2E6F0;color:#8693AE;border-radius:6px;width:30px;height:27px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:.8rem;transition:all .15s;font-family:'JetBrains Mono',monospace;user-select:none;}
+.nb:hover{border-color:var(--acc);color:var(--acc);background:var(--acl);}
+.nc{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#8693AE;}
+.ndw{display:flex;gap:5px;margin-left:4px;}
+.nd{width:5px;height:5px;border-radius:50%;background:#CDD2E8;cursor:pointer;transition:all .2s;}
+.nd.on{background:var(--acc);transform:scale(1.35);}
+.nt{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#8693AE;letter-spacing:.1em;margin-left:auto;}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+
+<!-- S0 COVER -->
+<div class="slide active fi" id="s0" style="background:linear-gradient(135deg,#fff 0%,#F5F3FF 60%,#EFF6FF 100%);justify-content:center;gap:22px">
+  <div class="eyebrow">Google Vibe Coding Course · Day 3 · May 2026</div>
+  <h1>Agent <span style="background:linear-gradient(135deg,#7C3AED,#2563EB);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">Skills</span></h1>
+  <p style="font-size:1rem;color:#6B7280;max-width:560px;line-height:1.65">How a folder with a markdown file is reshaping AI agent development — from context rot to procedural memory, from multi-agent overload to on-demand specialization.</p>
+  <p style="font-size:.8rem;color:#9CA3AF">Authors: Tanvi Singhal, Gabriela Hernandez Larios, Debanshu Dus, Lavi Nigam, Smitha Kolan</p>
+  <div class="div"></div>
+  <div class="q" style="max-width:640px;margin-bottom:0">
+    <p class="qt">Agent Skills turn any general-purpose agent into a specialist on demand. No context bloat. Portable and lightweight.</p>
+    <p class="qa">— Day 3 whitepaper opening</p>
+  </div>
+  <p style="font-size:.72rem;color:#9CA3AF">14 slides · ← → keys or nav buttons</p>
+</div>
+
+
+<!-- S1 WHAT ARE SKILLS + 4 FRICTION POINTS -->
+<div class="slide fi" id="s1">
+  <div class="eyebrow">Introduction</div>
+  <h2>What Are Agent Skills? The 4 Friction Points They Solve</h2>
+  <p style="font-size:.84rem;margin-bottom:14px">An Agent Skill is a folder containing a <code>SKILL.md</code> file with optional <code>scripts/</code>, <code>references/</code>, and <code>assets/</code> directories. By early 2026, public skill marketplaces crossed <strong>40,000+ listings</strong> with tens of thousands published in January alone. Why the explosion?</p>
+  <div class="g2" style="flex:1">
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--danger)">
+        <div class="tag tr">Problem 1 · Context Rot</div>
+        <h3>Too Many Instructions = Worse Results</h3>
+        <p style="font-size:.78rem">Dumping every instruction into a single system prompt inevitably degrades LLM performance — a problem known as <strong>context rot</strong>. Researchers at Chroma (2025) found that across 18 frontier models (Claude 4, Gemini 2.5, Qwen3), performance degrades as input grows, even when task difficulty is held constant.</p>
+        <p style="font-size:.77rem;margin-top:6px">Skills solve this by loading <strong>exclusively on demand</strong>. Metadata always. Body only when triggered. Resources only when needed. An agent with 50 skills pays the token cost of only the one it's currently using.</p>
+        <div class="alert ar" style="margin-top:8px;font-size:.74rem">Anthropic published examples where converting workflows to skills cut active context from ~150,000 tokens to ~2,000 — a 98%+ reduction.</div>
+      </div>
+      <div class="card" style="border-top:3px solid var(--b)">
+        <div class="tag tb">Problem 2 · No Procedural Memory</div>
+        <h3>LLMs Know What & When, But Not How</h3>
+        <p style="font-size:.78rem">LLMs have episodic memory (what happened) and semantic memory (facts). What they've lacked is <strong>procedural memory</strong> — how to execute tasks step by step.</p>
+        <p style="font-size:.77rem;margin-top:6px">Agent Skills are the first credible procedural memory primitive for LLM agents. They encode the "how" in a versioned, testable, retrievable form. The agent never starts from scratch on a workflow it's done before.</p>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--warn)">
+        <div class="tag ta">Problem 3 · Multi-Agent Overload</div>
+        <h3>Skills Simplify Architectures</h3>
+        <p style="font-size:.78rem">The ecosystem was flooded with complex multi-agent systems notoriously hard to build and maintain. Skills allow a single general-purpose agent to seamlessly flex into many specialist roles — without separate agents for each domain.</p>
+        <p style="font-size:.77rem;margin-top:6px">Instead of a router dispatching to a fleet of sub-agents, you have one agent with a library of skills. Skills can run commands, call MCP servers, and bundle Python scripts. You maintain skills, not agents. The operational surface shrinks dramatically.</p>
+        <div class="alert aa" style="margin-top:8px;font-size:.74rem"><strong>Important:</strong> Skills do NOT kill multi-agent architectures. Multi-agent remains correct when you have genuine parallelism, capability boundaries, adversarial setups, or heterogeneous models. Skills fill the missing primitive for the middle ground.</div>
+      </div>
+      <div class="card" style="border-top:3px solid var(--acc)">
+        <div class="tag tp">Problem 4 · Portability Gap</div>
+        <h3>A Folder is Perfectly Portable</h3>
+        <p style="font-size:.78rem">A folder with a markdown file is a remarkably lightweight primitive. Any agent with filesystem access can use them — perfectly portable across a multi-vendor AI landscape.</p>
+        <p style="font-size:.77rem;margin-top:6px">Claude Code, Gemini CLI, Antigravity, Cursor, GitHub Copilot, Codex CLI — they all support the same Skills standard (agentskills.io). Build once, run anywhere.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S2 SKILL ANATOMY -->
+<div class="slide fi" id="s2">
+  <div class="eyebrow">Anatomy</div>
+  <h2>Skill Anatomy: SKILL.md + Progressive Disclosure</h2>
+  <div class="split" style="flex:1">
+    <div class="col">
+      <div class="tag tp">Canonical Structure (agentskills.io open standard)</div>
+      <div class="stree">
+<span class="sh">cafe-preparation/</span>
+├── <span class="sr">SKILL.md</span>              <span class="sc"># REQUIRED: metadata + instructions</span>
+├── <span class="kw">scripts/</span>
+│   ├── calc_quantities.py   <span class="sc"># Optional: executable code (any lang)</span>
+│   └── convert_to_ingredients.py
+├── <span class="kw">references/</span>
+│   ├── menu_and_recipes.md  <span class="sc"># Optional: supplementary context</span>
+│   └── minimums.md          <span class="sc"># Loaded on demand — not always</span>
+└── <span class="kw">assets/</span>
+    ├── prep_sheet_template.md  <span class="sc"># Optional: templates, schemas</span>
+    └── shopping_list_template.md
+      </div>
+      <div class="div"></div>
+      <div class="tag tp">Progressive Disclosure: 3 Load Levels</div>
+      <div class="dl" style="background:var(--bl);border-color:var(--bb)">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:9.5px;font-weight:700;color:var(--b);margin-bottom:4px">LEVEL 1 — Always Loaded (~50 tokens)</div>
+        <p style="font-size:.77rem;color:#374151">Metadata only: name + description field. Agent knows the skill exists. Sees when to use it. Pays minimal token cost. An agent with 100 skills carries only ~5,000 tokens of always-loaded metadata.</p>
+      </div>
+      <div class="dl" style="background:var(--warnl);border-color:var(--warnb)">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:9.5px;font-weight:700;color:var(--warn);margin-bottom:4px">LEVEL 2 — On Trigger (~2,000 tokens)</div>
+        <p style="font-size:.77rem;color:#374151">Full SKILL.md body loaded when the trigger phrase/task type matches. The agent gets complete procedural instructions for this specific workflow.</p>
+      </div>
+      <div class="dl" style="background:var(--gl);border-color:var(--gb)">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:9.5px;font-weight:700;color:var(--g);margin-bottom:4px">LEVEL 3 — On Demand (scripts never pollute context)</div>
+        <p style="font-size:.77rem;color:#374151">Reference docs fetched only when body references them. Scripts execute without ever polluting the token window — they run externally and return results.</p>
+      </div>
+    </div>
+    <div class="col">
+      <div class="tag tp">Minimal SKILL.md Template</div>
+      <div class="tmpl">
+<span class="tm-cm">---</span>
+<span class="tm-key">name:</span> <span class="tm-val">cafe-preparation</span>
+<span class="tm-key">description:</span> <span class="tm-val">|</span>
+  <span class="tm-val">Calculates daily ingredient needs and generates</span>
+  <span class="tm-val">prep sheets for cafe operations.</span>
+  <span class="tm-val">Use when the user asks to estimate daily quantities,</span>
+  <span class="tm-val">convert drinks to ingredients, or generate shopping lists.</span>
+  <span class="tm-val">Do NOT use for employee shift scheduling or accounting.</span>
+<span class="tm-key">version:</span> <span class="tm-val">1.0.0</span>
+<span class="tm-key">license:</span> <span class="tm-val">MIT</span>
+<span class="tm-key">allowed-tools:</span> <span class="tm-val">[Read, Bash, Write]</span>
+<span class="tm-key">metadata:</span>
+  <span class="tm-key">author:</span> <span class="tm-val">your-handle</span>
+<span class="tm-cm">---</span>
+<span class="tm-sec"># Skill Name</span>
+<span class="tm-sec">## When to use</span>
+- [Concrete scenario with trigger keywords]
+- [Another concrete scenario]
+<span class="tm-sec">## When NOT to use</span>
+- [Out-of-scope scenario]
+<span class="tm-sec">## Workflow</span>
+1. [Step 1]
+2. [Step 2]
+3. See `references/advanced.md` for [edge case]
+<span class="tm-sec">## Examples</span>
+- Input: <span class="tm-val">"..."</span> → Output: <span class="tm-val">"..."</span>
+<span class="tm-sec">## Anti-patterns to avoid</span>
+- Don't [...]
+      </div>
+      <div class="alert ap" style="margin-top:10px;font-size:.76rem">
+        <strong>The description field is your routing algorithm.</strong> It's the only thing the model sees to decide whether to load the skill. State what it does, front-load trigger keywords, include "Do NOT use for" clauses, be explicit. Spend more time here than anywhere else.
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S3 TWO PATHS -->
+<div class="slide fi" id="s3">
+  <div class="eyebrow">Building Skills</div>
+  <h2>Two Paths to Build a Skill · How to Install</h2>
+  <div class="split" style="flex:1">
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--b)">
+        <div class="tag tb">Path A · Subject Matter Expert → Skill</div>
+        <h3>"Translate what you already know"</h3>
+        <p style="font-size:.78rem">A compliance officer with a 30-page runbook. An HR manager with onboarding guides. A customer success lead with troubleshooting playbooks. They already have the content.</p>
+        <p style="font-size:.78rem;margin-top:8px"><strong>The job:</strong> Translate institutional knowledge into SKILL.md format. No coding required. The result is machine-executable know-how that's also human-readable, versioned, and testable.</p>
+        <div class="ci" style="margin-top:10px"><span>1️⃣</span><span style="font-size:.77rem">Interview a domain expert for 1 hour — record it</span></div>
+        <div class="ci"><span>2️⃣</span><span style="font-size:.77rem">Pick the most repeated workflow from the transcript</span></div>
+        <div class="ci"><span>3️⃣</span><span style="font-size:.77rem">Draft SKILL.md from transcript. Write 3 eval cases <strong>before</strong> drafting the body</span></div>
+        <div class="ci"><span>4️⃣</span><span style="font-size:.77rem">Ship to read-only tier. Test in production-like conditions</span></div>
+        <div class="ci"><span>5️⃣</span><span style="font-size:.77rem">Iterate description until trigger accuracy clears 90%</span></div>
+      </div>
+      <div class="card" style="border-top:3px solid var(--acc)">
+        <div class="tag tp">Path B · Crystallize a Successful Agent Run</div>
+        <h3>"The agent creates the skill — you review"</h3>
+        <p style="font-size:.78rem">If an agent successfully executes a non-trivial, repetitive task, capture that successful trajectory as a Skill. You don't author — you review.</p>
+        <p style="font-size:.78rem;margin-top:8px">Tools supporting this: Anthropic's skill-creator, Nous Research's Hermes Agent, self-improving-agent-skills pattern. The agent watches a successful trajectory and proposes a SKILL.md draft.</p>
+        <div class="alert ap" style="margin-top:10px;font-size:.75rem"><strong>Critical:</strong> An un-reviewed agent-drafted Skill is often worse than no Skill at all. The same quality bar applies regardless of author — human or AI.</div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--g)">
+        <div class="tag tg">Three Install Paradigms</div>
+        <h3>1. File Drop (Coding Agents & CLIs)</h3>
+        <p style="font-size:.77rem">Drop the skill folder into a specific hidden directory. A convention is emerging around <code>.agents/skills/</code> at project root. Each tool still has its own path — community managers like <code>skillport</code> or <code>openskills</code> symlink your central library to every tool's expected location.</p>
+      </div>
+      <div class="card">
+        <h3>2. UI Install (Web & Enterprise Workspaces)</h3>
+        <p style="font-size:.77rem">Web-based platforms and AI chatbots allow upload/management through a visual registry UI. Handles routing behind the scenes for your whole team — no terminal access needed for non-developers.</p>
+      </div>
+      <div class="card">
+        <h3>3. Programmatic (Custom Frameworks)</h3>
+        <p style="font-size:.77rem">If building with Google ADK, load skills programmatically. Point code to the folder path — register via <code>SkillToolset</code> class which auto-generates <code>load_skill</code> routing tools for the model.</p>
+        <pre style="margin-top:8px"><span class="cm"># ADK programmatic install</span>
+<span class="kw">from</span> google.adk.skills <span class="kw">import</span> SkillToolset
+toolset = SkillToolset(skills_dir=<span class="str">"./skills"</span>)</pre>
+      </div>
+      <div class="card" style="background:var(--acl);border-color:var(--acb)">
+        <div class="tag tp">Skill vs. MCP vs. AGENTS.md</div>
+        <div class="ci"><span>🔌</span><span style="font-size:.77rem"><strong>MCP = Reach.</strong> Connects agent to external systems (Drive, BigQuery, Salesforce). Skills use MCP as their tool layer.</span></div>
+        <div class="ci"><span>🧩</span><span style="font-size:.77rem"><strong>Skills = Know-how.</strong> Teaches agent HOW to think about a type of work. Procedural memory that calls MCP tools when needed.</span></div>
+        <div class="ci"><span>📋</span><span style="font-size:.77rem"><strong>AGENTS.md = Identity.</strong> Always loaded. Project conventions, stack, build commands. Acts as skill router — a short catalog at the bottom tells the agent what skills are available.</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S4 WHY SKILLS BEAT MULTI-AGENT (LOGISTICS) -->
+<div class="slide fi" id="s4">
+  <div class="eyebrow">Architecture Decision</div>
+  <h2>Why Skills Beat Multi-Agent for Many Use Cases: The Logistics Example</h2>
+  <p style="font-size:.84rem;margin-bottom:12px">A logistics company with <strong>100 process variants</strong> (product type, route constraints, customer SLAs, regulatory zones). Four architectural options — dramatically different outcomes:</p>
+  <div class="g2" style="margin-bottom:14px">
+    <div class="col">
+      <div class="card" style="border-left:3px solid var(--danger)">
+        <div class="tag tr">Option A: One Giant Context Window</div>
+        <p style="font-size:.77rem">All 100 variants loaded into a single system prompt. Immediate context rot. Exorbitant token costs. LLM performance degrades before you ship the first feature. <strong>Eliminated immediately.</strong></p>
+      </div>
+      <div class="card" style="border-left:3px solid var(--warn)">
+        <div class="tag ta">Option B: RAG over Runbooks</div>
+        <p style="font-size:.77rem">Probably the right answer 2 years ago. Now you're running a vector DB, embedding model, and chunking strategy whose quality is orthogonal to the actual procedures. High operational overhead for questionable benefit. <strong>Outdated pattern.</strong></p>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="border-left:3px solid var(--warn)">
+        <div class="tag ta">Option C: Multi-Agent (1 per variant)</div>
+        <p style="font-size:.77rem">100 subagents, each with a process-specific system prompt. Operational nightmare: 100 deployments, 100 evaluation surfaces, complex routing layers. CI/CD for the HR sub-agent accidentally breaks the invoice sub-agent. <strong>Too much surface area.</strong></p>
+      </div>
+      <div class="card" style="border-left:3px solid var(--g)">
+        <div class="tag tg">Option D: One Agent + 100 Skills ✓</div>
+        <p style="font-size:.77rem">Progressive disclosure: 100 skills × ~50 tokens = ~5,000 tokens of always-loaded metadata. Logistics requests carry strong activation cues (SKU, origin, weight, hazmat flag, SLA) making skill descriptions sharp and selection reliable. Adding variant #101 = a new folder, not a new deployment. <strong>The winner.</strong></p>
+      </div>
+    </div>
+  </div>
+  <div class="g3">
+    <div class="card" style="border-top:3px solid var(--g)">
+      <div class="tag tg">Improvement Comparison</div>
+      <table>
+        <thead><tr><th>Approach</th><th>Cycle time</th><th>Context tax</th></tr></thead>
+        <tbody>
+          <tr><td>Model swap</td><td>Days–weeks</td><td>None (weights)</td></tr>
+          <tr><td>Prompt edit</td><td>Minutes–hours</td><td>Static every turn</td></tr>
+          <tr><td>Fine-tuning</td><td>Weeks–months</td><td>None (weights)</td></tr>
+          <tr><td style="color:var(--g)">New skill ✓</td><td style="color:var(--g)">Hours–days</td><td style="color:var(--g)">Dynamic on-demand</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card" style="border-top:3px solid var(--acc)">
+      <div class="tag tp">The Runtime Insight</div>
+      <h3>98.4% is Infrastructure</h3>
+      <p style="font-size:.77rem">A reverse-engineering of Claude Code v2.1.88 found that <strong>98.4% of the codebase</strong> is operational infrastructure: permission classifiers, context compaction, subagent delegation, session storage. Only 1.6% is the agent loop itself.</p>
+      <p style="font-size:.76rem;margin-top:6px">The model sits behind a remote API. The engineering around it — and specifically the skills library — is what makes the system production-grade. Skills are the unit of improvement, not model swaps.</p>
+    </div>
+    <div class="card" style="border-top:3px solid var(--b)">
+      <div class="tag tb">The Strategic Point</div>
+      <h3>Skills = The Durable Asset</h3>
+      <p style="font-size:.77rem">Two companies running on the same agent runtime with the same MCP tools will produce different outcomes. Their skills library encodes what they actually know. The runtime is commoditized. A retailer that invests in skills, even on a generic runtime, is building a <strong>durable competitive moat</strong>.</p>
+    </div>
+  </div>
+</div>
+
+
+<!-- S5 EVALUATION: 4 FAILURE MODES -->
+<div class="slide fi" id="s5">
+  <div class="eyebrow">Evaluating Skills</div>
+  <h2>Evaluation: The 4 Failure Modes & The Golden Rules</h2>
+  <div class="q">
+    <p class="qt" style="font-size:.88rem">An Agent Skill without a test is a hope, not a capability. When researchers benchmarked 84 real-world agent tasks in SkillsBench (2025), they found that 19% of skills performed <em>worse</em> than no skill at all. These failures are predictable.</p>
+  </div>
+  <div class="g2" style="flex:1">
+    <div class="col">
+      <div class="ef" style="background:var(--dangerl);border-color:var(--dangerb)">
+        <div class="tag tr">Failure Mode 1: Trigger Failure</div>
+        <h3>Wrong skill fires / correct one doesn't fire</h3>
+        <p style="font-size:.78rem">Vercel's production analysis found a <strong>56% non-invocation rate</strong> for skills expected to activate consistently. A skill stripped of instructions scored 58%, while the agent without the skill scored 63% — a 5-point deficit proving poorly designed skills actively subtract capability.</p>
+        <p style="font-size:.77rem;margin-top:6px"><strong>Fix:</strong> The description must pass 4 checks — testable specificity (3 positive + 3 negative triggers), clarity (no overlap with adjacent skills), execution fidelity (describes actual not aspirational behavior), and rephrasing stability (routes regardless of phrasing).</p>
+      </div>
+      <div class="ef" style="background:var(--warnl);border-color:var(--warnb)">
+        <div class="tag ta">Failure Mode 2: Execution Failure</div>
+        <h3>Skill triggers correctly but produces bad output or wrong tool calls</h3>
+        <p style="font-size:.78rem">Latitude's analysis (March 2026) found that <strong>final-output-only scoring passes 20-40% more cases</strong> than trajectory-aware scoring. This gap = agents reaching correct answers via incorrect tool sequences. Acceptable in read-only scenarios. Critical in action-allowed skills where incorrect trajectories cause irreversible side effects.</p>
+      </div>
+    </div>
+    <div class="col">
+      <div class="ef" style="background:var(--bl);border-color:var(--bb)">
+        <div class="tag tb">Failure Mode 3: Token Budget Failure</div>
+        <h3>Skill body crowds context, degrading unrelated turns</h3>
+        <p style="font-size:.78rem">Never evaluate a skill in isolation. Agents in production co-load 5-15 skills simultaneously. A skill body exceeding 5,000 tokens might work perfectly alone but causes context rot when co-loaded. MCPVerse found an <strong>18.2% accuracy drop</strong> in Claude-4-Sonnet due to tool proliferation.</p>
+        <p style="font-size:.77rem;margin-top:6px">The "Lost in the Middle" effect applies: relevant information at the start or end performs best — the middle degrades. Long skill bodies put critical instructions in the worst possible position.</p>
+      </div>
+      <div class="ef" style="background:var(--acl);border-color:var(--acb)">
+        <div class="tag tp">Failure Mode 4: Regression</div>
+        <h3>New skill breaks previously working routing</h3>
+        <p style="font-size:.78rem">A newly added skill overlaps with an existing one. The description triggers on queries that were correctly handled by a different skill. Old workflows break. This is only detectable when the full library is exercised together — hence the graduation process.</p>
+        <p style="font-size:.77rem;margin-top:6px">pass^k (run evaluation k times, require success on every run) is the correct metric. On tau-bench, GPT-4o scored 61% on pass^1 but dropped below 25% on pass^8 — single-run success is a poor predictor of production reliability.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S6 EVALUATION TOOLKIT -->
+<div class="slide fi" id="s6">
+  <div class="eyebrow">Evaluating Skills · Toolkit</div>
+  <h2>The 5-Pattern Evaluation Toolkit · Evaluation-Driven Development</h2>
+  <div class="split" style="flex:1">
+    <div>
+      <table style="font-size:.76rem">
+        <thead><tr><th>Pattern</th><th>Description</th><th>Failure Mode</th><th>When</th></tr></thead>
+        <tbody>
+          <tr><td>Eval-as-Unit-Test</td><td>CI runs 3 JSON eval cases on every push; failing test blocks merge</td><td>All modes</td><td>Every skill, every change</td></tr>
+          <tr><td>Golden Dataset</td><td>30+ representative (input, expected tool calls, expected output) pairs stored with the skill</td><td>Execution, Trigger</td><td>Draft tier and above</td></tr>
+          <tr><td>LLM-as-Judge</td><td>Peer model scores output against rubric at scale (swap positions to eliminate ordering bias, calibrate to 90% human agreement)</td><td>Execution</td><td>Read-only and draft</td></tr>
+          <tr><td>Adversarial / Red-Team</td><td>One rephrasing + one negative boundary case per positive trigger; <code>agentregress</code> flags regressions</td><td>Trigger, Execution</td><td>Before action-allowed</td></tr>
+          <tr><td>Canary / Shadow Mode</td><td>Parallel offline comparison OR 1% live traffic monitored for 24h before full rollout</td><td>Regression</td><td>Before each action-allowed release</td></tr>
+        </tbody>
+      </table>
+      <div class="div"></div>
+      <div class="card" style="border-top:3px solid var(--acc)">
+        <div class="tag tp">Evaluation-Driven Development (EDD)</div>
+        <h3>Write Eval Cases BEFORE Writing the Skill Body</h3>
+        <p style="font-size:.77rem">Invert the workflow: write 3 JSON evaluation cases (Input, Expected Tools, Expected Output) before drafting SKILL.md. Forces a clear functional specification upfront. Surfaces description ambiguities and tool-trajectory errors before they compound.</p>
+        <pre style="font-size:.68rem;margin-top:8px">{
+  <span class="str">"case_id"</span>: <span class="str">"refund_dup_charge_001"</span>,
+  <span class="str">"input"</span>: <span class="str">"I was charged twice for order #4521 last Tuesday"</span>,
+  <span class="str">"expected_skill"</span>: <span class="str">"refund_processor"</span>,
+  <span class="str">"expected_tool_calls"</span>: [
+    {<span class="str">"tool"</span>: <span class="str">"lookup_order"</span>, <span class="str">"args"</span>: {<span class="str">"order_id"</span>: <span class="str">"4521"</span>}},
+    {<span class="str">"tool"</span>: <span class="str">"check_duplicate_charge"</span>, <span class="str">"args"</span>: {<span class="str">"order_id"</span>: <span class="str">"4521"</span>}}
+  ],
+  <span class="str">"expected_output_format"</span>: <span class="str">"confirmation_with_refund_id"</span>,
+  <span class="str">"rubric"</span>: [<span class="str">"acknowledges duplicate"</span>, <span class="str">"cites order id"</span>, <span class="str">"provides next step"</span>]
+}</pre>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--g)">
+        <div class="tag tg">Graduation Tiers</div>
+        <h3>The Read / Draft / Act Ladder</h3>
+        <div class="ci"><span style="color:var(--g)">🟢</span><span style="font-size:.77rem"><strong>Read-Only:</strong> LLM-as-Judge eval; 90% trigger accuracy. Fetches and describes data — cannot mutate state.</span></div>
+        <div class="ci"><span style="color:var(--warn)">🟡</span><span style="font-size:.77rem"><strong>Draft-Only:</strong> Golden dataset of 20+ cases + human approval. Produces content for human review — cannot send or commit.</span></div>
+        <div class="ci"><span style="color:var(--danger)">🔴</span><span style="font-size:.77rem"><strong>Action-Allowed:</strong> Full adversarial red-teaming + sustained pass^k success (not just a lucky pass) + no rollback events. May execute irreversible operations on real systems.</span></div>
+      </div>
+      <div class="card" style="border-top:3px solid var(--b)">
+        <div class="tag tb">Complete Eval Coverage Checklist</div>
+        <div class="ci"><span>☐</span><span style="font-size:.77rem"><strong>Trigger:</strong> Positive AND negative test cases. Target 90% trigger accuracy.</span></div>
+        <div class="ci"><span>☐</span><span style="font-size:.77rem"><strong>Execution:</strong> Correct outputs across a representative range of inputs.</span></div>
+        <div class="ci"><span>☐</span><span style="font-size:.77rem"><strong>Regression:</strong> Adding this skill causes zero performance drops in existing library.</span></div>
+        <div class="ci"><span>☐</span><span style="font-size:.77rem"><strong>Token Budget:</strong> Co-loaded with 5–15 frequently-active skills, does not degrade unrelated turns.</span></div>
+        <p style="font-size:.74rem;color:var(--danger);margin-top:6px">Failure on ANY single condition holds the skill at draft tier, regardless of happy-path performance.</p>
+      </div>
+      <div class="alert ap" style="font-size:.77rem">
+        <strong>Trajectory scoring modes (Google ADK):</strong><br>
+        EXACT → action-allowed skills (critical operations)<br>
+        IN_ORDER → most action-allowed skills<br>
+        ANY_ORDER → read-only skills (tolerates ordering variance)
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S7 CONTEXT OVERFLOW -->
+<div class="slide fi" id="s7">
+  <div class="eyebrow">Production Reality</div>
+  <h2>Context Overflow: The Failure Mode That Breaks Demos</h2>
+  <div class="g2" style="margin-bottom:14px">
+    <div class="card" style="border-top:3px solid var(--danger)">
+      <div class="tag tr">The Demo-to-Deploy Gap</div>
+      <h3>What Breaks Perfectly Good Demos in Production</h3>
+      <p style="font-size:.78rem">Works in demo: 3 tools, single turn, short history. Fails in production: 15 tools, multi-turn session, conversation history growing with every turn.</p>
+      <p style="font-size:.78rem;margin-top:6px"><strong>Lost in the Middle (Liu et al., TACL 2024):</strong> Performance is highest when relevant information sits at the start or end of input — degrades in the middle. A U-curve that holds even for models trained on long contexts.</p>
+      <p style="font-size:.78rem;margin-top:6px"><strong>Context Rot (Chroma Research, 2025):</strong> Across 18 frontier models (Claude 4, Gemini 2.5, Qwen3), performance degrades as input grows — even when task difficulty is held constant. Every model gets worse, faster when relevant content is hard to distinguish from distractors.</p>
+    </div>
+    <div class="card" style="border-top:3px solid var(--g)">
+      <div class="tag tg">The Token Budget Math</div>
+      <h3>Why Progressive Disclosure Matters at Scale</h3>
+      <p style="font-size:.78rem">Consider an agent with 50 distinct workflows:</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0">
+        <div style="background:var(--dangerl);border:1px solid var(--dangerb);border-radius:8px;padding:10px;text-align:center">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:.8rem;font-weight:700;color:var(--danger)">Single System Prompt</div>
+          <div style="font-size:1.4rem;font-weight:900;color:var(--danger);margin:4px 0">15,000</div>
+          <div style="font-size:.72rem;color:var(--danger)">tokens every single turn<br>all 50 workflows loaded</div>
+        </div>
+        <div style="background:var(--gl);border:1px solid var(--gb);border-radius:8px;padding:10px;text-align:center">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:.8rem;font-weight:700;color:var(--g)">Skills Library</div>
+          <div style="font-size:1.4rem;font-weight:900;color:var(--g);margin:4px 0">~6,000</div>
+          <div style="font-size:.72rem;color:var(--g)">tokens per turn<br>4K descriptions + 2K active skill</div>
+        </div>
+      </div>
+      <p style="font-size:.76rem">Anthropic published examples where converting to skills cut active context from <strong>~150,000 tokens to ~2,000</strong> — a 98%+ reduction. Forty-nine skill bodies sit on disk. Only the active one is in context.</p>
+    </div>
+  </div>
+  <div class="g3">
+    <div class="card">
+      <div class="tag tp">Key Principle 1</div>
+      <h3>Capacity ≠ the right metric</h3>
+      <p style="font-size:.77rem">A 1M-token context window can show significant performance degradation at 50K tokens. Window size is not the relevant constraint — what matters is how much noise surrounds the signal.</p>
+    </div>
+    <div class="card">
+      <div class="tag tp">Key Principle 2</div>
+      <h3>Active context is a budget, not a vessel</h3>
+      <p style="font-size:.77rem">Every token in front of the model takes attention from every other token. Treat the system prompt the way infrastructure teams treat memory: a finite resource, allocated deliberately. Skills are memory management for LLMs.</p>
+    </div>
+    <div class="card">
+      <div class="tag tp">Key Principle 3</div>
+      <h3>Skills resolve the constraint</h3>
+      <p style="font-size:.77rem">They keep active context small while keeping available capability effectively unbounded. An agent with 100 skills and a 50K active context is more capable than one with 100K of everything always loaded.</p>
+    </div>
+  </div>
+</div>
+
+
+<!-- S8 META-SKILLS -->
+<div class="slide fi" id="s8">
+  <div class="eyebrow">Advanced</div>
+  <h2>Meta-Skills: Skills That Improve Other Skills</h2>
+  <p style="font-size:.84rem;margin-bottom:14px">Once you have a working skills library, the natural question: <em>can the agent help write, evaluate, and improve skills too?</em> This is meta-skills territory.</p>
+  <div class="g2" style="flex:1">
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--acc)">
+        <div class="tag tp">4 Buckets of Meta-Skills</div>
+        <div class="ci" style="margin-top:6px"><span style="color:var(--acc);font-weight:700">1.</span><span style="font-size:.78rem"><strong>Authoring:</strong> Skills that take a workflow description and produce a draft SKILL.md. Google ADK's "skill factory" pattern. Anthropic's skill-creator walks you through creation, evaluation, and tuning.</span></div>
+        <div class="ci"><span style="color:var(--acc);font-weight:700">2.</span><span style="font-size:.78rem"><strong>Trace-based harvesting:</strong> Instead of asking humans to describe a workflow, watch the agent do it successfully a few times, then turn that trace into a skill. Human's job shifts to <em>confirming</em> the harvested version captures the right steps — not authoring.</span></div>
+        <div class="ci"><span style="color:var(--acc);font-weight:700">3.</span><span style="font-size:.78rem"><strong>Improvement:</strong> Skills that take an existing skill + failing eval cases and propose edits. Saboo's SkillOptimizer and Anthropic's description-optimization loop. Karpathy's autoresearch pattern: propose change → run bounded experiment → keep only if metric improves.</span></div>
+        <div class="ci"><span style="color:var(--acc);font-weight:700">4.</span><span style="font-size:.78rem"><strong>Library evolution:</strong> Skills that grow the library over time (like Voyager's Minecraft skill library). Agent finishes a task it had no skill for, notices it solved a recurring problem, proposes adding a new skill to cover it.</span></div>
+      </div>
+      <div class="alert ap" style="font-size:.77rem">The pattern settling: humans write the first version of every skill. Meta-skills handle repetitive maintenance (tuning descriptions, adding test cases, surfacing regressions). A small subset experiments with full self-extension. This is where things go wrong fastest if eval gates aren't tight.</div>
+    </div>
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--danger)">
+        <div class="tag tr">Where Meta-Skills Fall Apart</div>
+        <h3>Meta-skills only work if your eval suite is good</h3>
+        <p style="font-size:.78rem">An agent allowed to edit its own skills will happily optimize for whatever metric you point it at — including metrics that are easy to game.</p>
+        <p style="font-size:.78rem;margin-top:8px">Without solid trigger accuracy tests, regression tests, and human spot-checks, an autonomous improvement loop will quietly make your library worse while reporting it's getting better.</p>
+      </div>
+      <div class="card" style="border-top:3px solid var(--warn)">
+        <div class="tag ta">Safety Rules for Meta-Skills</div>
+        <div class="ci" style="margin-top:6px"><span style="color:var(--warn)">🛡</span><span style="font-size:.77rem"><strong>Always enter at draft tier:</strong> Anything an agent writes enters the library at draft tier, regardless of how confident the meta-skill is. Graduates through the same Read/Draft/Act ladder as human-written skills.</span></div>
+        <div class="ci"><span style="color:var(--warn)">👀</span><span style="font-size:.77rem"><strong>Human in the loop for first edits:</strong> Even when the metric clearly improves, scan the diff. Agents make characteristic mistakes: overfitting descriptions to a few test cases, breaking downstream skills they didn't know existed.</span></div>
+        <div class="ci"><span style="color:var(--warn)">🐢</span><span style="font-size:.77rem"><strong>Don't start with meta-skills:</strong> Get manual authoring working first. The fastest way to get a bad library is to point an agent at an empty folder and ask it to generate 50 skills.</span></div>
+        <div class="ci"><span style="color:var(--warn)">🚫</span><span style="font-size:.77rem"><strong>No auto-deploy without staging gate:</strong> Auto-updating skills in production without a staging gate is dangerous. Even if metrics improve, human review before library commits is non-negotiable.</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S9 COMPOSING SKILLS: DAG -->
+<div class="slide fi" id="s9">
+  <div class="eyebrow">Advanced Composition</div>
+  <h2>Composing Skills: DAG Orchestration + Capability Profiles</h2>
+  <div class="split" style="flex:1">
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--b)">
+        <div class="tag tb">DAG Orchestration</div>
+        <h3>Why Linear Pipelines Fail at Scale</h3>
+        <p style="font-size:.78rem">Passing raw LLM outputs between isolated skills in a monolithic system is ineffective: state gets obfuscated, execution is non-deterministic, and debugging is hard.</p>
+        <p style="font-size:.78rem;margin-top:8px">The industry solution is <strong>Directed Acyclic Graph (DAG) orchestration</strong>:</p>
+        <div class="ci" style="margin-top:8px"><span style="color:var(--b)">▸</span><span style="font-size:.77rem"><strong>Decoupled State:</strong> State routing doesn't rely on accumulating execution history in the LLM's prompt. The DAG controller orchestrates handoffs via structured schema references — not growing conversation history.</span></div>
+        <div class="ci"><span style="color:var(--b)">▸</span><span style="font-size:.77rem"><strong>File Message Bus:</strong> Passes structured schema references between subagent nodes. The payload stays out of the model's text input — preventing context bloat.</span></div>
+        <div class="ci"><span style="color:var(--b)">▸</span><span style="font-size:.77rem"><strong>Protected Attention:</strong> Abstracting payload from model input preserves the model's capacity for actual reasoning, not state tracking.</span></div>
+      </div>
+      <div class="card" style="border-top:3px solid var(--g)">
+        <div class="tag tg">Canonical Skill Taxonomy for DAG Nodes</div>
+        <div class="ci"><span>🏗️</span><span style="font-size:.77rem"><strong>Generator:</strong> Convert user intent into structured artifacts</span></div>
+        <div class="ci"><span>🛡️</span><span style="font-size:.77rem"><strong>Reviewer & Gate:</strong> Deterministic gates blocking execution if validation fails</span></div>
+        <div class="ci"><span>🔄</span><span style="font-size:.77rem"><strong>Pipeline:</strong> Orchestrate linear paths within the broader DAG</span></div>
+        <div class="ci"><span>🔍</span><span style="font-size:.77rem"><strong>Inversion & Recovery:</strong> Force agent to clarify assumptions before execution</span></div>
+        <div class="ci"><span>📖</span><span style="font-size:.77rem"><strong>Domain Context Wrappers:</strong> Reference nodes teaching domain conventions</span></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--acc)">
+        <div class="tag tp">Capability Profiles</div>
+        <h3>Swappable Skill Bundles for Role Switching</h3>
+        <p style="font-size:.78rem">Activating every skill degrades routing and overwhelms context. Capability Profiles are specialized personas tailored to specific execution states — modular tool bundles defining:</p>
+        <div class="ci" style="margin-top:8px"><span style="color:var(--acc)">▸</span><span style="font-size:.77rem">Active skills and tool access for this specific role</span></div>
+        <div class="ci"><span style="color:var(--acc)">▸</span><span style="font-size:.77rem">System instructions and operational guardrails</span></div>
+        <div class="ci"><span style="color:var(--acc)">▸</span><span style="font-size:.77rem">Automated workflows and subagent topologies</span></div>
+        <div class="ci"><span style="color:var(--acc)">▸</span><span style="font-size:.77rem">LLM parameters (model choice, temperature)</span></div>
+        <p style="font-size:.78rem;margin-top:8px">During execution, orchestration layer <strong>unloads previous system instructions and flushes stale variables</strong> before swapping the new Capability Profile into memory. This strict teardown and rebuild prevents context loss.</p>
+      </div>
+      <div class="card" style="border-top:3px solid var(--warn)">
+        <div class="tag ta">Context Debt & Shifting Intelligence Left</div>
+        <h3>Don't Hope. Enforce.</h3>
+        <p style="font-size:.78rem">When authors attempt deterministic behavior at runtime by bloating skill descriptions ("ALWAYS DO X" in caps), they accumulate <strong>Context Debt</strong>. Models learn to ignore these imperatives — exactly as humans ignore walls of unreadable warning text.</p>
+        <p style="font-size:.78rem;margin-top:8px"><strong>Shift Intelligence Left:</strong> Instead of hoping an LLM correctly interprets complex rules at runtime, distill subjective judgments into deterministic scripts. Push logic out of the LLM's prompt and into testable code. Replace rules with software.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S10 SKILL SELECTION + TRUST -->
+<div class="slide fi" id="s10">
+  <div class="eyebrow">Skill Ecosystem</div>
+  <h2>Selecting Skills from 40,000+ Listings · Trust Tiers</h2>
+  <p style="font-size:.84rem;margin-bottom:12px">By early 2026, public skill marketplaces crossed 40,000 listings. Google launched the official skills repository at <code>github.com/google/skills</code>. Anthropic, Microsoft, Stripe, and others publish first-party skills. The selection problem is real.</p>
+  <div class="g3" style="margin-bottom:14px">
+    <div class="card" style="border-top:3px solid var(--g)">
+      <div class="tag tg">Rule 1: First-Party Skills First</div>
+      <h3>Trust by default — pin a version</h3>
+      <p style="font-size:.77rem">For vendor-specific tools: Google's BigQuery skill, the official Stripe skill, anything by the people who built the underlying system. They'll be more correct and more maintained than community alternatives. <code>google/skills</code>, <code>anthropics/skills</code>, <code>stripe/ai</code>, <code>microsoft/skills</code>.</p>
+    </div>
+    <div class="card" style="border-top:3px solid var(--b)">
+      <div class="tag tb">Rule 2: Pin Everything</div>
+      <h3>An unpinned dependency that worked yesterday can fail tomorrow</h3>
+      <p style="font-size:.77rem">Community skills evolve. Pin to specific versions like any other dependency. An unpinned skill is a dependency that could silently change its behavior between your test run and your production run.</p>
+    </div>
+    <div class="card" style="border-top:3px solid var(--warn)">
+      <div class="tag ta">Rule 3: Audit Before Adopting</div>
+      <h3>A skill is code that runs in your context</h3>
+      <p style="font-size:.77rem">Treat it like any other dependency: same supply-chain hygiene. Community skills from individual GitHub repos carry varying maintenance commitment. A skill with a malicious <code>scripts/</code> file executes in your environment. Inspect before installing.</p>
+    </div>
+  </div>
+  <table>
+    <thead><tr><th>Source</th><th>Trust Default</th><th>Examples</th><th>Maintained By</th></tr></thead>
+    <tbody>
+      <tr><td>First-party vendor skills</td><td style="color:var(--g)">Trust by default; pin a version</td><td><code>google/skills</code>, <code>anthropics/skills</code>, <code>stripe/ai</code>, <code>microsoft/skills</code></td><td>Team that built the underlying product</td></tr>
+      <tr><td>Organization-curated skills</td><td style="color:var(--b)">Trust within org; review on adoption</td><td><code>your-org/retail-skills</code>, <code>your-org/finance-skills</code></td><td>Your own domain teams, with PR review</td></tr>
+      <tr><td>Community skills</td><td style="color:var(--warn)">Audit before adopting; pin aggressively</td><td><code>VoltAgent/awesome-agent-skills</code>, SkillsMP marketplace, individual GitHub repos</td><td>Volunteer authors, varying maintenance</td></tr>
+    </tbody>
+  </table>
+  <div class="alert ap" style="margin-top:12px">
+    <strong>The Gemini API skill data point:</strong> The <code>google-gemini/gemini-skills</code> Gemini API developer skill improved Gemini 3.1 Pro from 28.2% → 96.6% on SDK code generation across 117 prompts. That's the power of first-party domain skills.
+  </div>
+</div>
+
+
+<!-- S11 RETAIL CASE STUDY -->
+<div class="slide fi" id="s11">
+  <div class="eyebrow">Case Study</div>
+  <h2>Retail Case Study: Domain Expertise as Code</h2>
+  <p style="font-size:.83rem;margin-bottom:12px">A home-improvement retailer. The same agent runtime as every competitor. The same MCP tools. The skills library is what differentiates them — encoding what the company actually knows about serving customers.</p>
+  <div class="g2" style="margin-bottom:12px">
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--acc)">
+        <div class="tag tp">Illustrative Skills Library</div>
+        <div class="ci"><span>🏗️</span><span style="font-size:.77rem"><strong>project-guidance</strong> (Read-only · Trades knowledge team)<br>Turns vague queries ("how do I tile a shower?") into step-by-step plans. Encodes substrate requirements, ordering logic, common-mistake callouts.</span></div>
+        <div class="ci"><span>📋</span><span style="font-size:.77rem"><strong>materials-list</strong> (Draft-only · Pro merchandising)<br>Takes project description → grouped bill-of-materials including items contractors forget. Customer reviews before purchasing.</span></div>
+        <div class="ci"><span>⭐</span><span style="font-size:.77rem"><strong>review-summarize</strong> (Read-only · Personalization)<br>Condenses product reviews into pros, cons, use cases. Triggered when customer asks about real-world experience.</span></div>
+        <div class="ci"><span>🚚</span><span style="font-size:.77rem"><strong>delivery-window</strong> (Read-only · Fulfillment)<br>Computes last-mile options and ETAs given location, store availability, freight network. Updated by the team that manages freight.</span></div>
+        <div class="ci"><span>↩️</span><span style="font-size:.77rem"><strong>return-policy</strong> (Read-only · Customer service)<br>Encodes the dozens of exceptions (special-orders, hazmat, custom cuts). Action-allowed tier (issuing refunds) requires a separate, tighter-reviewed skill.</span></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--b)">
+        <div class="tag tb">How the Query Routes</div>
+        <p style="font-size:.77rem">Customer: "I want to remodel my kids' bathroom, what do I need?"</p>
+        <p style="font-size:.77rem;margin-top:6px">1. Runtime loads L1 descriptions of all skills at session start (~30-80 tokens each, ~2KB total)</p>
+        <p style="font-size:.77rem;margin-top:4px">2. <code>project-guidance</code> matches → body loads → outlines renovation steps</p>
+        <p style="font-size:.77rem;margin-top:4px">3. Customer asks about delivery → <code>delivery-window</code> loads</p>
+        <p style="font-size:.77rem;margin-top:4px">4. Customer asks about returns → <code>return-policy</code> loads</p>
+        <p style="font-size:.77rem;margin-top:6px">Notice what doesn't happen: no monolithic "remodeling assistant" trained on every scenario. Each piece of expertise loads only when the conversation reaches it. Active context stays small. Available capability: effectively unbounded.</p>
+      </div>
+      <div class="card" style="border-top:3px solid var(--g)">
+        <div class="tag tg">The Governance Structure</div>
+        <table>
+          <thead><tr><th>Skill</th><th>Owner Team</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td>project-guidance</td><td>Trades knowledge</td><td>They edit merchandising rules weekly</td></tr>
+            <tr><td>materials-list</td><td>Pro merchandising</td><td>Pro segment BOM logic is their domain</td></tr>
+            <tr><td>delivery-window</td><td>Fulfillment</td><td>Real-time inventory and freight rules change constantly</td></tr>
+            <tr><td>return-policy</td><td>Customer service</td><td>Exception handling is their operational knowledge</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="alert ag" style="font-size:.76rem">The retailer's competitor uses the same runtime. The skills library is what can't be easily copied — it encodes decades of accumulated merchandising, trade, and service knowledge in a form that gets better every week.</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S12 CHEATSHEET -->
+<div class="slide fi" id="s12">
+  <div class="eyebrow">Quick Reference</div>
+  <h2>The Practical Cheatsheet: Do's, Don'ts & The Five Rules</h2>
+  <div class="g3" style="flex:1">
+    <div class="col">
+      <div style="font-size:.82rem;font-weight:800;color:var(--g);margin-bottom:8px">✅ DO</div>
+      <div class="card" style="border-left:4px solid var(--g)">
+        <div class="ci"><span class="ck" style="color:var(--g)">✅</span><span>Start small and concrete. Run the task yourself first — real failure produces signal, speculation produces noise</span></div>
+        <div class="ci"><span class="ck" style="color:var(--g)">✅</span><span>Spend <em>disproportionate</em> time on the description field — it is the routing algorithm. Include what it does, when to use, and when NOT to use</span></div>
+        <div class="ci"><span class="ck" style="color:var(--g)">✅</span><span>Trust progressive disclosure. Move detail to <code>references/</code> as the SKILL.md body grows</span></div>
+        <div class="ci"><span class="ck" style="color:var(--g)">✅</span><span>Bundle deterministic work in <code>scripts/</code>, not as instructions — models ignore walls of imperative text</span></div>
+        <div class="ci"><span class="ck" style="color:var(--g)">✅</span><span>Treat Skills as code: version them, pin them, review them in PRs, give them CI tests</span></div>
+        <div class="ci"><span class="ck" style="color:var(--g)">✅</span><span>Skills + MCPs (not vs). Skills teach how to use the tools MCP provides</span></div>
+        <div class="ci"><span class="ck" style="color:var(--g)">✅</span><span>Give the reason, not just the rule. Models generalize to edge cases when they understand WHY an instruction exists</span></div>
+      </div>
+    </div>
+    <div class="col">
+      <div style="font-size:.82rem;font-weight:800;color:var(--danger);margin-bottom:8px">❌ DON'T</div>
+      <div class="card" style="border-left:4px solid var(--danger)">
+        <div class="ci"><span class="ck" style="color:var(--danger)">❌</span><span>Write vague descriptions like "helps with documents." Use specific verbs, trigger phrases, and a when-not-to-use clause</span></div>
+        <div class="ci"><span class="ck" style="color:var(--danger)">❌</span><span>Write SKILL.md bodies over 5,000 words. Move detail to <code>references/</code>. Over 5K words = two skills</span></div>
+        <div class="ci"><span class="ck" style="color:var(--danger)">❌</span><span>Hard-code paths or secrets anywhere in the skill folder</span></div>
+        <div class="ci"><span class="ck" style="color:var(--danger)">❌</span><span>Embed "always do X" rules that belong in AGENTS.md (global identity) not in a skill</span></div>
+        <div class="ci"><span class="ck" style="color:var(--danger)">❌</span><span>Install untrusted third-party libraries or skills without scanning for supply chain issues</span></div>
+        <div class="ci"><span class="ck" style="color:var(--danger)">❌</span><span>Reinvent MCP as scripts — if it's a tool call, it should be an MCP server, not a bash script in <code>scripts/</code></span></div>
+        <div class="ci"><span class="ck" style="color:var(--danger)">❌</span><span>Start with meta-skills before manual authoring works. Don't generate 50 skills on day one.</span></div>
+      </div>
+    </div>
+    <div class="col">
+      <div style="font-size:.82rem;font-weight:800;color:var(--acc);margin-bottom:8px">⚡ THE 5 RULES</div>
+      <div class="card" style="border-left:4px solid var(--acc)">
+        <div class="ci"><span style="color:var(--acc);font-weight:700;font-family:'JetBrains Mono',monospace">R1</span><span><strong>One skill, one job.</strong> If you can't describe it in one sentence, it's two skills. Decompose before writing.</span></div>
+        <div class="ci"><span style="color:var(--acc);font-weight:700;font-family:'JetBrains Mono',monospace">R2</span><span><strong>Descriptions are an interface.</strong> The agent picks skills by reading descriptions. A vague description = an unused skill.</span></div>
+        <div class="ci"><span style="color:var(--acc);font-weight:700;font-family:'JetBrains Mono',monospace">R3</span><span><strong>Skills are dependencies.</strong> Version them, pin them, review in PRs. A skill without a test is a hope, not a capability.</span></div>
+        <div class="ci"><span style="color:var(--acc);font-weight:700;font-family:'JetBrains Mono',monospace">R4</span><span><strong>The right team owns the right skill.</strong> Domain experts own domain skills. AI team must not become a bottleneck for org knowledge.</span></div>
+        <div class="ci"><span style="color:var(--acc);font-weight:700;font-family:'JetBrains Mono',monospace">R5</span><span><strong>The agent runtime is interchangeable.</strong> Don't tie skills to one runtime. Portability is part of the value.</span></div>
+      </div>
+      <div class="alert ap" style="font-size:.76rem;margin-top:10px">
+        <strong>One-Line Mental Model:</strong> System prompt = instinct. AGENTS.md = project README. MCP = hands. RAG = library. Skills = the runbook the experienced colleague hands you on day one — that the AI never forgets.
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S13 SUMMARY -->
+<div class="slide fi" id="s13">
+  <div class="eyebrow">Day 3 · Summary</div>
+  <h2>Key Takeaways: The Agent Skills Playbook</h2>
+  <div class="g2" style="flex:1">
+    <div class="col">
+      <div class="card" style="border-left:4px solid var(--acc)">
+        <div class="tag tp">Anatomy & Structure</div>
+        <h3>The Primitive That Scales</h3>
+        <div class="ci"><span>🗂</span><span style="font-size:.78rem">SKILL.md = required. scripts/ references/ assets/ = optional. Total: just a folder.</span></div>
+        <div class="ci"><span>📊</span><span style="font-size:.78rem">3-level progressive disclosure: metadata always, body on trigger, resources on demand</span></div>
+        <div class="ci"><span>💰</span><span style="font-size:.78rem">Token math: 50 skills = ~5K always-loaded tokens. Only active skill body adds ~2K. Compares to ~15K for a flat prompt with the same workflows.</span></div>
+        <div class="ci"><span>🌍</span><span style="font-size:.78rem">Portable across all major coding agents: Claude Code, Gemini CLI, Antigravity, Cursor, Copilot</span></div>
+      </div>
+      <div class="card" style="border-left:4px solid var(--b)">
+        <div class="tag tb">Building Skills</div>
+        <h3>Two Paths, Same Artifact</h3>
+        <div class="ci"><span>👩‍💼</span><span style="font-size:.78rem">Path A: SME translates runbooks into SKILL.md. No coding required. The hardest part is the description field.</span></div>
+        <div class="ci"><span>🤖</span><span style="font-size:.78rem">Path B: Agent crystallizes successful trajectory into draft SKILL.md. Human reviews — doesn't author.</span></div>
+        <div class="ci"><span>📐</span><span style="font-size:.78rem">EDD: write 3 eval cases BEFORE drafting the body. Forces clear spec upfront.</span></div>
+        <div class="ci"><span>🔤</span><span style="font-size:.78rem">Naming: snake_case dirs, kebab-case names, gerund form (processing-pdfs). Boring names = good names.</span></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="border-left:4px solid var(--warn)">
+        <div class="tag ta">Evaluation</div>
+        <h3>All 4 Failure Modes Must Pass</h3>
+        <div class="ci"><span>🎯</span><span style="font-size:.78rem">Trigger: positive AND negative cases. 90% accuracy target. This is your routing algorithm — most important gate.</span></div>
+        <div class="ci"><span>⚙️</span><span style="font-size:.78rem">Execution: Golden dataset 20+ cases. LLM-as-Judge (swap positions, calibrate to 90% human agreement).</span></div>
+        <div class="ci"><span>📈</span><span style="font-size:.78rem">Trajectory: IN_ORDER for action-allowed, ANY_ORDER for read-only. Output-only scoring misses 20-40% of real failures.</span></div>
+        <div class="ci"><span>🔢</span><span style="font-size:.78rem">Token budget: co-load with 5-15 other skills. Evaluate in production-like conditions, not isolation.</span></div>
+        <div class="ci"><span>📉</span><span style="font-size:.78rem">pass^k not pass^1. GPT-4o: 61% on pass^1 → drops below 25% on pass^8.</span></div>
+      </div>
+      <div class="card" style="border-left:4px solid var(--g)">
+        <div class="tag tg">Production & Advanced</div>
+        <h3>Durable Strategic Assets</h3>
+        <div class="ci"><span>🏭</span><span style="font-size:.78rem">98.4% of agent runtime is infrastructure. 1.6% is the loop. Skills are the differentiator — not models.</span></div>
+        <div class="ci"><span>🔗</span><span style="font-size:.78rem">DAG orchestration: file message bus + decoupled state. Don't use LLM context as a database.</span></div>
+        <div class="ci"><span>🔄</span><span style="font-size:.78rem">Meta-skills: always enter at draft tier. Human review for first edits. Eval gates must be tight before autonomy.</span></div>
+        <div class="ci"><span>🏆</span><span style="font-size:.78rem">The skills library is the competitive moat. Two companies on the same runtime: the one with better skills wins.</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /deck -->
+<div class="nav">
+  <div class="nb" onclick="go(-1)">←</div>
+  <div class="nb" onclick="go(1)">→</div>
+  <span class="nc" id="ct">1 / 14</span>
+  <div class="ndw" id="dts"></div>
+  <span class="nt" id="nt">COVER</span>
+</div>
+<script>
+const T=['COVER','WHAT ARE SKILLS? 4 FRICTION POINTS','SKILL ANATOMY + PROGRESSIVE DISCLOSURE','TWO BUILD PATHS + HOW TO INSTALL','WHY SKILLS BEAT MULTI-AGENT','EVALUATION: 4 FAILURE MODES','EVALUATION TOOLKIT + EDD','CONTEXT OVERFLOW','META-SKILLS: SELF-IMPROVING','COMPOSING SKILLS: DAG','SKILL SELECTION + TRUST TIERS','RETAIL CASE STUDY','THE PRACTICAL CHEATSHEET','DAY 3 SUMMARY'];
+const slides=document.querySelectorAll('.slide');
+const dts=document.getElementById('dts');
+let cur=0;
+slides.forEach((_,i)=>{const d=document.createElement('div');d.className='nd'+(i===0?' on':'');d.onclick=()=>goTo(i);dts.appendChild(d);});
+function goTo(n){slides[cur].classList.remove('active','fi');slides[cur].style.display='none';cur=Math.max(0,Math.min(n,slides.length-1));slides[cur].style.display='flex';requestAnimationFrame(()=>slides[cur].classList.add('active','fi'));document.querySelectorAll('.nd').forEach((d,i)=>d.classList.toggle('on',i===cur));document.getElementById('ct').textContent=`${cur+1} / ${slides.length}`;document.getElementById('nt').textContent=T[cur]||'';}
+function go(d){goTo(cur+d);}
+document.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key===' ')go(1);if(e.key==='ArrowLeft')go(-1);});
+slides.forEach((s,i)=>{if(i!==0)s.style.display='none';});
+</script>
+</body>
+</html>

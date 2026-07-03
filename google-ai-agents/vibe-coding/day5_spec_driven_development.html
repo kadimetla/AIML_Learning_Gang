@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Day 5 · Spec-Driven Development</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{--acc:#059669;--acl:#ECFDF5;--acb:#A7F3D0;--b:#2563EB;--bl:#EFF6FF;--bb:#BFDBFE;--p:#7C3AED;--pl:#F5F3FF;--pb:#DDD6FE;--warn:#D97706;--warnl:#FFFBEB;--warnb:#FDE68A;--danger:#DC2626;--dangerl:#FEF2F2;--dangerb:#FECACA;}
+html,body{width:100%;height:100%;font-family:'Inter',sans-serif;overflow:hidden;background:#fff;color:#1A2040;}
+.deck{width:100%;height:100%;position:relative;}
+.slide{position:absolute;inset:0;display:none;flex-direction:column;padding:40px 65px 50px;overflow:hidden;background:#fff;}
+.slide.active{display:flex;}.slide.fi{animation:fi .28s ease forwards;}
+@keyframes fi{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+.eyebrow{font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--acc);margin-bottom:12px;}
+h1{font-size:clamp(1.8rem,3.2vw,2.6rem);font-weight:900;letter-spacing:-.025em;line-height:1.06;color:#1A2040;}
+h2{font-size:clamp(1.2rem,2.1vw,1.72rem);font-weight:800;letter-spacing:-.02em;color:#1A2040;margin-bottom:18px;}
+h3{font-size:.89rem;font-weight:700;color:#1A2040;margin-bottom:5px;}
+p,li{font-size:.85rem;line-height:1.72;color:#4B5563;}
+strong{color:#1A2040;font-weight:700;}
+em{font-style:italic;color:#6B7280;}
+code{font-family:'JetBrains Mono',monospace;font-size:.74rem;background:var(--acl);padding:1px 5px;border-radius:3px;border:1px solid var(--acb);color:var(--acc);}
+pre{font-family:'JetBrains Mono',monospace;font-size:.69rem;background:#F8F9FC;border:1px solid #E2E6F0;border-radius:9px;padding:12px 14px;line-height:1.7;overflow:hidden;color:#374151;}
+.kw{color:var(--b);font-weight:600;}.cm{color:#9CA3AF;font-style:italic;}.str{color:var(--acc);}.fn{color:var(--p);}
+.div{width:100%;height:1px;background:#E2E6F0;margin:12px 0;}
+.card{background:#F8F9FC;border:1px solid #E2E6F0;border-radius:11px;padding:14px 16px;box-shadow:0 1px 3px rgba(26,32,64,.04);}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:11px;}
+.g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:17px;flex:1;}
+.col{display:flex;flex-direction:column;gap:10px;}
+.tag{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:2px 7px;border-radius:4px;border:1px solid;margin-bottom:7px;}
+.tg{background:var(--acl);color:var(--acc);border-color:var(--acb);}
+.tb{background:var(--bl);color:var(--b);border-color:var(--bb);}
+.tp{background:var(--pl);color:var(--p);border-color:var(--pb);}
+.ta{background:var(--warnl);color:var(--warn);border-color:var(--warnb);}
+.tr{background:var(--dangerl);color:var(--danger);border-color:var(--dangerb);}
+.alert{border-radius:9px;padding:11px 14px;border:1px solid;font-size:.79rem;line-height:1.55;}
+.ag{background:var(--acl);border-color:var(--acb);color:var(--acc);}
+.ab{background:var(--bl);border-color:var(--bb);color:var(--b);}
+.ap{background:var(--pl);border-color:var(--pb);color:var(--p);}
+.aa{background:var(--warnl);border-color:var(--warnb);color:var(--warn);}
+.ar{background:var(--dangerl);border-color:var(--dangerb);color:var(--danger);}
+.q{border-left:3px solid var(--acc);padding:13px 18px;background:var(--acl);border-radius:0 9px 9px 0;margin-bottom:12px;}
+.qt{font-size:.96rem;font-style:italic;line-height:1.65;color:#1A2040;}
+.qa{font-family:'JetBrains Mono',monospace;font-size:10px;color:#8693AE;margin-top:8px;}
+.ci{display:flex;align-items:flex-start;gap:8px;font-size:.8rem;color:#4B5563;line-height:1.55;margin-bottom:5px;}
+.ck{flex-shrink:0;margin-top:1px;}
+/* BDD */
+.bdd{font-family:'JetBrains Mono',monospace;font-size:.7rem;background:#F8F9FC;border:1px solid #E2E6F0;border-radius:9px;padding:12px 14px;line-height:1.85;color:#374151;overflow:hidden;}
+.sc{color:var(--b);font-weight:700;}.gv{color:var(--acc);font-weight:600;}.wh{color:var(--warn);font-weight:600;}.th{color:var(--p);font-weight:600;}
+/* TIER STACK */
+.tier{border-radius:10px;padding:13px 17px;border:1px solid;display:flex;gap:14px;align-items:flex-start;margin-bottom:10px;}
+.tn{font-family:'JetBrains Mono',monospace;font-size:1.2rem;font-weight:900;flex-shrink:0;line-height:1.1;}
+.tt{font-size:.85rem;font-weight:700;color:#1A2040;margin-bottom:3px;}
+.tsub{font-family:'JetBrains Mono',monospace;font-size:.68rem;margin-bottom:5px;}
+.tb2{font-size:.76rem;color:#4B5563;line-height:1.55;}
+/* FORMAT COMPARISON */
+.fcomp{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:10px 0;}
+.fb{border-radius:8px;padding:12px;border:1px solid;text-align:center;}
+.fp{font-size:1.6rem;font-weight:900;margin:4px 0;}
+/* ZERO TRUST LAYERS */
+.ztl{display:flex;flex-direction:column;gap:8px;}
+.zl{border-radius:9px;padding:11px 14px;border:1px solid;display:flex;gap:12px;align-items:flex-start;}
+.zli{font-size:1.2rem;flex-shrink:0;}
+.zlt{font-size:.8rem;font-weight:700;color:#1A2040;margin-bottom:3px;}
+.zlb{font-size:.73rem;color:#4B5563;line-height:1.5;}
+/* TABLE */
+table{width:100%;border-collapse:collapse;font-size:.77rem;}
+thead th{text-align:left;padding:7px 10px;font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.1em;color:#8693AE;font-weight:600;border-bottom:2px solid #E2E6F0;}
+td{padding:7px 10px;border-bottom:1px solid #E2E6F0;color:#4B5563;vertical-align:top;}
+td:first-child{font-weight:600;color:#1A2040;}
+/* NAV */
+.nav{position:fixed;bottom:0;left:0;right:0;height:46px;background:rgba(255,255,255,.93);border-top:1px solid #E2E6F0;display:flex;align-items:center;padding:0 24px;gap:11px;backdrop-filter:blur(8px);z-index:100;box-shadow:0 -1px 10px rgba(26,32,64,.05);}
+.nb{background:#F8F9FC;border:1px solid #E2E6F0;color:#8693AE;border-radius:6px;width:30px;height:27px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:.8rem;transition:all .15s;font-family:'JetBrains Mono',monospace;user-select:none;}
+.nb:hover{border-color:var(--acc);color:var(--acc);background:var(--acl);}
+.nc{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#8693AE;}
+.ndw{display:flex;gap:5px;margin-left:4px;}
+.nd{width:5px;height:5px;border-radius:50%;background:#CDD2E8;cursor:pointer;transition:all .2s;}
+.nd.on{background:var(--acc);transform:scale(1.35);}
+.nt{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#8693AE;letter-spacing:.1em;margin-left:auto;}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+
+<!-- S0 COVER -->
+<div class="slide active fi" id="s0" style="background:linear-gradient(135deg,#fff 0%,#ECFDF5 60%,#EFF6FF 100%);justify-content:center;gap:20px">
+  <div class="eyebrow">Google Vibe Coding Course · Day 5 · May 2026</div>
+  <h1>Spec-Driven<br><span style="background:linear-gradient(135deg,#059669,#2563EB);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">Production Grade<br>Development</span></h1>
+  <p style="font-size:.95rem;color:#6B7280;max-width:560px;line-height:1.65">The Blueprint for Scalable Workflows and Team Evolution: From Vibe Prototypes to Production Reality.</p>
+  <p style="font-size:.8rem;color:#9CA3AF">Author: Lee Boonstra · Google · May 2026</p>
+  <div class="div"></div>
+  <div class="q" style="max-width:640px;margin-bottom:0">
+    <p class="qt">"Vibe Coding" is not "Vibe In Production." While we utilize AI agents to their full potential, everything is fully intended and controlled to ensure production-grade reliability, rather than relying on unvalidated AI output.</p>
+    <p class="qa">— Day 5 whitepaper, opening position</p>
+  </div>
+  <p style="font-size:.72rem;color:#9CA3AF">13 slides · ← → keys or nav buttons</p>
+</div>
+
+
+<!-- S1 THE PARADIGM SHIFT -->
+<div class="slide fi" id="s1">
+  <div class="eyebrow">The Core Shift</div>
+  <h2>"Vibe Coding" ≠ "Vibe In Production": The Paradigm Shift</h2>
+  <div class="g3" style="margin-bottom:14px">
+    <div class="card" style="border-top:3px solid var(--danger)">
+      <div class="tag tr">The Illusion of Speed</div>
+      <h3>Writing Fast ≠ Shipping Fast</h3>
+      <p style="font-size:.78rem">An AI coding editor generates 1,000 lines of well-documented code rapidly. It feels like a legion of interns who never sleep. But when a model "hallucinates" — confidently invents something untrue — it doesn't create one bug. It generates <strong>1,000 lines of vibe-consistent but functionally broken logic</strong>.</p>
+      <p style="font-size:.78rem;margin-top:8px">If human reviewers are drowning in a sea of AI-generated PRs, the process isn't faster — it's just creating a bigger pile of "stuff" to be sorted later. The bottleneck has moved downstream to humans who must integrate and review, not those who write.</p>
+    </div>
+    <div class="card" style="border-top:3px solid var(--acc)">
+      <div class="tag tg">The Role Shift</div>
+      <h3>Developer → Technical Architect</h3>
+      <p style="font-size:.78rem">In traditional engineering, developers spent significant time digging into APIs, debugging line by line, determining if Python uses <code>substring in string</code> or <code>string.includes</code>. Today: coding agents don't just suggest text — they execute tasks.</p>
+      <p style="font-size:.78rem;margin-top:8px">Most time is now spent writing <strong>high-quality specifications</strong> — detailed technical instructions telling AI exactly what to build. Code is now disposable. Write a rock-solid spec and the entire codebase can be regenerated. Flip the project from Python to JavaScript in a single afternoon. No emotional attachment to code.</p>
+    </div>
+    <div class="card" style="border-top:3px solid var(--b)">
+      <div class="tag tb">Agentic AI vs. Generative AI</div>
+      <h3>Hybrid Team Member, Not Autocomplete</h3>
+      <p style="font-size:.78rem">Standard GenAI: smart autocomplete. Agentic AI: a <strong>hybrid team member</strong> with tools as hands and an LLM as the brain. It reasons, writes specs and test cases, uses a browser to test UI, commits and merges code in Git.</p>
+      <p style="font-size:.78rem;margin-top:8px">Give the brain a "vibe" → it guesses. Give it a "blueprint" → it builds. In enterprise software, guessing is how "Rogue Agent" incidents occur. Spec-Driven Development (SDD) prevents this.</p>
+    </div>
+  </div>
+  <div class="q" style="border-color:var(--acc)">
+    <p class="qt">The Spec is the Product. The Code is the Output.</p>
+    <p class="qa">— Central thesis of Day 5 whitepaper</p>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="tag tg">What SDD Enables</div>
+      <div class="ci"><span>🔄</span><span style="font-size:.78rem">Regenerate the codebase from scratch if requirements change — no emotional cost</span></div>
+      <div class="ci"><span>🌐</span><span style="font-size:.78rem">Translate the entire codebase from one language/framework to another in an afternoon</span></div>
+      <div class="ci"><span>📐</span><span style="font-size:.78rem">AI catches logic flaws in the specification before generating broken code at scale</span></div>
+      <div class="ci"><span>🧪</span><span style="font-size:.78rem">AI writes more comprehensive test coverage than any human in the same timeframe — because implementation is no longer the bottleneck</span></div>
+    </div>
+    <div class="card">
+      <div class="tag tr">The "Context Fragmentation" Problem SDD Solves</div>
+      <p style="font-size:.78rem">Context fragmentation: while a developer is away, a teammate renames a variable in a shared file. An agent quoting an outdated snapshot mints code that calls a function that no longer exists. This is the digital equivalent of the game "Telephone" — the AI starts losing the plot because it's looking at outdated snapshots.</p>
+      <p style="font-size:.77rem;margin-top:6px"><strong>SDD fix:</strong> The spec in <code>./specs/</code> is the single source of truth — both humans and AI reference it, preventing divergence.</p>
+    </div>
+  </div>
+</div>
+
+
+<!-- S2 WHAT MAKES A GOOD SPEC -->
+<div class="slide fi" id="s2">
+  <div class="eyebrow">Spec-Driven Development</div>
+  <h2>What Makes a Production-Grade Specification</h2>
+  <p style="font-size:.83rem;margin-bottom:12px">A good specification is an <strong>Architectural North Star</strong> — it prevents context fragmentation and serves as the source of truth for both humans and AI. Stored as a Markdown/YAML file in a <code>specs/</code> folder, checked into version control.</p>
+  <div class="split" style="flex:1">
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--acc)">
+        <div class="tag tg">5 Elements of a Production-Grade Spec</div>
+        <div class="ci" style="margin-top:6px"><span style="color:var(--acc);font-weight:700">1.</span><span style="font-size:.78rem"><strong>Full Technical Design:</strong> Don't say "make a login page." Address requirements, database schemas (structure of data), and API specifications (contracts for how components communicate). Break it into pieces.</span></div>
+        <div class="ci"><span style="color:var(--acc);font-weight:700">2.</span><span style="font-size:.78rem"><strong>Visual Aids:</strong> Include diagrams AND a list of specific tools and libraries with <em>exact version numbers</em>. Without version numbers, the agent suggests older versions based on its training cutoff.</span></div>
+        <div class="ci"><span style="color:var(--acc);font-weight:700">3.</span><span style="font-size:.78rem"><strong>Background (The "Why"):</strong> Give the agent the reason behind the requirement. It will think forward — inferring likely next steps before you ask. Context prevents misinterpretation.</span></div>
+        <div class="ci"><span style="color:var(--acc);font-weight:700">4.</span><span style="font-size:.78rem"><strong>BDD Scenarios:</strong> What does success look like? What's failure? What are the edge cases? Explicit scenarios using Gherkin eliminate ambiguity completely.</span></div>
+        <div class="ci"><span style="color:var(--acc);font-weight:700">5.</span><span style="font-size:.78rem"><strong>Lean formatting:</strong> Treat tokenization as a hard physical constraint. Every character, newline, and indentation space translates directly into development budget and system latency.</span></div>
+      </div>
+      <div class="alert ag">
+        <strong>Pro tip from Lee Boonstra:</strong> Write technical designs in Google Docs first. Let architectural plans be read and reviewed by humans. Catch logic flaws in design before AI generates thousands of lines of broken code. <em>File → Download → Markdown</em> into <code>specs/</code>.
+      </div>
+    </div>
+    <div class="col">
+      <div class="tag tg">Format Matters: YAML vs JSON vs XML</div>
+      <p style="font-size:.79rem;margin-bottom:10px">A 2026 study (Ouyang et al., "SkCC") reveals LLM agents exhibit <strong>extreme sensitivity to instruction format</strong>, resulting in up to a 40% performance drop when using unoptimized Markdown. The optimal approach for Gemini:</p>
+      <div class="fcomp">
+        <div class="fb" style="background:var(--acl);border-color:var(--acb)">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:.72rem;font-weight:700;color:var(--acc)">YAML</div>
+          <div class="fp" style="color:var(--acc)">51.9%</div>
+          <div style="font-size:.72rem;color:var(--acc)">parsing accuracy<br>for nested configs</div>
+        </div>
+        <div class="fb" style="background:var(--warnl);border-color:var(--warnb)">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:.72rem;font-weight:700;color:var(--warn)">JSON</div>
+          <div class="fp" style="color:var(--warn)">43.1%</div>
+          <div style="font-size:.72rem;color:var(--warn)">parsing accuracy<br>for nested configs</div>
+        </div>
+        <div class="fb" style="background:var(--dangerl);border-color:var(--dangerb)">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:.72rem;font-weight:700;color:var(--danger)">XML</div>
+          <div class="fp" style="color:var(--danger)">33.8%</div>
+          <div style="font-size:.72rem;color:var(--danger)">parsing accuracy<br>for nested configs</div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:4px">
+        <div class="tag tg">Hybrid Markdown + Conditional YAML (the winner)</div>
+        <p style="font-size:.78rem">Use clean <strong>Markdown headers</strong> to anchor Gemini's attention on narrative sections. Switch to <strong>YAML for nested structures with depth &gt; 3</strong>. By mixing both, developers bypass the reasoning "format tax" of heavy JSON inputs.</p>
+        <pre style="margin-top:8px;font-size:.69rem"><span class="cm"># Good: Markdown for narrative</span>
+## Background
+This service handles payments for enterprise customers.
+
+<span class="cm"># Good: YAML for nested structured config</span>
+database:
+  engine: postgres
+  version: 16.2
+  connection_pool:
+    min: 5
+    max: 20
+    timeout_ms: 3000</pre>
+      </div>
+      <div class="alert ag" style="font-size:.76rem">The SkCC tool (Skill Compiler) automatically compiles a single-source instruction file into a model's optimal target format in under 10 milliseconds.</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S3 BDD + GHERKIN -->
+<div class="slide fi" id="s3">
+  <div class="eyebrow">Behavior-Driven Development</div>
+  <h2>BDD + Gherkin: Turning Vague Intents into Architectural Blueprints</h2>
+  <p style="font-size:.83rem;margin-bottom:12px">BDD (Behavior-Driven Development) is the ultimate tool for turning vague human ideas into precise designs that AI can build without guessing. At its core: plain, structured natural language describing exactly how a system should behave, <em>before any code is written</em>. The syntax is <strong>Gherkin</strong>.</p>
+  <div class="split" style="flex:1">
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--b)">
+        <div class="tag tb">Gherkin: State → Action → Outcome</div>
+        <h3>Forces the LLM to think in structured terms</h3>
+        <p style="font-size:.78rem">The Scenario/Given/When/Then template eliminates vague interpretation and keeps the agent on a strict track. Every behavior is precisely specified — no guessing, no filling in blanks.</p>
+        <div style="margin-top:10px">
+          <div style="display:grid;grid-template-columns:1fr 3fr;gap:6px;margin-bottom:8px">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.73rem;padding:4px 8px;background:var(--bl);color:var(--b);border-radius:5px;font-weight:700;text-align:center">Scenario</div>
+            <div style="font-size:.75rem;color:#4B5563;padding:4px 0">Names the behavior being tested. Sets the context for the reader.</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 3fr;gap:6px;margin-bottom:8px">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.73rem;padding:4px 8px;background:var(--acl);color:var(--acc);border-radius:5px;font-weight:700;text-align:center">Given</div>
+            <div style="font-size:.75rem;color:#4B5563;padding:4px 0"><strong>State:</strong> What's already true? What context/preconditions exist? What data is in the database?</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 3fr;gap:6px;margin-bottom:8px">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.73rem;padding:4px 8px;background:var(--warnl);color:var(--warn);border-radius:5px;font-weight:700;text-align:center">When</div>
+            <div style="font-size:.75rem;color:#4B5563;padding:4px 0"><strong>Action:</strong> What does the user/system do? The trigger event that initiates the behavior being tested.</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 3fr;gap:6px">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.73rem;padding:4px 8px;background:var(--pl);color:var(--p);border-radius:5px;font-weight:700;text-align:center">Then</div>
+            <div style="font-size:.75rem;color:#4B5563;padding:4px 0"><strong>Outcome:</strong> What should happen? Verifiable, specific, measurable results — not "it should work."</div>
+          </div>
+        </div>
+      </div>
+      <div class="alert ab">
+        <strong>BDD specs serve dual purpose:</strong> they're the <strong>north star for the AI</strong> (what to build) and the <strong>test contract for CI</strong> (how to verify it). Write the spec → derive failing tests → agent generates passing code. Tests never get deleted because they ARE the spec.
+      </div>
+    </div>
+    <div class="col">
+      <div class="tag tg">Real BDD Spec Example</div>
+      <div class="bdd">
+<span class="sc">Feature:</span> User Authentication
+
+<span class="sc">Scenario:</span> Successful login with valid credentials
+  <span class="gv">Given</span> the user is on the login page at <span class="str">/auth/login</span>
+  <span class="gv">  And</span> the database contains user <span class="str">"alice@example.com"</span>
+          with hashed password and role: <span class="str">"admin"</span>
+  <span class="wh">When</span> the user submits:
+       email: <span class="str">"alice@example.com"</span>
+       password: <span class="str">"correct_password"</span>
+  <span class="th">Then</span> the system returns HTTP <span class="str">200</span> with a JWT token
+  <span class="th">  And</span> the token payload contains:
+       role: <span class="str">"admin"</span>, exp: <span class="str">3600</span>
+  <span class="th">  And</span> the audit log records:
+       event: <span class="str">"login.success"</span>, user_id, timestamp, ip
+
+<span class="sc">Scenario:</span> Failed login with wrong password
+  <span class="gv">Given</span> the user is on the login page
+  <span class="wh">When</span> the user submits:
+       email: <span class="str">"alice@example.com"</span>
+       password: <span class="str">"wrong_password"</span>
+  <span class="th">Then</span> the system returns HTTP <span class="str">401</span>
+       error: <span class="str">"Invalid credentials"</span>
+  <span class="th">  And</span> the audit log records:
+       event: <span class="str">"login.failed"</span> with IP address
+  <span class="th">  And</span> no JWT token is issued
+
+<span class="sc">Scenario:</span> Rate limiting after 5 failed attempts
+  <span class="gv">Given</span> the user has failed login <span class="str">5</span> times in the last <span class="str">60</span> seconds
+  <span class="wh">When</span> the user submits another login attempt
+  <span class="th">Then</span> the system returns HTTP <span class="str">429</span>
+       error: <span class="str">"Too many attempts, retry after 300s"</span>
+      </div>
+      <div class="alert ag" style="margin-top:10px;font-size:.76rem">Notice: no ambiguity about HTTP status codes, no vague "it should work," specific field names, measurable outcomes. Edge cases (rate limiting) explicitly specified. This is what an AI needs to build <em>exactly</em> what you want.</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S4 WHERE INSTRUCTIONS LIVE -->
+<div class="slide fi" id="s4">
+  <div class="eyebrow">Instruction Architecture</div>
+  <h2>Where Instructions Live: Three Tiers of Context</h2>
+  <p style="font-size:.83rem;margin-bottom:14px">Instructions are not written in a single place. Dumping a 100-page system design document directly into a chat window rapidly exhausts the short-term context budget, increases latency, and fragments the context. Each tier has a different scope, lifecycle, and purpose.</p>
+
+  <div class="tier" style="background:var(--bl);border-color:var(--bb)">
+    <div class="tn" style="color:var(--b)">1</div>
+    <div style="flex:1">
+      <div class="tt">Chat Interface</div>
+      <div class="tsub" style="color:var(--b)">Short-lived · Session-specific · Ephemeral · NOT version-controlled</div>
+      <div class="tb2">The conversational input box in the IDE (Gemini side-panel, terminal interface). The active developer session only. <strong>Use purely for high-level orchestration and instant feedback loops.</strong> Example: <em>"Review the design in specs/payment_retry.md and generate the failing unit tests defined in Scenario 3."</em> Don't paste the full spec — reference it by path. Putting specs here exhausts context budget for each new session.</div>
+    </div>
+  </div>
+
+  <div class="tier" style="background:var(--warnl);border-color:var(--warnb)">
+    <div class="tn" style="color:var(--warn)">2</div>
+    <div style="flex:1">
+      <div class="tt">Specs Folder</div>
+      <div class="tsub" style="color:var(--warn)">Task-specific · Checked into version control · Source of truth · Persistent across sessions</div>
+      <div class="tb2">Static folder directly in the repository (<code>./my-app/specs/my_spec.md</code>). Stores technical design, BDD scenarios, API contracts, structural YAML schemas. The agent dynamically indexes this directory to build and verify code — <strong>no manual prompt-stuffing needed</strong>. This is the single source of truth for both humans and AI. When the codebase and spec diverge, the AI hallucinates. Agent Skills also live as reusable modules here at <code>.agent/skills/</code>.</div>
+    </div>
+  </div>
+
+  <div class="tier" style="background:var(--acl);border-color:var(--acb)">
+    <div class="tn" style="color:var(--acc)">3</div>
+    <div style="flex:1">
+      <div class="tt">System Prompts (Hierarchical)</div>
+      <div class="tsub" style="color:var(--acc)">Global + Project · Identity-focused · Engineering DNA · Hierarchical priority</div>
+      <div class="tb2">
+        Both Gemini CLI and Google Antigravity scan and concatenate context files hierarchically — each level overrides the one below:
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px">
+          <div style="background:#fff;border:1px solid var(--acb);border-radius:7px;padding:9px 11px">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.67rem;font-weight:700;color:var(--acc);margin-bottom:3px">~/.gemini/GEMINI.md</div>
+            <div style="font-size:.72rem;color:#4B5563">Global profile. Universal persona, default style, core principles. Applies regardless of which project you're in.</div>
+          </div>
+          <div style="background:#fff;border:1px solid var(--acb);border-radius:7px;padding:9px 11px">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.67rem;font-weight:700;color:var(--acc);margin-bottom:3px">./AGENTS.md</div>
+            <div style="font-size:.72rem;color:#4B5563">Shared cross-tool config. Team-wide foundation. Works across multiple AI clients — prevents instructional fragmentation across Claude Code, Gemini CLI, Cursor, etc.</div>
+          </div>
+          <div style="background:#fff;border:1px solid var(--acb);border-radius:7px;padding:9px 11px">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:.67rem;font-weight:700;color:var(--acc);margin-bottom:3px">./.gemini/GEMINI.md</div>
+            <div style="font-size:.72rem;color:#4B5563"><strong>Highest priority.</strong> Project DNA. Automatically detected and read by CLI agent. Project-specific rules override everything above.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="alert ag" style="margin-top:12px">The priority chain: Project GEMINI.md (highest) → AGENTS.md → Global GEMINI.md (lowest). Skills load on top of whichever system prompt is active, triggered by the description field matching the current task.</div>
+</div>
+
+
+<!-- S5 FOUR EXECUTION MODES -->
+<div class="slide fi" id="s5">
+  <div class="eyebrow">Execution Modes</div>
+  <h2>Four Execution Modes: Different Tasks Need Different Mindsets</h2>
+  <p style="font-size:.83rem;margin-bottom:12px">There isn't just one way to turn a spec into code. Each mode requires a different prompting strategy, different constraints, and a different mental role for the developer-as-architect.</p>
+  <div class="g2" style="flex:1">
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--acc)">
+        <div class="tag tg">Mode 1: Project Generation (The Architect)</div>
+        <h3>Scaffold from scratch — but never in YOLO mode</h3>
+        <p style="font-size:.78rem">Building the skeleton of the project. Key rules:</p>
+        <div class="ci" style="margin-top:6px"><span style="color:var(--acc)">🚫</span><span style="font-size:.77rem"><strong>No YOLO mode:</strong> Explicitly prompt the agent NOT to code immediately. It must propose the folder structure and tech stack first for your confirmation</span></div>
+        <div class="ci"><span style="color:var(--acc)">📦</span><span style="font-size:.77rem"><strong>Include version numbers</strong> for every library. Without them, the agent falls back to its training cutoff — suggesting <code>gemini-1.5-flash</code> because it doesn't know about later versions</span></div>
+        <div class="ci"><span style="color:var(--acc)">🧪</span><span style="font-size:.77rem"><strong>Mandate tests, docs, logging</strong> from the start. The "digital black box" (logging) is non-optional in production systems</span></div>
+      </div>
+      <div class="card" style="border-top:3px solid var(--b)">
+        <div class="tag tb">Mode 2: Feature Generation (The Builder)</div>
+        <h3>Implement on top of existing codebase</h3>
+        <div class="ci" style="margin-top:6px"><span style="color:var(--b)">🎨</span><span style="font-size:.77rem"><strong>Match existing style:</strong> Prompt the agent to match naming patterns, error handling conventions, and code idioms of the existing codebase — not introduce new ones</span></div>
+        <div class="ci"><span style="color:var(--b)">👁</span><span style="font-size:.77rem"><strong>Confirm multi-file changes:</strong> When multiple files are being edited, manually confirm changes before applying. Always see the "Diff" — exactly what lines are being added or removed</span></div>
+        <div class="ci"><span style="color:var(--b)">🔗</span><span style="font-size:.77rem"><strong>Reference the spec by path:</strong> "Implement the feature described in specs/feature_xyz.md, Scenario 2 only"</span></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--warn)">
+        <div class="tag ta">Mode 3: Bug Fixing (The Forensic Specialist)</div>
+        <h3>Root cause analysis — not symptom chasing</h3>
+        <div class="ci" style="margin-top:6px"><span style="color:var(--warn)">🔍</span><span style="font-size:.77rem"><strong>Evidence Prompting, not Symptom Prompting:</strong><br>"Logs pulled via <code>gcloud logging read 'textPayload:ERROR'</code> showed a 403 error" ✓<br>"The button doesn't work" ✗</span></div>
+        <div class="ci"><span style="color:var(--warn)">🧪</span><span style="font-size:.77rem"><strong>Write reproducing test first:</strong> Prompt for a failing unit test or curl command before attempting any fix. Keep this test to ensure the bug never returns</span></div>
+        <div class="ci"><span style="color:var(--warn)">🎯</span><span style="font-size:.77rem"><strong>Constrain to root cause:</strong> Set strict constraint that agent should only fix the root cause. Unrelated "cleanup" complicates the review process</span></div>
+        <div class="ci"><span style="color:var(--warn)">✋</span><span style="font-size:.77rem"><strong>Separate renames:</strong> If agent suggests renaming variables, treat as a separate task — never bundled with a bug fix</span></div>
+      </div>
+      <div class="card" style="border-top:3px solid var(--p)">
+        <div class="tag tp">Mode 4: Documentation (The Author)</div>
+        <h3>Docs are the source of truth — keep them in sync</h3>
+        <div class="ci" style="margin-top:6px"><span style="color:var(--p)">📖</span><span style="font-size:.77rem"><strong>Specs in agent skills:</strong> Add a skill that automatically maintains <code>README.md</code> and <code>CHANGELOG.md</code> whenever code changes are detected. Documentation drift causes hallucination.</span></div>
+        <div class="ci"><span style="color:var(--p)">📝</span><span style="font-size:.77rem"><strong>Structured docstrings:</strong> Use Google Style Docstrings (Python) or JSDoc (TypeScript). These help AI understand what a function does without reading every line of logic — and generate better downstream code that uses these functions</span></div>
+        <div class="ci"><span style="color:var(--p)">🔄</span><span style="font-size:.77rem"><strong>Built-in browser testing (Antigravity):</strong> Agent autonomously runs localhost, interacts with live UI, verifies visual fixes in real time — inside an isolated, clean Chrome profile (no access to active sessions)</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S6 MCP: ONE INTEGRATION -->
+<div class="slide fi" id="s6">
+  <div class="eyebrow">MCP in Practice</div>
+  <h2>MCP: One Integration, Every Framework</h2>
+  <p style="font-size:.83rem;margin-bottom:12px">MCP (created by Anthropic, now an open standard) is "the USB-C for AI tools." Build one MCP server for your database (or API, or filesystem), and any MCP-compatible agent can use it without a custom integration. Here's a complete, working implementation in ~40 lines.</p>
+  <div class="split" style="flex:1">
+    <div>
+      <div class="tag tg">mcp_server.py — SQLite database exposed via MCP</div>
+      <pre>
+<span class="kw">import</span> sqlite3
+<span class="kw">from</span> mcp.server <span class="kw">import</span> Server
+<span class="kw">from</span> mcp.server.stdio <span class="kw">import</span> stdio_server
+<span class="kw">from</span> mcp.types <span class="kw">import</span> Tool, TextContent
+
+server = Server(<span class="str">"knowledge-base"</span>)
+db = sqlite3.connect(<span class="str">"knowledge.db"</span>)
+
+@server.<span class="fn">list_tools</span>()
+<span class="kw">async def</span> list_tools() -> list[Tool]:
+    <span class="kw">return</span> [
+        Tool(name=<span class="str">"query_knowledge"</span>,
+             description=<span class="str">"Query the knowledge base with SQL"</span>,
+             inputSchema={
+               <span class="str">"type"</span>: <span class="str">"object"</span>,
+               <span class="str">"properties"</span>: {<span class="str">"sql"</span>: {<span class="str">"type"</span>: <span class="str">"string"</span>,
+               <span class="str">"description"</span>: <span class="str">"SQL query (SELECT only)"</span>}},
+               <span class="str">"required"</span>: [<span class="str">"sql"</span>]
+             }),
+        Tool(name=<span class="str">"add_knowledge"</span>,
+             description=<span class="str">"Add a new knowledge entry"</span>,
+             inputSchema={<span class="str">"type"</span>: <span class="str">"object"</span>,
+               <span class="str">"properties"</span>: {<span class="str">"title"</span>: {<span class="str">"type"</span>: <span class="str">"string"</span>},
+               <span class="str">"content"</span>: {<span class="str">"type"</span>: <span class="str">"string"</span>},
+               <span class="str">"tags"</span>: {<span class="str">"type"</span>: <span class="str">"string"</span>}},
+               <span class="str">"required"</span>: [<span class="str">"title"</span>, <span class="str">"content"</span>]})
+    ]
+
+@server.<span class="fn">call_tool</span>()
+<span class="kw">async def</span> call_tool(name: str, arguments: dict):
+    <span class="kw">if</span> name == <span class="str">"query_knowledge"</span>:
+        sql = arguments[<span class="str">"sql"</span>]
+        <span class="kw">if not</span> sql.strip().upper().startswith(<span class="str">"SELECT"</span>):
+            <span class="kw">return</span> [TextContent(type=<span class="str">"text"</span>,
+                     text=<span class="str">"Error: Only SELECT queries allowed"</span>)]
+        cursor = db.execute(sql)
+        rows = cursor.fetchall()
+        columns = [desc[<span class="str">0</span>] <span class="kw">for</span> desc <span class="kw">in</span> cursor.description]
+        result = [dict(zip(columns, row)) <span class="kw">for</span> row <span class="kw">in</span> rows]
+        <span class="kw">return</span> [TextContent(type=<span class="str">"text"</span>, text=str(result))]
+
+<span class="kw">async def</span> main():
+    <span class="kw">async with</span> stdio_server() <span class="kw">as</span> (read, write):
+        init = server.create_initialization_options()
+        <span class="kw">await</span> server.run(read, write, init)
+</pre>
+    </div>
+    <div class="col">
+      <div class="tag tg">mcp_client.py — Connect to the server</div>
+      <pre>
+<span class="kw">from</span> mcp <span class="kw">import</span> ClientSession, StdioServerParameters
+<span class="kw">from</span> mcp.client.stdio <span class="kw">import</span> stdio_client
+
+server_params = StdioServerParameters(
+    command=<span class="str">"python"</span>, args=[<span class="str">"mcp_server.py"</span>]
+)
+
+<span class="kw">async with</span> stdio_client(server_params) <span class="kw">as</span> (read, write):
+    <span class="kw">async with</span> ClientSession(read, write) <span class="kw">as</span> session:
+        <span class="kw">await</span> session.initialize()
+
+        <span class="cm"># List available tools</span>
+        tools = <span class="kw">await</span> session.list_tools()
+        print(f<span class="str">"Available: {[t.name for t in tools.tools]}"</span>)
+
+        <span class="cm"># Call a tool</span>
+        result = <span class="kw">await</span> session.call_tool(
+            <span class="str">"query_knowledge"</span>,
+            {<span class="str">"sql"</span>: <span class="str">"SELECT * FROM knowledge WHERE tags LIKE '%agent%'"</span>}
+        )
+        print(result.content[<span class="str">0</span>].text)
+</pre>
+      <div class="card" style="margin-top:10px">
+        <div class="tag tg">Why MCP vs Custom REST Wrappers</div>
+        <div class="ci"><span>🔌</span><span style="font-size:.77rem">Build once → every MCP-compatible agent can use it. Claude Code, Gemini CLI, Antigravity, Cursor — same server, zero per-client integration work</span></div>
+        <div class="ci"><span>🔒</span><span style="font-size:.77rem">Security built in: only SELECT allowed (shown above). Scope enforcement happens at the server, not the prompt</span></div>
+        <div class="ci"><span>📐</span><span style="font-size:.77rem">Typed schemas via <code>inputSchema</code>: the agent knows exactly what parameters to pass — no hallucinated argument names</span></div>
+        <div class="ci"><span>🔄</span><span style="font-size:.77rem">Versioned server: update the server once → all clients benefit. No synchronization of multiple custom integrations</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S7 TEAM CULTURE -->
+<div class="slide fi" id="s7">
+  <div class="eyebrow">Team Culture & Process</div>
+  <h2>Team Culture Evolution: Code Reviews in the AI Age</h2>
+  <p style="font-size:.83rem;margin-bottom:12px">Sticking to old processes while using modern tools is like trying to put a jet engine on a horse-drawn carriage. AI-generated PRs introduce a new class of team challenges. Here's how to address them.</p>
+  <div class="g3" style="margin-bottom:12px">
+    <div class="card" style="border-top:3px solid var(--danger)">
+      <div class="tag tr">New Problem 1: Merge Conflicts at Scale</div>
+      <p style="font-size:.77rem">Multiple developers landing on the same file within the hour. PR #1 can't merge without PR #2, which needs PR #3, blocked by a reviewer in a different timezone. Agent-generated code touches more files simultaneously than human-written code.</p>
+      <div class="ci" style="margin-top:8px"><span style="color:var(--acc)">✅</span><span style="font-size:.76rem">Assign clear file ownership — designate which team members own which APIs vs. UX. Reduce cross-file collisions by design.</span></div>
+    </div>
+    <div class="card" style="border-top:3px solid var(--danger)">
+      <div class="tag tr">New Problem 2: Review Gridlock</div>
+      <p style="font-size:.77rem">A massive PR becomes a Russian-doll of sub-PRs. Human reviewers can't process AI-generated volume at the same pace the agent produces it. Traditional review culture doesn't scale.</p>
+      <div class="ci" style="margin-top:8px"><span style="color:var(--acc)">✅</span><span style="font-size:.76rem">Bundled AI-generated PR summaries: every PR includes what changed, breakage points, and a risk assessment. Human reviews focus on architecture, not lines.</span></div>
+    </div>
+    <div class="card" style="border-top:3px solid var(--danger)">
+      <div class="tag tr">New Problem 3: Context Fragmentation</div>
+      <p style="font-size:.77rem">Teammate renames a variable in a shared file while another developer is away. An agent quoting an outdated snapshot generates code calling a function that no longer exists. Stale context causes hallucinated integrations.</p>
+      <div class="ci" style="margin-top:8px"><span style="color:var(--acc)">✅</span><span style="font-size:.76rem">The spec in <code>./specs/</code> is the canonical reference. Agents always read spec first, never rely on in-context snapshots of files.</span></div>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--acc)">
+        <div class="tag tg">The "Conditional LGTM"</div>
+        <h3>Eliminate 12-hour cross-timezone review delays</h3>
+        <p style="font-size:.77rem">A reviewer approves the PR contingent on all automated tests passing. If the tests turn green, the code merges automatically — no second round-trip. Combines human architectural judgment with machine verification of correctness.</p>
+      </div>
+      <div class="card">
+        <div class="tag tg">Reimagined Ownership</div>
+        <p style="font-size:.77rem">Shift focus of human reviews from nitpicking style on disposable agent-written code → ensuring integrity of architectural blueprints. Style is handled automatically by shared syntax linters or <code>SKILL.md</code> stylebooks. Code is disposable; architecture is not.</p>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--b)">
+        <div class="tag tb">3-Tier Continuous Code Review</div>
+        <table style="margin-top:6px">
+          <thead><tr><th>Tier</th><th>Approach</th><th>Trade-off</th></tr></thead>
+          <tbody>
+            <tr><td>Tier 1 — Managed</td><td>Gemini Code Assist on GitHub. Enable and go — generic out-of-the-box AI reviewer</td><td>Vendor's review opinions, not yours. Misses domain-specific risks (HIPAA, PCI, internal SDKs)</td></tr>
+            <tr><td>Tier 2 — Hybrid</td><td>GitHub Action + custom <code>code-check.md</code> skill. Your review criteria, CI runtime. Posts comments to PRs automatically</td><td>You own the prompts and model choice. Better starting point for most teams.</td></tr>
+            <tr><td>Tier 3 — Custom</td><td>Full ADK agent on Agent Engine. Graph-native code understanding (Spanner Graph). Sub-agent pipeline for decomposition</td><td>You own runtime, observability, cost, on-call. Needed for 100M-line legacy codebases.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="tag ta">Approval Fatigue Warning</div>
+        <p style="font-size:.77rem">Frequent AI users are <strong>45% more likely to experience high burnout</strong> than non-users (Quantum Workplace/CNBC). When faced with constant micro-approvals, developers start clicking "Approve" reflexively — stopping checking the machine's work just to keep up.</p>
+        <div class="ci" style="margin-top:6px"><span>🌙</span><span style="font-size:.76rem"><strong>Digital Quiet Hours:</strong> Set boundaries so approval requests don't bleed into evenings/weekends</span></div>
+        <div class="ci"><span>💡</span><span style="font-size:.76rem"><strong>Agent Insight Sessions:</strong> Weekly sessions where developers share patterns identified by their AI counterparts — turning isolated discoveries into organizational knowledge</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S8 ZERO TRUST -->
+<div class="slide fi" id="s8">
+  <div class="eyebrow">Zero-Trust Development</div>
+  <h2>Zero-Trust Development: Building the Safety Net</h2>
+  <div class="q" style="border-color:var(--danger);background:var(--dangerl)">
+    <p class="qt" style="color:var(--danger)">Real incident: A simple prompt to create a button triggered an unexpected chain reaction. The browser agent autonomously clicked the new button, which was intended for an email agent. Without a specified URL, the agent hallucinated by connecting to a deprecated legacy agent. The result: fifty colleagues received false emails filled with hallucinated content.</p>
+    <p class="qa" style="color:#991B1B">— Lee Boonstra, Day 5 whitepaper · context hallucination risk in YOLO mode</p>
+  </div>
+  <p style="font-size:.83rem;margin-bottom:12px">This incident highlighted a core risk: when AI lacks sufficient data, it fills gaps using whatever strings exist in its context — including hardcoded email addresses or URLs. <strong>Guardrails are not optional.</strong></p>
+  <div class="ztl">
+    <div class="zl" style="background:var(--acl);border-color:var(--acb)">
+      <div class="zli">🛡️</div>
+      <div><div class="zlt">Layer 1: Guardrails (AGENTS.md)</div><div class="zlb">Hard constraints embedded in the agent's system identity. The agent never bypasses these regardless of prompt. Hard-coding constraints into a system prompt alone is brittle — agents can be "convinced" to bypass rules via prompt injection. External, tamper-proof governance is required.</div></div>
+    </div>
+    <div class="zl" style="background:var(--bl);border-color:var(--bb)">
+      <div class="zli">📦</div>
+      <div><div class="zlt">Layer 2: Sandboxing (Ephemeral Containers)</div><div class="zlb">Execute agent-driven tasks within ephemeral, low-privilege containers isolated from primary network and sensitive file systems. If the agent is tricked into executing a destructive command, the damage is confined to a disposable instance. Enable via <code>GEMINI_SANDBOX=docker</code> or Antigravity's Terminal Sandboxing toggle.</div></div>
+    </div>
+    <div class="zl" style="background:var(--warnl);border-color:var(--warnb)">
+      <div class="zli">🧑‍💼</div>
+      <div><div class="zlt">Layer 3: Human-in-the-Loop (HITL Checkpoint Gates)</div><div class="zlb">High-stakes operations (deploying to production, modifying database schemas, initiating financial transactions) require human confirmation. Present the agent's sanitized intent to a human supervisor for manual sign-off. AI does the heavy lifting; final responsibility for architectural integrity remains in human hands.</div></div>
+    </div>
+    <div class="zl" style="background:var(--pl);border-color:var(--pb)">
+      <div class="zli">🧪</div>
+      <div><div class="zlt">Layer 4: AI-Generated Test Coverage</div><div class="zlb">Force the agent to produce a failing unit test or reproduction command before attempting any fix. Embed automated tests into the codebase — every rapid iteration backed by a verifiable suite. AI can write more comprehensive test coverage than any human in the same timeframe because implementation is no longer the bottleneck.</div></div>
+    </div>
+    <div class="zl" style="background:#F8F9FC;border-color:#E2E6F0">
+      <div class="zli">📊</div>
+      <div><div class="zlt">Layer 5: Evaluation (Behavioral Scoring)</div><div class="zlb">Traditional unit tests ask "did the function return the right value?" — a binary answer. Evaluation asks "is the agent's behavior at least as good as the baseline?" — a scored judgment. Tests catch deterministic regressions; evaluation catches behavioral drift. Essential for any ML-driven component where output is generated, not computed.</div></div>
+    </div>
+    <div class="zl" style="background:var(--dangerl);border-color:var(--dangerb)">
+      <div class="zli">🚦</div>
+      <div><div class="zlt">Layer 6: Policy Server (Structural + Semantic Gating)</div><div class="zlb">Intercepts agent actions before they hit external systems. Two layers: (1) Structural — deterministic YAML-based role/environment checks (fast, binary: viewer cannot use send_email). (2) Semantic — a secondary LLM checks if an allowed action is used appropriately (admin can send_email but not with unmasked PII). Creates a safety net separating execution logic from governance logic.</div></div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S9 POLICY SERVER -->
+<div class="slide fi" id="s9">
+  <div class="eyebrow">Zero-Trust Implementation</div>
+  <h2>Policy Server + Context Hygiene: Code Walkthrough</h2>
+  <div class="split" style="flex:1">
+    <div class="col">
+      <div class="tag tg">policies.yaml — Deterministic Structural Rules</div>
+      <pre>
+environments:
+  localhost:
+    blocked_tools:
+      - send_email      <span class="cm"># Never email from localhost</span>
+      - delete_database <span class="cm"># Never delete from dev</span>
+  production:
+    blocked_tools:
+      - drop_table      <span class="cm"># DDL requires migration</span>
+
+roles:
+  viewer:
+    allowed_tools:
+      - list_files
+      - read_file
+  editor:
+    allowed_tools:
+      - list_files
+      - read_file
+      - write_file
+  admin:
+    allowed_tools: [<span class="str">"*"</span>]   <span class="cm"># All tools, subject to semantic check</span></pre>
+      <div class="tag tg" style="margin-top:10px">policy_server.py — Hybrid Gating (Structural + Semantic)</div>
+      <pre>
+<span class="kw">class</span> PolicyService:
+    <span class="kw">def</span> is_tool_allowed(self, tool_name: str) -> bool:
+        <span class="cm"># Check environment blocks first (fast, deterministic)</span>
+        env_cfg = self.config[<span class="str">"environments"</span>][self.env]
+        <span class="kw">if</span> tool_name <span class="kw">in</span> env_cfg.get(<span class="str">"blocked_tools"</span>, []):
+            <span class="kw">return</span> False
+
+        <span class="cm"># Check role permissions (fast, deterministic)</span>
+        role_allows = (self.config[<span class="str">"roles"</span>]
+                       .get(self.role, {}).get(<span class="str">"allowed_tools"</span>, []))
+        <span class="kw">return</span> <span class="str">"*"</span> <span class="kw">in</span> role_allows <span class="kw">or</span> tool_name <span class="kw">in</span> role_allows
+
+    <span class="kw">async def</span> check_action_semantic(self,
+                                    action_description: str) -> bool:
+        <span class="cm"># Secondary LLM checks intent against privacy policy</span>
+        prompt = (<span class="str">f"Evaluate if this action violates PII policies: "</span>
+                  <span class="str">f"{action_description}"</span>)
+        response = client.models.generate_content(
+            model=<span class="str">"gemini-3.1-pro"</span>, contents=prompt)
+        <span class="kw">return not</span> response.text.strip().upper().startswith(
+            <span class="str">"VIOLATION"</span>)</pre>
+    </div>
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--acc)">
+        <div class="tag tg">The 3-Step Execution Flow</div>
+        <div class="ci" style="margin-top:6px"><span style="color:var(--acc);font-weight:700">1.</span><span style="font-size:.77rem"><strong>Structural Check:</strong> Is the tool allowed for this role and environment? Check the YAML. Fast, binary, no LLM call needed. Viewer cannot send_email — done.</span></div>
+        <div class="ci"><span style="color:var(--acc);font-weight:700">2.</span><span style="font-size:.77rem"><strong>Semantic Check:</strong> Are the arguments safe? Ask Gemini if the proposed action violates PII policies. Catches what structural rules can't: an admin allowed to send_email, but not with unmasked email addresses in the body.</span></div>
+        <div class="ci"><span style="color:var(--acc);font-weight:700">3.</span><span style="font-size:.77rem"><strong>Execution or Rejection:</strong> If both checks pass → tool runs. If either fails → "Policy Violation" returned to agent → agent self-corrects or fails gracefully. No silent failures.</span></div>
+        <div class="alert ag" style="margin-top:8px;font-size:.76rem">This creates a critical separation of concerns: execution logic and governance logic are separate. The governance layer can be updated without touching application code.</div>
+      </div>
+      <div class="card" style="border-top:3px solid var(--b)">
+        <div class="tag tb">Context Hygiene: resolve_context()</div>
+        <p style="font-size:.77rem">Replaces <code>[[VARIABLE_NAME]]</code> placeholders with runtime values or environment variables. Prevents agents from hallucinating sensitive data (hardcoded emails, API keys, URLs) by keeping templates sanitized.</p>
+        <pre style="font-size:.67rem"><span class="cm"># In middleware, before every tool call:</span>
+resolved_args = {}
+<span class="kw">for</span> k, v <span class="kw">in</span> args.items():
+    <span class="kw">if</span> isinstance(v, str):
+        resolved_args[k] = resolve_context(v)
+<span class="cm"># [[COMMENTER_EMAIL]] → test_user@example.com</span>
+<span class="cm"># [[PRESENTATION_ID]] → test-presentation-123</span></pre>
+        <p style="font-size:.74rem;color:#6B7280;margin-top:6px">Eliminates the need to hardcode sensitive PII in test suites or system prompts. Any attempt to inject live credentials via template syntax gets sanitized before reaching external systems.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S10 SUSTAINABILITY + KEY LEARNINGS -->
+<div class="slide fi" id="s10">
+  <div class="eyebrow">Team Sustainability</div>
+  <h2>Sustainability, Shared Cognitive Load & Where to Start</h2>
+  <div class="split" style="flex:1">
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--warn)">
+        <div class="tag ta">Approval Fatigue Is Real</div>
+        <h3>45% more burnout for frequent AI users</h3>
+        <p style="font-size:.78rem">Frequent AI users face a new form of exhaustion: when faced with a constant stream of micro-approvals (improving a single line, adjusting a tool call), developers start clicking "Approve" reflexively. The team stops checking the machine's work just to keep up with its pace — risking missed details in critical code paths.</p>
+        <div class="ci" style="margin-top:10px"><span>🌙</span><span style="font-size:.77rem"><strong>Digital Quiet Hours:</strong> Set explicit boundaries so approval requests don't bleed into evenings and weekends. Agents that run overnight should queue reviews, not send notifications.</span></div>
+        <div class="ci"><span>💡</span><span style="font-size:.77rem"><strong>Agent Insight Sessions:</strong> Weekly team sessions where developers share patterns their AI counterparts identified. Isolated discoveries become organizational knowledge. The agent teaches the team what it sees in the codebase.</span></div>
+        <div class="ci"><span>🔀</span><span style="font-size:.77rem"><strong>Batch approvals strategically:</strong> Consolidate related changes into single review sessions rather than interrupting workflow with each individual PR.</span></div>
+      </div>
+      <div class="card" style="border-top:3px solid var(--b)">
+        <div class="tag tb">The Shared Cognitive Load Model</div>
+        <h3>Humans architect. AI implements.</h3>
+        <p style="font-size:.78rem">The bottleneck has shifted from code production to code integration. Success relies on:</p>
+        <div class="ci" style="margin-top:6px"><span>🏗️</span><span style="font-size:.77rem"><strong>Humans write:</strong> Test Specs, Integration Specs, MLOps/DevOps blueprints — the architectural artifacts that define what success looks like</span></div>
+        <div class="ci"><span>🤖</span><span style="font-size:.77rem"><strong>AI handles:</strong> Actual test code, integrations, granular operational details, boilerplate, documentation maintenance, code review first pass</span></div>
+        <div class="ci"><span>✅</span><span style="font-size:.77rem"><strong>Better prompts and faster models alone won't fix the integration bottleneck</strong> — the solution is evolving team dynamics, refining collaboration with agents, and setting strict boundaries</span></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--acc)">
+        <div class="tag tg">Where to Start Today</div>
+        <pre style="font-size:.73rem">
+<span class="cm"># Install the 7 Google Agents CLI skills</span>
+uv google-agents-cli setup
+
+<span class="cm"># After install, these commands become available:</span>
+
+<span class="cm"># Spec-driven project scaffolding</span>
+agents-cli scaffold
+
+<span class="cm"># AI-generated test coverage gate</span>
+agents-cli eval run
+
+<span class="cm"># Deploy to Cloud Run or Vertex AI Agent Engine</span>
+agents-cli deploy
+</pre>
+        <p style="font-size:.77rem;margin-top:6px">The 7 skills installed cover the full agent lifecycle: scaffold, ADK code generation, evaluation, deployment, publishing, and observability — as skills that work inside Claude Code, Codex CLI, Antigravity, or any compliant coding agent.</p>
+      </div>
+      <div class="card" style="border-top:3px solid var(--p)">
+        <div class="tag tp">The Day 5 Insight: Code Is Disposable</div>
+        <p style="font-size:.78rem">The most durable realization from Day 5: when implementation is no longer the bottleneck, the value shifts to <em>what you specify</em>, not what you write. Specifications are the new competitive moat. Architectural judgment is the new craft. Code is an intermediate artifact produced by the specification.</p>
+        <div class="ci" style="margin-top:8px"><span>🎯</span><span style="font-size:.77rem">Invest in writing excellent BDD specs</span></div>
+        <div class="ci"><span>📋</span><span style="font-size:.77rem">Maintain the specs folder as the canonical truth</span></div>
+        <div class="ci"><span>🛡</span><span style="font-size:.77rem">Build zero-trust layers before scaling agent velocity</span></div>
+        <div class="ci"><span>👥</span><span style="font-size:.77rem">Evolve team culture alongside the tooling</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S11 SUMMARY -->
+<div class="slide fi" id="s11">
+  <div class="eyebrow">Day 5 · Summary</div>
+  <h2>Key Takeaways: The Spec-Driven Production Playbook</h2>
+  <div class="g2" style="flex:1">
+    <div class="col">
+      <div class="card" style="border-left:4px solid var(--acc)">
+        <div class="tag tg">SDD Philosophy</div>
+        <h3>Code Is Disposable. Specs Are Product.</h3>
+        <div class="ci"><span>📐</span><span style="font-size:.78rem"><strong>Spec = Architectural North Star.</strong> Single source of truth in <code>./specs/</code>, version-controlled, referenced by path — never pasted into chat</span></div>
+        <div class="ci"><span>📄</span><span style="font-size:.78rem"><strong>Format:</strong> Hybrid Markdown + conditional YAML. YAML for nesting &gt; 3 (51.9% vs 43.1% JSON accuracy). Never XML.</span></div>
+        <div class="ci"><span>🧬</span><span style="font-size:.78rem"><strong>BDD Gherkin:</strong> Scenario/Given/When/Then forces State→Action→Outcome. No ambiguity. Edge cases explicit. Also the test contract.</span></div>
+        <div class="ci"><span>🤖</span><span style="font-size:.78rem"><strong>AI as co-author:</strong> Use AI to refine, critique, and improve specs — not just to generate code from them</span></div>
+      </div>
+      <div class="card" style="border-left:4px solid var(--b)">
+        <div class="tag tb">Instruction Architecture</div>
+        <h3>3 Tiers, Each With a Purpose</h3>
+        <div class="ci"><span>💬</span><span style="font-size:.78rem"><strong>Chat (Tier 1):</strong> High-level orchestration only. "Review spec X and generate failing tests for Scenario 3." Reference specs by path, never paste full content.</span></div>
+        <div class="ci"><span>📁</span><span style="font-size:.78rem"><strong>Specs folder (Tier 2):</strong> Task-specific blueprints, BDD scenarios, API contracts — in version control, indexed by agent dynamically</span></div>
+        <div class="ci"><span>🧬</span><span style="font-size:.78rem"><strong>System prompts (Tier 3):</strong> Global → AGENTS.md → project GEMINI.md (highest priority). Identity and engineering DNA layered hierarchically</span></div>
+        <div class="ci"><span>🧩</span><span style="font-size:.78rem"><strong>4 Execution Modes:</strong> Architect (scaffold, no YOLO) → Builder (feature, match style) → Forensic Specialist (bug, evidence prompting) → Author (docs, structured docstrings)</span></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="border-left:4px solid var(--warn)">
+        <div class="tag ta">Zero-Trust Development</div>
+        <h3>The 6 Safety Layers (Non-Negotiable)</h3>
+        <div class="ci"><span>🛡</span><span style="font-size:.78rem"><strong>Guardrails (AGENTS.md):</strong> Hard constraints in system identity</span></div>
+        <div class="ci"><span>📦</span><span style="font-size:.78rem"><strong>Sandboxing:</strong> Ephemeral containers, GEMINI_SANDBOX=docker. Isolated Chrome for UI testing.</span></div>
+        <div class="ci"><span>🧑‍💼</span><span style="font-size:.78rem"><strong>HITL:</strong> Checkpoint gates for high-risk operations (deploy, schema changes, financial transactions)</span></div>
+        <div class="ci"><span>🧪</span><span style="font-size:.78rem"><strong>AI-generated test coverage:</strong> Failing test before any fix. Tests don't get deleted because they ARE the spec.</span></div>
+        <div class="ci"><span>📊</span><span style="font-size:.78rem"><strong>Evaluation:</strong> Scored judgments + tolerance bands, not just binary pass/fail assertions</span></div>
+        <div class="ci"><span>🚦</span><span style="font-size:.78rem"><strong>Policy Server:</strong> Structural (YAML roles/environments) + Semantic (LLM checks intent against privacy policies) gating</span></div>
+      </div>
+      <div class="card" style="border-left:4px solid var(--danger)">
+        <div class="tag tr">Team Culture</div>
+        <h3>Evolve Process With the Tooling</h3>
+        <div class="ci"><span>📋</span><span style="font-size:.78rem"><strong>Bundled PR summaries:</strong> AI-generated risk assessments on every PR. Human reviews focus on architecture.</span></div>
+        <div class="ci"><span>✅</span><span style="font-size:.78rem"><strong>Conditional LGTM:</strong> Approve contingent on tests. Auto-merges if green. Eliminates timezone review delay.</span></div>
+        <div class="ci"><span>🤝</span><span style="font-size:.78rem"><strong>No-blame culture:</strong> Attribute bugs to broken integration processes, not individual developers using agents.</span></div>
+        <div class="ci"><span>😮‍💨</span><span style="font-size:.78rem"><strong>Combat approval fatigue:</strong> Digital Quiet Hours, Agent Insight Sessions, batch reviews strategically.</span></div>
+      </div>
+      <div class="alert ag">
+        <strong>The North Star:</strong> Better prompts and faster models alone won't fix the integration bottleneck. Success comes from evolving team dynamics, refining collaboration with agents, and setting strict boundaries for tools that never sleep.
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /deck -->
+<div class="nav">
+  <div class="nb" onclick="go(-1)">←</div>
+  <div class="nb" onclick="go(1)">→</div>
+  <span class="nc" id="ct">1 / 12</span>
+  <div class="ndw" id="dts"></div>
+  <span class="nt" id="nt">COVER</span>
+</div>
+<script>
+const T=['COVER','THE PARADIGM SHIFT','WHAT MAKES A GOOD SPEC','BDD + GHERKIN','WHERE INSTRUCTIONS LIVE','4 EXECUTION MODES','MCP: ONE INTEGRATION','TEAM CULTURE + CODE REVIEWS','ZERO-TRUST: 6 SAFETY LAYERS','POLICY SERVER + CONTEXT HYGIENE','SUSTAINABILITY + WHERE TO START','DAY 5 SUMMARY'];
+const slides=document.querySelectorAll('.slide');
+const dts=document.getElementById('dts');
+let cur=0;
+slides.forEach((_,i)=>{const d=document.createElement('div');d.className='nd'+(i===0?' on':'');d.onclick=()=>goTo(i);dts.appendChild(d);});
+function goTo(n){slides[cur].classList.remove('active','fi');slides[cur].style.display='none';cur=Math.max(0,Math.min(n,slides.length-1));slides[cur].style.display='flex';requestAnimationFrame(()=>slides[cur].classList.add('active','fi'));document.querySelectorAll('.nd').forEach((d,i)=>d.classList.toggle('on',i===cur));document.getElementById('ct').textContent=`${cur+1} / ${slides.length}`;document.getElementById('nt').textContent=T[cur]||'';}
+function go(d){goTo(cur+d);}
+document.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key===' ')go(1);if(e.key==='ArrowLeft')go(-1);});
+slides.forEach((s,i)=>{if(i!==0)s.style.display='none';});
+</script>
+</body>
+</html>

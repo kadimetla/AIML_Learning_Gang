@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Day 4 · Security & Evaluation</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{--acc:#DC2626;--acl:#FEF2F2;--acb:#FECACA;--b:#2563EB;--bl:#EFF6FF;--bb:#BFDBFE;--g:#059669;--gl:#ECFDF5;--gb:#A7F3D0;--p:#7C3AED;--pl:#F5F3FF;--pb:#DDD6FE;--warn:#D97706;--warnl:#FFFBEB;--warnb:#FDE68A;}
+html,body{width:100%;height:100%;font-family:'Inter',sans-serif;overflow:hidden;background:#fff;color:#1A2040;}
+.deck{width:100%;height:100%;position:relative;}
+.slide{position:absolute;inset:0;display:none;flex-direction:column;padding:40px 65px 50px;overflow:hidden;background:#fff;}
+.slide.active{display:flex;}.slide.fi{animation:fi .28s ease forwards;}
+@keyframes fi{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+.eyebrow{font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--acc);margin-bottom:12px;}
+h1{font-size:clamp(1.9rem,3.4vw,2.7rem);font-weight:900;letter-spacing:-.025em;line-height:1.06;color:#1A2040;}
+h2{font-size:clamp(1.2rem,2.1vw,1.72rem);font-weight:800;letter-spacing:-.02em;color:#1A2040;margin-bottom:18px;}
+h3{font-size:.89rem;font-weight:700;color:#1A2040;margin-bottom:5px;}
+p,li{font-size:.85rem;line-height:1.72;color:#4B5563;}
+strong{color:#1A2040;font-weight:700;}
+code{font-family:'JetBrains Mono',monospace;font-size:.74rem;background:#F8F9FC;padding:1px 5px;border-radius:3px;border:1px solid #E2E6F0;color:var(--b);}
+pre{font-family:'JetBrains Mono',monospace;font-size:.69rem;background:#F8F9FC;border:1px solid #E2E6F0;border-radius:9px;padding:12px 14px;line-height:1.7;overflow:hidden;color:#374151;}
+.kw{color:var(--b);font-weight:600;}.cm{color:#9CA3AF;font-style:italic;}.str{color:var(--g);}
+.div{width:100%;height:1px;background:#E2E6F0;margin:12px 0;}
+.card{background:#F8F9FC;border:1px solid #E2E6F0;border-radius:11px;padding:14px 16px;box-shadow:0 1px 3px rgba(26,32,64,.04);}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:11px;}
+.g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:17px;flex:1;}
+.col{display:flex;flex-direction:column;gap:10px;}
+.tag{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:2px 7px;border-radius:4px;border:1px solid;margin-bottom:7px;}
+.tr{background:var(--acl);color:var(--acc);border-color:var(--acb);}
+.tb{background:var(--bl);color:var(--b);border-color:var(--bb);}
+.tg{background:var(--gl);color:var(--g);border-color:var(--gb);}
+.tp{background:var(--pl);color:var(--p);border-color:var(--pb);}
+.ta{background:var(--warnl);color:var(--warn);border-color:var(--warnb);}
+.alert{border-radius:9px;padding:11px 14px;border:1px solid;font-size:.79rem;line-height:1.55;}
+.ar{background:var(--acl);border-color:var(--acb);color:var(--acc);}
+.ab{background:var(--bl);border-color:var(--bb);color:var(--b);}
+.ag{background:var(--gl);border-color:var(--gb);color:var(--g);}
+.ap{background:var(--pl);border-color:var(--pb);color:var(--p);}
+.aa{background:var(--warnl);border-color:var(--warnb);color:var(--warn);}
+.q{border-left:3px solid var(--acc);padding:13px 18px;background:var(--acl);border-radius:0 9px 9px 0;margin-bottom:12px;}
+.qt{font-size:.95rem;font-style:italic;line-height:1.65;color:#1A2040;}
+.qa{font-family:'JetBrains Mono',monospace;font-size:10px;color:#8693AE;margin-top:8px;}
+.ci{display:flex;align-items:flex-start;gap:8px;font-size:.8rem;color:#4B5563;line-height:1.55;margin-bottom:5px;}
+.ck{flex-shrink:0;margin-top:1px;}
+/* PILLARS GRID */
+.pillars{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;flex:1;}
+.pc{border-radius:9px;padding:11px 13px;border:1px solid;border-top:3px solid;}
+.pn{font-family:'JetBrains Mono',monospace;font-size:.85rem;font-weight:900;margin-bottom:4px;}
+.pt{font-size:.78rem;font-weight:700;color:#1A2040;margin-bottom:5px;}
+.pb{font-size:.7rem;color:#4B5563;line-height:1.5;}
+/* TEAM CARDS */
+.team-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px;}
+.tc{border-radius:11px;padding:14px;border:1px solid;border-top:4px solid;}
+/* EVAL DIMS */
+.ed{display:flex;gap:10px;margin-bottom:9px;}
+.edn{font-family:'JetBrains Mono',monospace;font-size:.9rem;font-weight:900;flex-shrink:0;width:22px;}
+.edt{font-size:.79rem;font-weight:700;color:#1A2040;margin-bottom:3px;}
+.edb{font-size:.71rem;color:#4B5563;line-height:1.5;}
+/* TABLE */
+table{width:100%;border-collapse:collapse;font-size:.77rem;}
+thead th{text-align:left;padding:7px 10px;font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.1em;color:#8693AE;font-weight:600;border-bottom:2px solid #E2E6F0;}
+td{padding:7px 10px;border-bottom:1px solid #E2E6F0;color:#4B5563;vertical-align:top;}
+td:first-child{font-weight:600;color:#1A2040;}
+/* NAV */
+.nav{position:fixed;bottom:0;left:0;right:0;height:46px;background:rgba(255,255,255,.93);border-top:1px solid #E2E6F0;display:flex;align-items:center;padding:0 24px;gap:11px;backdrop-filter:blur(8px);z-index:100;box-shadow:0 -1px 10px rgba(26,32,64,.05);}
+.nb{background:#F8F9FC;border:1px solid #E2E6F0;color:#8693AE;border-radius:6px;width:30px;height:27px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:.8rem;transition:all .15s;font-family:'JetBrains Mono',monospace;user-select:none;}
+.nb:hover{border-color:var(--acc);color:var(--acc);background:var(--acl);}
+.nc{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#8693AE;}
+.ndw{display:flex;gap:5px;margin-left:4px;}
+.nd{width:5px;height:5px;border-radius:50%;background:#CDD2E8;cursor:pointer;transition:all .2s;}
+.nd.on{background:var(--acc);transform:scale(1.35);}
+.nt{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#8693AE;letter-spacing:.1em;margin-left:auto;}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+
+<!-- S0 COVER -->
+<div class="slide active fi" id="s0" style="background:linear-gradient(135deg,#fff 0%,#FEF2F2 60%,#FFF7ED 100%);justify-content:center;gap:22px">
+  <div class="eyebrow">Google Vibe Coding Course · Day 4 · May 2026</div>
+  <h1>Vibe Coding Agent<br><span style="background:linear-gradient(135deg,#DC2626,#D97706);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">Security &<br>Evaluation</span></h1>
+  <p style="font-size:1rem;color:#6B7280;max-width:560px;line-height:1.65">How to secure non-deterministic autonomous agents and rigorously measure whether what they built was actually worth shipping.</p>
+  <p style="font-size:.8rem;color:#9CA3AF">Authors: Sokratis Kartakis, Aron Eidelman, Wafae Bakkali, Meltem Subasioglu</p>
+  <div class="div"></div>
+  <div class="q" style="max-width:640px;margin-bottom:0">
+    <p class="qt">Transforming AI models into secure, high-aligning enterprise agents through continuous trust and rigorous evaluation is more important than ever.</p>
+    <p class="qa">— Day 4 whitepaper opening</p>
+  </div>
+  <p style="font-size:.72rem;color:#9CA3AF">13 slides · ← → keys or nav buttons</p>
+</div>
+
+
+<!-- S1 TWO AXES OF TRUST -->
+<div class="slide fi" id="s1">
+  <div class="eyebrow">The Core Framework</div>
+  <h2>Redefining Trust: Two Axes — Security + Evaluation</h2>
+  <p style="font-size:.84rem;margin-bottom:14px">In deterministic software, trust is binary: code compiles, tests pass, credentials are valid. In agentic systems, an autonomous workforce can execute generated code, access sensitive APIs, and modify production — all without human keystrokes. Trust must be <strong>continuously earned</strong>.</p>
+  <div class="split" style="flex:1">
+    <div class="card" style="border-left:5px solid var(--acc)">
+      <div class="tag tr">Axis 1 · Security</div>
+      <h3>Did the agent stay inside the boundary?</h3>
+      <p style="font-size:.79rem">Traditional security is deterministic: RBAC, static identity-as-perimeter, binary access tokens. This fails for autonomous agents.</p>
+      <p style="font-size:.79rem;margin-top:8px">Agentic security requires <strong>"Context-as-a-Perimeter"</strong> — security enforced based on runtime context because the agent's context IS the attack surface. Every tool call, every intermediate output, every sub-agent handoff is a potential injection point.</p>
+      <div class="div"></div>
+      <div class="ci"><span style="color:var(--acc)">⚠️</span><span style="font-size:.78rem">A raw AI model is not an agent. It becomes one when wrapped in a harness — the scaffolding that gives it state, tool execution, feedback loops, and enforceable constraints. <strong>Secure the harness, not just the model.</strong></span></div>
+      <div class="ci"><span style="color:var(--acc)">⚠️</span><span style="font-size:.78rem">Effective Trust is a continuous metric evaluated across an agent's supply chain, identity, runtime behavior, and contextual associations — not a gate you pass through once at deployment.</span></div>
+    </div>
+    <div class="card" style="border-left:5px solid var(--p)">
+      <div class="tag tp">Axis 2 · Evaluation</div>
+      <h3>Was what happened inside the boundary worth shipping?</h3>
+      <p style="font-size:.79rem">Security tells you the agent didn't escape its sandbox. Evaluation tells you whether it built the right thing. A vibe-coded agent can pass every security check and still:</p>
+      <div class="ci" style="margin-top:8px"><span style="color:var(--p)">▸</span><span style="font-size:.78rem">Fundamentally misread the developer's intent</span></div>
+      <div class="ci"><span style="color:var(--p)">▸</span><span style="font-size:.78rem">Ignore project conventions and naming patterns</span></div>
+      <div class="ci"><span style="color:var(--p)">▸</span><span style="font-size:.78rem">Silently degrade user experience</span></div>
+      <div class="ci"><span style="color:var(--p)">▸</span><span style="font-size:.78rem">Generate code that looks right but is semantically wrong</span></div>
+      <div class="div"></div>
+      <p style="font-size:.79rem">Three things make vibe coding evaluation uniquely hard: the <strong>underspecification gap</strong> (no spec exists), the user often <strong>can't validate</strong> 600 lines of generated code, and the session is iterative with the codebase as live state — bad early decisions compound.</p>
+    </div>
+  </div>
+  <div class="alert ar" style="margin-top:12px">
+    <strong>The shift:</strong> Traditional RBAC says "does this user have permission?" Agentic ABAC + JIT asks "is this specific action by this specific agent, at this specific moment, with this specific context, appropriate?" Security must be continuously verified at runtime — not granted at deployment and assumed forever.
+  </div>
+</div>
+
+
+<!-- S2 7 PILLARS -->
+<div class="slide fi" id="s2">
+  <div class="eyebrow">Security Architecture</div>
+  <h2>The 7-Pillar Agent Security Architecture</h2>
+  <p style="font-size:.82rem;margin-bottom:12px">A layered defense-in-depth framework. Because the model could fail or be compromised, security cannot reside solely within the AI itself. Must enforce a strict, external "safety envelope" spanning multiple disciplines.</p>
+  <div class="pillars">
+    <div class="pc" style="border-color:var(--bb);border-top-color:var(--b)">
+      <div class="pn" style="color:var(--b)">P1</div>
+      <div class="pt">Infrastructure & Networking</div>
+      <div class="pb">Isolate runtime execution in ephemeral, kernel-level sandboxes (gVisor). Strict network egress governance — agent data travels only through authorized, offline caches or explicit internal proxies. Prevents inadvertent public exfiltration.</div>
+    </div>
+    <div class="pc" style="border-color:var(--gb);border-top-color:var(--g)">
+      <div class="pn" style="color:var(--g)">P2</div>
+      <div class="pt">Data Security</div>
+      <div class="pb">Data at rest: Customer-Managed Encryption Keys (CMEK). Data in transit: mutual TLS (mTLS). Strict least-privilege access scoping. Vector databases must enforce strict tenant partitioning to prevent Cross-Tenant Vector Poisoning.</div>
+    </div>
+    <div class="pc" style="border-color:var(--pb);border-top-color:var(--p)">
+      <div class="pn" style="color:var(--p)">P3</div>
+      <div class="pt">Model / Prompt Security</div>
+      <div class="pb">System instructions and rule files ARE the new source code. Treat them as highly sensitive, cryptographically attested artifacts. Defend against semantic attacks that subvert model instructions — prompt injection is the new SQL injection.</div>
+    </div>
+    <div class="pc" style="border-color:var(--warnb);border-top-color:var(--warn)">
+      <div class="pn" style="color:var(--warn)">P4</div>
+      <div class="pt">Application & Runtime</div>
+      <div class="pb">LLM firewalls for dynamic prompt/response filtering. Deterministic "hooks" at lifecycle points (before tool call, after file edit). Centralised Agent Gateways govern A2A orchestration, preventing unauthorized lateral movement.</div>
+    </div>
+    <div class="pc" style="border-color:var(--acb);border-top-color:var(--acc)">
+      <div class="pn" style="color:var(--acc)">P5</div>
+      <div class="pt">Identity & Access Management</div>
+      <div class="pb">Unique cryptographic SPIFFE IDs for every agent. ABAC (Attribute-Based) not just RBAC (Role-Based). JIT (Just-In-Time) token downscoping: fresh, hyper-restricted credentials that expire the moment the task concludes. Intent × User × Time permissions matrix.</div>
+    </div>
+    <div class="pc" style="border-color:var(--bb);border-top-color:var(--b)">
+      <div class="pn" style="color:var(--b)">P6</div>
+      <div class="pt">Observability & SecOps</div>
+      <div class="pb">Without observability, there's no way to tell if an agent is succeeding or quietly drifting. OpenTelemetry traces for all agent.session, agent.think, and agent.tool spans. Autonomous SecOps triad: Red (attack), Blue (monitor), Green (fix).</div>
+    </div>
+    <div class="pc" style="border-color:var(--gb);border-top-color:var(--g)">
+      <div class="pn" style="color:var(--g)">P7</div>
+      <div class="pt">Governance & Compliance</div>
+      <div class="pb">EU AI Act compliance: Algorithmic Impact Assessments for high-risk autonomous agents. Immutable audit trail attributing every real-world action to a specific agent AND the human who deployed/approved it. "Logic Reviews" replace simple approval buttons.</div>
+    </div>
+    <div class="pc" style="border-color:#E2E6F0;border-top-color:#8693AE;background:var(--warnl);border-top-color:var(--warn)">
+      <div class="pn" style="color:var(--warn)">⊕</div>
+      <div class="pt">Context-as-a-Perimeter</div>
+      <div class="pb">The overarching model replacing Identity-as-a-Perimeter. Security is enforced based on the runtime context of each specific action — not granted statically at deployment. Every layer is defense-in-depth. No single pillar is sufficient alone.</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S3 SANDBOXES + SUPPLY CHAIN -->
+<div class="slide fi" id="s3">
+  <div class="eyebrow">Pillars 1 & 4</div>
+  <h2>Sandboxes, Supply Chain Defence & Application Logic</h2>
+  <div class="split" style="flex:1">
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--b)">
+        <div class="tag tb">Ephemeral Sandboxing</div>
+        <h3>Every Execution Starts Clean</h3>
+        <p style="font-size:.78rem">The vibe coding loop is inherently iterative: agent writes script → executes → reads error logs → rewrites. This dynamically generated code cannot be implicitly trusted.</p>
+        <p style="font-size:.78rem;margin-top:8px">Sandboxes must: execute in kernel-level isolation (gVisor), completely <strong>block raw host access</strong>, and <strong>reset state between every run</strong>. Not merely prisons — they actively prevent compromised logic from persisting or escaping.</p>
+        <p style="font-size:.77rem;margin-top:8px">If an agent is tricked into a container escape attempt, the compromised logic cannot impact the underlying host while the agent safely iterates.</p>
+      </div>
+      <div class="card" style="border-top:3px solid var(--warn)">
+        <div class="tag ta">Slopsquatting: The Hallucinated Package Attack</div>
+        <h3>AI Invents Packages. Attackers Publish Them.</h3>
+        <p style="font-size:.78rem">LLMs frequently hallucinate software packages that don't exist. Malicious actors actively monitor developer forums and AI outputs for these hallucinations — then proactively publish malware under those exact fake names.</p>
+        <p style="font-size:.78rem;margin-top:8px">Because autonomous agents can alter dependency graphs without human confirmation, a single hallucination can pull malware directly into the build environment.</p>
+        <div class="ci" style="margin-top:8px"><span style="color:var(--g)">✅</span><span style="font-size:.77rem">Source dependencies exclusively from vetted providers or internal enterprise registries</span></div>
+        <div class="ci"><span style="color:var(--g)">✅</span><span style="font-size:.77rem">Enforce strict cryptographic version pinning</span></div>
+        <div class="ci"><span style="color:var(--g)">✅</span><span style="font-size:.77rem">CI/CD: automatically verify SBOM entries + digital signatures (Binary Authorization)</span></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--acc)">
+        <div class="tag tr">Egress Governance</div>
+        <h3>Non-Deterministic Egress Requires Non-Deterministic Controls</h3>
+        <p style="font-size:.78rem">Traditional software: outbound traffic is predictable. Vibe-coded systems: egress is non-deterministic because it's driven by dynamically generated tools.</p>
+        <p style="font-size:.78rem;margin-top:8px">A simple allowlist of approved domains is insufficient. An allowlist cannot secure against indirect prompt injections hidden within third-party web pages that the agent fetches.</p>
+        <p style="font-size:.78rem;margin-top:8px"><strong>Restriction:</strong> Force non-interactive internet access. Agents fetch external information exclusively through <strong>offline caches</strong> or dedicated, pre-sanitised web-crawling services. All data travels through governed pathways.</p>
+      </div>
+      <div class="card" style="border-top:3px solid var(--warn)">
+        <div class="tag ta">Application Logic Vulnerabilities</div>
+        <h3>Two Predictable Failure Patterns</h3>
+        <div class="ci" style="margin-top:6px"><span style="color:var(--acc)">❌</span><span style="font-size:.77rem"><strong>Trusting the browser too much:</strong> AI takes the path of least resistance — dumps API keys, password validation, and session flags into client-side code. Anyone opening browser DevTools can read credentials or manipulate access level without a real password.</span></div>
+        <div class="ci"><span style="color:var(--acc)">❌</span><span style="font-size:.77rem"><strong>Open backends:</strong> AI connects databases and admin dashboards without enabling default-deny access controls. Row-level database security gets skipped — private user data and staging environments exposed to the public internet.</span></div>
+        <div class="div"></div>
+        <div class="ci"><span style="color:var(--g)">✅</span><span style="font-size:.77rem"><strong>Shift-left advisory linters</strong> in IDE provide real-time guidance (minimal friction)</span></div>
+        <div class="ci"><span style="color:var(--g)">✅</span><span style="font-size:.77rem"><strong>Deterministic CI/CD enforcement</strong> — SAST + SCA scans before production, always</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S4 IDENTITY + JIT -->
+<div class="slide fi" id="s4">
+  <div class="eyebrow">Pillar 5 · Identity</div>
+  <h2>Identity, Trust & High-Stakes Actions: Zero Ambient Authority</h2>
+  <div class="split" style="flex:1">
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--acc)">
+        <div class="tag tr">The Confused Deputy Problem</div>
+        <h3>Over-Privileged Agents Get Tricked</h3>
+        <p style="font-size:.78rem">Even with unique identity, a vibe-coded agent is susceptible to the Confused Deputy problem: prompt injection hidden inside an open-source repository (pasted into the IDE context) tricks an over-privileged agent into executing unauthorized commands on the attacker's behalf.</p>
+        <p style="font-size:.78rem;margin-top:8px">Because developers often use vague, highly abstracted language ("fix the backend routing"), the resulting agentic workflows are inherently broad — granting broad permissions creates an unmanageable internal threat vector.</p>
+        <div class="alert ar" style="margin-top:8px;font-size:.76rem"><strong>Solution:</strong> An agent must never be the final arbiter of access. Instead of operating under the human user's delegated credentials (which grants the agent dangerous ambient access), the agent must authenticate using a dedicated, explicitly <em>agentic</em> identity with granular audit logs.</div>
+      </div>
+      <div class="card" style="border-top:3px solid var(--b)">
+        <div class="tag tb">Zero Ambient Authority</div>
+        <h3>JIT Token Downscoping</h3>
+        <div class="ci" style="margin-top:6px"><span style="color:var(--b)">🔐</span><span style="font-size:.77rem"><strong>SPIFFE IDs:</strong> Unique cryptographic identity for every individual agent — not shared service accounts, not the human user's credentials</span></div>
+        <div class="ci"><span style="color:var(--b)">🎯</span><span style="font-size:.77rem"><strong>ABAC:</strong> Attribute-Based Access Control. Considers intent, user, time, and context of each specific action — not just the role</span></div>
+        <div class="ci"><span style="color:var(--b)">⏱</span><span style="font-size:.77rem"><strong>JIT Downscoping:</strong> When agent writes a new script, the execution sandbox receives fresh, hyper-restricted credentials scoped to exactly the data sources required for that specific script. Expires the exact moment the task concludes.</span></div>
+        <div class="ci"><span style="color:var(--b)">📁</span><span style="font-size:.77rem"><strong>File-tree allowlists:</strong> Read/write confined to specific project directories. Deny-by-default blocks access to secrets, build scripts, and production manifests.</span></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--warn)">
+        <div class="tag ta">MCP Spoofing & Contextual Authorization</div>
+        <h3>Forged Tools Can Inject Malicious Commands</h3>
+        <p style="font-size:.78rem">Agents increasingly rely on MCP to discover and connect to servers at runtime. A forged or compromised server can pose as a legitimate MCP tool to inject payloads or demand excessive privileges. Agents may execute malicious commands before any human intervention occurs.</p>
+        <p style="font-size:.78rem;margin-top:8px"><strong>Defense:</strong> Runtime LLM firewall in front of the active agent to intercept prompt injections. Centralised Agent Gateway evaluates Contextual Authorization — dynamically verifying that an agent's request to call a tool aligns with the developer's original intent. Routes all A2A invocations through a governed entry/exit point.</p>
+      </div>
+      <div class="card" style="border-top:3px solid var(--p)">
+        <div class="tag tp">The "Vibe Diff" & Structured Elicitation</div>
+        <h3>For High-Stakes Actions: Replace Approval Buttons</h3>
+        <p style="font-size:.78rem">Vibe coders often can't understand complex generated syntax — simple approve/deny buttons cause confirmation fatigue, leading to blind authorization ("It Works, Ship It" fallacy).</p>
+        <p style="font-size:.78rem;margin-top:8px">For high-stakes actions (modifying prod databases, financial transfers, IAM changes):</p>
+        <div class="ci" style="margin-top:6px"><span style="color:var(--p)">🔑</span><span style="font-size:.77rem"><strong>Cryptographic Hardware MFA:</strong> Physical touch of a USB hardware security key to cryptographically approve the execution — not just clicking "OK"</span></div>
+        <div class="ci"><span style="color:var(--p)">👁</span><span style="font-size:.77rem"><strong>The Vibe Diff:</strong> Evaluator Quorum intercepts the request and translates complex generated code into a plain-English summary. Developer sees exactly how fuzzy intent maps to proposed execution steps before providing cryptographic consent</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S5 RED/BLUE/GREEN -->
+<div class="slide fi" id="s5">
+  <div class="eyebrow">Pillar 6 · SecOps</div>
+  <h2>Red / Blue / Green Security Teams: Agentic SecOps</h2>
+  <p style="font-size:.83rem;margin-bottom:12px">Traditional, manual security operations cannot scale to match the velocity of vibe coding. Security operations themselves must become agentic — running in parallel with the developer's workflow continuously.</p>
+  <div class="team-row">
+    <div class="tc" style="border-color:var(--acb);border-top-color:var(--acc)">
+      <div style="font-size:1.2rem;margin-bottom:6px">🔴</div>
+      <div style="font-size:.85rem;font-weight:800;color:var(--acc);margin-bottom:6px">Red Team (Agent Attacker)</div>
+      <div style="font-size:.79rem;font-weight:700;color:#1A2040;margin-bottom:6px">Injecting Adversarial Vibes</div>
+      <div class="ci"><span>▸</span><span style="font-size:.75rem">Proactively injects adversarial inputs — doesn't wait for external attackers to find vulnerabilities</span></div>
+      <div class="ci"><span>▸</span><span style="font-size:.75rem">Crafts sophisticated roleplay jailbreaks, buries malicious instructions inside massive blocks of RAG context that developers paste into their IDEs</span></div>
+      <div class="ci"><span>▸</span><span style="font-size:.75rem">Tests whether the enterprise agent gets distracted by poisoned context and hallucinates an insecure solution</span></div>
+      <div class="ci"><span>▸</span><span style="font-size:.75rem">Targets: invisible payloads (zero-width Unicode characters, homoglyphs in repos), repository poisoning, multi-hop attacks</span></div>
+    </div>
+    <div class="tc" style="border-color:var(--bb);border-top-color:var(--b)">
+      <div style="font-size:1.2rem;margin-bottom:6px">🔵</div>
+      <div style="font-size:.85rem;font-weight:800;color:var(--b);margin-bottom:6px">Blue Team (Agent Defender)</div>
+      <div style="font-size:.79rem;font-weight:700;color:#1A2040;margin-bottom:6px">Behavioral Analytics</div>
+      <div class="ci"><span>▸</span><span style="font-size:.75rem">Agent Behavioral Analytics (ABA) replaces traditional UEBA — which is ineffective for non-deterministic AI that lacks expected "normal" user behavior patterns</span></div>
+      <div class="ci"><span>▸</span><span style="font-size:.75rem">Maintains Runtime Agent Bill of Materials (AgBOM) — dynamic inventory of tools, models, and data sources the agent is actively using at any given millisecond</span></div>
+      <div class="ci"><span>▸</span><span style="font-size:.75rem">Flags deviations: agent suddenly querying unusual number of external tools, entering unbounded resource loops, confidence drift, format-compliant-but-wrong outputs</span></div>
+      <div class="ci"><span>▸</span><span style="font-size:.75rem">Drift precedes failure — catch the departure before it compounds into a crisis</span></div>
+    </div>
+    <div class="tc" style="border-color:var(--gb);border-top-color:var(--g)">
+      <div style="font-size:1.2rem;margin-bottom:6px">🟢</div>
+      <div style="font-size:.85rem;font-weight:800;color:var(--g);margin-bottom:6px">Green Team (Agent Fixer)</div>
+      <div style="font-size:.79rem;font-weight:700;color:#1A2040;margin-bottom:6px">Quarantine & Auto-Refactoring</div>
+      <div class="ci"><span>▸</span><span style="font-size:.75rem">When Blue detects anomaly, executes "Stateful Quarantine" via SOAR playbooks — gracefully revokes specific tool access, freezing the agent's ability to act while preserving short-term memory for forensic analysis</span></div>
+      <div class="ci"><span>▸</span><span style="font-size:.75rem">Does NOT kill the container (disruptive — leaves connected APIs in corrupted state)</span></div>
+      <div class="ci"><span>▸</span><span style="font-size:.75rem">Auto-Refactoring: autonomously rewrites insecure vibe-coded script to patch the vulnerability, presents secure alternative back to developer in the IDE — no manual formulation needed</span></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="tag tr">The Triad: 3 Execution Phases</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:8px">
+      <div><div style="font-size:.77rem;font-weight:700;color:#1A2040;margin-bottom:4px">Planner Phase</div><p style="font-size:.74rem">When a primary agent designs a workflow, a threat-modeling skill evaluates the plan — identifies logical flaws and policy violations before the agent begins active execution.</p></div>
+      <div><div style="font-size:.77rem;font-weight:700;color:#1A2040;margin-bottom:4px">Evaluator Phase</div><p style="font-size:.74rem">Evaluator Quorum reviews the proposed execution trace. Agent Defender (Blue) simultaneously verifies the AgBOM and monitors semantic context for intent drift.</p></div>
+      <div><div style="font-size:.77rem;font-weight:700;color:#1A2040;margin-bottom:4px">Executor Phase</div><p style="font-size:.74rem">As Executor performs the downscoped action, Agent Fixer (Green) monitors real-world tool execution — ready to instantly quarantine or trigger auto-refactoring if a security constraint is tripped.</p></div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S6 OBSERVABILITY -->
+<div class="slide fi" id="s6">
+  <div class="eyebrow">Pillars 6 & 7 · Observability</div>
+  <h2>Observability: Auditing the Agent's Mind</h2>
+  <div class="q" style="border-color:var(--acc)">
+    <p class="qt">You cannot secure what you cannot see. In traditional microservices, HTTP 200 OK indicates success. In an agentic system, a "success" status might mask a scenario where the agent's logic has quietly cascaded into a hallucination loop.</p>
+  </div>
+  <div class="split" style="flex:1">
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--b)">
+        <div class="tag tb">Tracing the "Vibe Trajectory"</div>
+        <h3>From Fuzzy Intent → Compiled Code</h3>
+        <p style="font-size:.78rem">Using OpenTelemetry, aggregate API calls, tool inputs/outputs, RAG retrievals, and token latency into a complete Vibe Trajectory. Three span types:</p>
+        <div class="ci" style="margin-top:8px"><span style="color:var(--b)">📦</span><span style="font-size:.77rem"><code>agent.session</code> — captures entire task duration</span></div>
+        <div class="ci"><span style="color:var(--b)">🧠</span><span style="font-size:.77rem"><code>agent.think</code> — records internal reasoning and prompting cycle prior to action</span></div>
+        <div class="ci"><span style="color:var(--b)">🔧</span><span style="font-size:.77rem"><code>agent.tool</code> — logs specific arguments and latencies of environmental interactions</span></div>
+        <p style="font-size:.77rem;margin-top:8px">Pair traditional logging with Centralised Content Scanning that explicitly inspects all dynamic code snippets retrieved by the agent at runtime. This securely binds the agent's internal reasoning loop to its physical actions.</p>
+      </div>
+      <div class="card" style="border-top:3px solid var(--acc)">
+        <div class="tag tr">Denial of Wallet (DoW) Attacks</div>
+        <h3>Adversaries Bankrupt You Via Infinite API Loops</h3>
+        <p style="font-size:.78rem">Adversaries intentionally trigger infinite, computationally expensive API loops to deliberately bankrupt the organization's cloud and LLM billing accounts. Observability isn't just an uptime concern — it's a security requirement to prevent financial attacks via runaway computation.</p>
+        <div class="ci" style="margin-top:6px"><span style="color:var(--g)">✅</span><span style="font-size:.77rem">Track token consumption, inference latency, and cost of self-repair loops via span attributes</span></div>
+        <div class="ci"><span style="color:var(--g)">✅</span><span style="font-size:.77rem">Tail-based dynamic sampling: drop routine successes, retain traces with errors or excessive self-repair</span></div>
+        <div class="ci"><span style="color:var(--g)">✅</span><span style="font-size:.77rem">Set cost-based circuit breakers that pause agent execution if hourly spend exceeds threshold</span></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--warn)">
+        <div class="tag ta">Intent Drift & Trust Decay</div>
+        <h3>Trust Is a Degradable Asset</h3>
+        <p style="font-size:.78rem">As a vibe-coded agent generates logic and pulls in new tools, its security perimeter constantly fluctuates. Static SBOMs become instantly stale.</p>
+        <p style="font-size:.78rem;margin-top:8px">Instead: monitor a <strong>Runtime Agent Bill of Materials (AgBOM)</strong> — a living document mapping the agent's active blast radius at any given millisecond.</p>
+        <p style="font-size:.78rem;margin-top:8px"><strong>Trust Decay:</strong> Trust is lost when an agent's chain of thought pursues sub-goals diverging from the original human vibe. Example: "optimize the database query" → agent drifts toward downloading an unauthorized indexing library.</p>
+      </div>
+      <div class="card" style="border-top:3px solid var(--p)">
+        <div class="tag tp">Checkpoints & Circuit Breakers</div>
+        <h3>Auto-Rollback When Drift Detected</h3>
+        <div class="ci" style="margin-top:6px"><span style="color:var(--p)">1️⃣</span><span style="font-size:.77rem">Before codebase modifications: generate a version control checkpoint (git commit)</span></div>
+        <div class="ci"><span style="color:var(--p)">2️⃣</span><span style="font-size:.77rem">ABA continuously evaluates Vibe Trajectory against AgBOM — any instability penalizes the dynamic Agent Trust Score</span></div>
+        <div class="ci"><span style="color:var(--p)">3️⃣</span><span style="font-size:.77rem">If Trust Score drops below threshold: automated "circuit breaker" trips — rolls back changes using the checkpoint, gracefully revokes tool access, freezes autonomous execution</span></div>
+        <div class="ci"><span style="color:var(--p)">4️⃣</span><span style="font-size:.77rem">Environment preserved for forensic analysis — not destroyed, because the audit trail has value</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S7 WHY EVAL IS DIFFERENT -->
+<div class="slide fi" id="s7">
+  <div class="eyebrow">Evaluation Framework</div>
+  <h2>Why Evaluating Vibe Coding Agents is Fundamentally Different</h2>
+  <div class="g3" style="margin-bottom:14px">
+    <div class="card" style="border-top:3px solid var(--acc)">
+      <div class="tag tr">Challenge 1: The Underspecification Gap</div>
+      <h3>"There is no spec"</h3>
+      <p style="font-size:.78rem">Traditional software testing operates on the assumption that a complete, rigid specification exists before a single line of code is evaluated. Vibe coding is the exact opposite.</p>
+      <p style="font-size:.78rem;margin-top:8px">"Make the dashboard load faster" is not a test case. The prompt relies entirely on the model's latent knowledge, aesthetic judgment, and domain expertise to fill in operational gaps. The first job of evaluation: determine whether the agent successfully bridged this gap and reconstructed the right unstated spec.</p>
+    </div>
+    <div class="card" style="border-top:3px solid var(--p)">
+      <div class="tag tp">Challenge 2: User Can't Validate Output</div>
+      <h3>Non-technical users can't review 600 lines of code</h3>
+      <p style="font-size:.78rem">Even experienced engineers cannot review AI-generated code in real time. The gap between "the agent thinks it succeeded" and "the code is actually correct" is wider here than in any other agent category.</p>
+      <p style="font-size:.78rem;margin-top:8px">This is why evaluation must be <em>systematic</em> and <em>automated</em> — human review cannot be the primary quality gate when code is generated faster than humans can read it.</p>
+    </div>
+    <div class="card" style="border-top:3px solid var(--warn)">
+      <div class="tag ta">Challenge 3: Iterative Sessions on Live Codebase</div>
+      <h3>Bad early decisions compound across turns</h3>
+      <p style="font-size:.78rem">Each turn modifies real files. A wrong architectural decision on turn 2 poisons every subsequent turn. Evaluation has to cover not just turn-level decisions but the <strong>full arc of a multi-turn conversation</strong> on a living codebase with its own conventions, dependencies, and history.</p>
+      <p style="font-size:.78rem;margin-top:8px">The relevant question is not "was turn 4 correct?" but "did the user converge on something they wanted?" Sessions abandoned mid-flow are the most informative failures — far more than turn-level errors.</p>
+    </div>
+  </div>
+  <div class="card">
+    <div class="tag tr">Security Recap: The Practical Baseline</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px">
+      <div class="ci"><span style="color:var(--g)">🛡</span><span style="font-size:.77rem"><strong>Sandbox the Vibe Loop:</strong> Always execute dynamically generated scripts within kernel-level, network-isolated sandboxes. Embed SCA to scan for hallucinated/vulnerable dependencies before production.</span></div>
+      <div class="ci"><span style="color:var(--g)">🛡</span><span style="font-size:.77rem"><strong>Shift the Perimeter Left:</strong> Trusted sources + verified registries. Advisory linters in IDE. Strict deterministic checks at multiple CI/CD pipeline points.</span></div>
+      <div class="ci"><span style="color:var(--g)">🛡</span><span style="font-size:.77rem"><strong>Enforce Zero Ambient Authority:</strong> Never grant a "Global Key." Mandate delegated identities + JIT hyper-restricted tokens. Replace blind approval buttons with mandatory "Vibe Diff."</span></div>
+      <div class="ci"><span style="color:var(--g)">🛡</span><span style="font-size:.77rem"><strong>Deploy Agentic SecOps:</strong> Virtual Red Team for Adversarial Vibes. Agent Behavioral Analytics for AgBOM monitoring. Green Team for auto-refactoring on vulnerability detection.</span></div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S8 WHAT TO EVALUATE: 7 DIMENSIONS -->
+<div class="slide fi" id="s8">
+  <div class="eyebrow">Evaluation · 7 Dimensions</div>
+  <h2>What to Evaluate: 7 Dimensions in 2 Groups</h2>
+  <p style="font-size:.82rem;margin-bottom:12px">User-facing dimensions: what the developer experiences directly. Internal dimensions: what the agent does invisibly. Safety/Responsible AI is <em>transversal</em> — intersects all dimensions simultaneously.</p>
+  <div class="g2" style="flex:1">
+    <div class="col">
+      <div style="font-size:.8rem;font-weight:700;color:#1A2040;margin-bottom:8px;font-family:'JetBrains Mono',monospace;letter-spacing:.08em">USER-FACING DIMENSIONS</div>
+      <div class="ed"><div class="edn" style="color:var(--p)">1</div><div><div class="edt">Intent Satisfaction</div><div class="edb">Did the agent build what the user <em>meant</em>, not just what they <em>said</em>? The hardest dimension. Intent is unstated, ambiguous, and shifts mid-session. What the user ultimately judges the agent on. Treat the first 1–2 user messages as the rubric — derive acceptance criteria automatically from the session prefix.</div></div></div>
+      <div class="ed"><div class="edn" style="color:var(--b)">2</div><div><div class="edt">Functional Correctness</div><div class="edb">Does the code build, run, and pass tests? The floor, not the ceiling. Easy to measure but easy to game: tests can be deleted or mocked to make red turn green without fixing anything. Always validate against ground truth, not just CI green.</div></div></div>
+      <div class="ed"><div class="edn" style="color:var(--g)">3</div><div><div class="edt">Visual & Behavioral Correctness</div><div class="edb">For agents producing web apps or UI, the artifact IS the rendered output — not the code. Code-level metrics miss the point entirely. The page either looks right and behaves right, or it doesn't. Requires browser-based testing and multimodal LLM judges.</div></div></div>
+      <div class="ed"><div class="edn" style="color:var(--warn)">4</div><div><div class="edt">Cost & Efficiency</div><div class="edb">Token spend, wall-clock latency, tool-call count, iteration count — how many corrections did the user have to issue before convergence? An agent landing the right diff in 1 turn is a different product from one needing 8 corrections.</div></div></div>
+    </div>
+    <div class="col">
+      <div style="font-size:.8rem;font-weight:700;color:#1A2040;margin-bottom:8px;font-family:'JetBrains Mono',monospace;letter-spacing:.08em">INTERNAL DIMENSIONS</div>
+      <div class="ed"><div class="edn" style="color:var(--acc)">5</div><div><div class="edt">Code Quality & Convention Matching</div><div class="edb">Does the code match the project's idioms, patterns, and naming conventions? A diff that passes tests but violates the codebase's style is a vibe-coding failure even when locally correct. Requires knowing the project context — static linters only catch syntactic conventions.</div></div></div>
+      <div class="ed"><div class="edn" style="color:var(--b)">6</div><div><div class="edt">Trajectory Quality</div><div class="edb">Did the agent take a sensible path — read related files first, sequence edits coherently, pick the right tool at each step? Correct output produced by bad reasoning is a fragile success. Trajectory evaluation catches 20–40% more failures than output-only scoring. (Latitude, March 2026)</div></div></div>
+      <div class="ed"><div class="edn" style="color:var(--g)">7</div><div><div class="edt">Self-Repair Behavior</div><div class="edb">When the build fails, a test breaks, or the user says "no, not like that" — does the agent recover or compound the failure? Recovery quality compounds across a multi-turn session. An agent that recovers elegantly after the first correction is fundamentally better than one that needs 3+ tries.</div></div></div>
+      <div class="alert ar" style="margin-top:6px;font-size:.76rem"><strong>Cross-cutting:</strong> Safety & Responsible AI intersects all 7 dimensions — code vulnerabilities (D2, D5), refusal behavior (D1), content safety (D1, D7), IP exposure (D5). Evaluate alongside each, not as a separate gate.</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S9 HOW TO EVALUATE -->
+<div class="slide fi" id="s9">
+  <div class="eyebrow">Evaluation · Methods</div>
+  <h2>How to Evaluate: 6 Methods + Standardized Benchmarks</h2>
+  <div class="g3" style="flex:1">
+    <div class="card" style="border-top:3px solid var(--b)">
+      <div class="tag tb">Method 1: Automated Functional Testing</div>
+      <h3>Cheapest Signal Available</h3>
+      <p style="font-size:.77rem">Run the build, test suite, and linters on agent output. Standard tooling: pytest, jest, eslint, mypy — plugged into CI. Cheapest signal available.</p>
+      <p style="font-size:.75rem;color:#6B7280;margin-top:6px">Best for: Dimensions 2 (correctness), 5 (code quality rule-checkable parts)</p>
+    </div>
+    <div class="card" style="border-top:3px solid var(--acc)">
+      <div class="tag tr">Method 2: Security & Safety Eval</div>
+      <h3>Static Analysis + Adversarial Probing</h3>
+      <p style="font-size:.77rem">SAST tools (Snyk, Semgrep) find code vulnerabilities. git-secrets catches credential leaks. Scripted red-team suites test refusal behavior. Cross-cutting — evaluates safety alongside all other dimensions.</p>
+      <p style="font-size:.75rem;color:#6B7280;margin-top:6px">Best for: Dimension 6 (safety/responsible AI) transversally</p>
+    </div>
+    <div class="card" style="border-top:3px solid var(--p)">
+      <div class="tag tp">Method 3: LLM-as-Judge</div>
+      <h3>Score Against Rubrics at Scale</h3>
+      <p style="font-size:.77rem">A peer model scores outputs against rubrics — evaluates intent satisfaction, style, and trajectory quality. Gemini scoring against the original user prompt. Swap positions of reference and actual outputs to eliminate ordering bias. Calibrate to 90% human agreement.</p>
+      <p style="font-size:.75rem;color:#6B7280;margin-top:6px">Best for: Dimensions 1 (intent), 5 (quality/style), 6 (trajectory)</p>
+    </div>
+    <div class="card" style="border-top:3px solid var(--g)">
+      <div class="tag tg">Method 4: Browser-Based Testing</div>
+      <h3>Multi-Step Workflows Against Deployed App</h3>
+      <p style="font-size:.77rem">Run multi-step workflows against the deployed app. Playwright scripts interacting with rendered UI. Screenshot comparison against reference states. A multimodal judge looking at rendered pages catches what code-level evaluation misses: broken mobile layouts, wrong button states, accessibility failures.</p>
+      <p style="font-size:.75rem;color:#6B7280;margin-top:6px">Best for: Dimension 3 (visual/behavioral correctness)</p>
+    </div>
+    <div class="card" style="border-top:3px solid var(--warn)">
+      <div class="tag ta">Method 5: Trajectory Inspection</div>
+      <h3>Analyze Reasoning, Tool Calls, Retrievals</h3>
+      <p style="font-size:.77rem">OpenTelemetry traces with span-level tool-call data. Trace-replay tools bind each model invocation to the actions that followed. Evaluate plan coherence, tool selection appropriateness, and repair quality.</p>
+      <p style="font-size:.75rem;color:#6B7280;margin-top:6px">Best for: Dimensions 6 (trajectory), 7 (self-repair)</p>
+    </div>
+    <div class="card" style="border-top:3px solid #8693AE">
+      <div class="tag" style="background:#F8F9FC;color:#8693AE;border-color:#E2E6F0">Method 6: Online + Human Review</div>
+      <h3>Live Traffic + Senior Engineer Review</h3>
+      <p style="font-size:.77rem">Online: sample live production traffic at a biased 1% (high-cost sessions, sessions with many corrections, abandoned sessions). Human review: structured annotation by senior engineers — the only ground truth for intent satisfaction and safety nuance. Calibrates all other methods.</p>
+      <p style="font-size:.75rem;color:#6B7280;margin-top:6px">Best for: Calibration + Dimension 1 (intent), 5 (quality code review)</p>
+    </div>
+  </div>
+  <div class="alert ab" style="margin-top:12px">
+    <strong>Benchmarks:</strong> Vibe Code Bench (zero-to-one web app generation), SWE-bench Verified (code changes on real repos), LiveCodeBench (contamination-resistant). <strong>Warning:</strong> A high SWE-bench score proves the agent can navigate structured Python repos — it provides zero guarantee the agent has the aesthetic judgment to vibe code a consumer-facing application.
+  </div>
+</div>
+
+
+<!-- S10 APPLIED EVAL TIPS -->
+<div class="slide fi" id="s10">
+  <div class="eyebrow">Applied Tips</div>
+  <h2>Applied Tips for Vibe-Coding Agent Evaluation</h2>
+  <div class="split" style="flex:1">
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--p)">
+        <div class="tag tp">Tip 1: Use Session Prefix as Intent Rubric</div>
+        <h3>The closest thing to a spec</h3>
+        <p style="font-size:.77rem">Vibe coding has no spec to test against. The closest equivalent: the first 1–2 user messages. Treat them as the rubric — derive evaluation criteria automatically from the session prefix, then score every subsequent turn against them. The only practical way to evaluate intent satisfaction at scale.</p>
+        <pre style="margin-top:8px;font-size:.67rem"><span class="cm"># Derive criteria from opening turns</span>
+opening = <span class="str">" "</span>.join(session.user_messages[:<span class="str">2</span>])
+criteria = client.models.generate_content(
+  model=<span class="str">"gemini-3-pro"</span>,
+  contents=<span class="str">f"Produce 3-5 acceptance criteria for: {opening}"</span>
+).parsed[<span class="str">"criteria"</span>]
+<span class="cm"># Score every agent turn against criteria</span>
+score = client.models.generate_content(
+  contents=<span class="str">f"Does this output satisfy {criteria}? Score 1-5"</span>
+).parsed</pre>
+      </div>
+      <div class="card" style="border-top:3px solid var(--g)">
+        <div class="tag tg">Tip 2: Judge the Rendered Artifact, Not the Code</div>
+        <h3>The user judges the output — not the diff</h3>
+        <p style="font-size:.77rem">A multimodal model looking at the rendered page catches problems code-level evaluation misses entirely: layout broken on mobile, contrast too low for accessibility, button states wrong. Pair multimodal judge with Playwright assertions — judge catches visual/design, assertions catch broken interactivity.</p>
+        <pre style="margin-top:8px;font-size:.67rem">result = client.models.generate_content(
+  model=<span class="str">"gemini-3-pro"</span>,
+  contents=[
+    <span class="str">"Score layout_match, styling, interactive_correctness"</span>,
+    user_spec,
+    types.Part.from_bytes(data=screenshot_bytes,
+                          mime_type=<span class="str">"image/png"</span>)
+  ]
+)</pre>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="border-top:3px solid var(--b)">
+        <div class="tag tb">Tip 3: Evaluate Session Convergence, Not Turn Accuracy</div>
+        <h3>"Did the user converge?" not "Was turn 4 correct?"</h3>
+        <p style="font-size:.77rem">A vibe-coding session is multi-turn by construction. Sessions that converge in few turns are success cases. Sessions abandoned mid-flow are the most informative failures — far more than individual turn errors. Cloud Trace exposes a vibe-coding session as a single trace tree.</p>
+        <pre style="margin-top:8px;font-size:.67rem"><span class="kw">def</span> session_outcome(trace):
+    <span class="kw">return</span> {
+      <span class="str">"converged"</span>: trace.last_turn.user_signal == <span class="str">"satisfied"</span>,
+      <span class="str">"turns_to_converge"</span>: trace.user_correction_count,
+      <span class="str">"abandoned"</span>: trace.last_user_action == <span class="str">"close"</span>,
+      <span class="str">"cost_to_converge"</span>: trace.total_token_cost_usd
+    }</pre>
+      </div>
+      <div class="card" style="border-top:3px solid var(--warn)">
+        <div class="tag ta">Tip 4: Mine User Corrections as Labeled Failure Data</div>
+        <h3>Every "no, not like that" is gold</h3>
+        <p style="font-size:.77rem">Every user correction is a labeled failure example — and vibe coding produces these in volume. Cluster them and systematic gaps in the agent become visible much faster than building a synthetic failure benchmark.</p>
+        <pre style="margin-top:8px;font-size:.67rem">corrections = [t.user_message <span class="kw">for</span> trace <span class="kw">in</span> traces
+               <span class="kw">for</span> t <span class="kw">in</span> trace.turns <span class="kw">if</span> t.is_correction]
+emb = client.models.embed_content(
+  model=<span class="str">"text-embedding-005"</span>, contents=corrections)
+clusters = KMeans(n_clusters=<span class="str">8</span>).fit(vectors)
+<span class="cm"># clusters.labels_ = prioritized failure modes list</span></pre>
+      </div>
+      <div class="alert ap">
+        <strong>Observability is the prerequisite.</strong> You cannot evaluate an agent's internal reasoning without seeing it. Without complete OpenTelemetry traces, agent failures appear as inexplicable monolithic events — impossible to diagnose, impossible to fix systematically.
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- S11 SUMMARY -->
+<div class="slide fi" id="s11">
+  <div class="eyebrow">Day 4 · Summary</div>
+  <h2>Key Takeaways: Security + Evaluation</h2>
+  <div class="g2" style="flex:1">
+    <div class="col">
+      <div class="card" style="border-left:4px solid var(--acc)">
+        <div class="tag tr">Security</div>
+        <h3>Context-as-a-Perimeter</h3>
+        <div class="ci"><span>🛡</span><span style="font-size:.78rem"><strong>7 Pillars:</strong> Infra/Networking, Data, Model, Application, IAM, ObsSecOps, Governance — all required, no single pillar is sufficient</span></div>
+        <div class="ci"><span>📦</span><span style="font-size:.78rem"><strong>Sandboxes:</strong> Ephemeral, state-resetting, kernel-level. Slopsquatting: audit all AI-generated dependencies before install</span></div>
+        <div class="ci"><span>🔐</span><span style="font-size:.78rem"><strong>Zero Ambient Authority:</strong> SPIFFE IDs + ABAC + JIT downscoping. Permissions expire the moment the task concludes</span></div>
+        <div class="ci"><span>👁</span><span style="font-size:.78rem"><strong>Vibe Diff:</strong> Translate complex generated code to plain English before high-stakes action approval</span></div>
+        <div class="ci"><span>🔴🔵🟢</span><span style="font-size:.78rem"><strong>SecOps Triad:</strong> Red attacks, Blue monitors (AgBOM + ABA), Green quarantines and auto-refactors</span></div>
+        <div class="ci"><span>📊</span><span style="font-size:.78rem"><strong>Observability first:</strong> Vibe Trajectory traces, AgBOM, Trust Score, circuit breakers on drift</span></div>
+      </div>
+      <div class="alert ar">
+        <strong>The security mindset shift:</strong> From "does this user have permission?" to "is this specific action by this specific agent, at this specific moment, in this specific context, appropriate?" Security is continuously verified, never assumed.
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="border-left:4px solid var(--p)">
+        <div class="tag tp">Evaluation</div>
+        <h3>Opening the Glass Box</h3>
+        <div class="ci"><span>❓</span><span style="font-size:.78rem"><strong>Why different:</strong> No spec, user can't validate output, iterative sessions on live codebase. Bad early decisions compound.</span></div>
+        <div class="ci"><span>7️⃣</span><span style="font-size:.78rem"><strong>7 Dimensions:</strong> Intent satisfaction, Functional correctness, Visual/behavioral, Cost/efficiency, Code quality, Trajectory quality, Self-repair. Safety is transversal.</span></div>
+        <div class="ci"><span>🔬</span><span style="font-size:.78rem"><strong>6 Methods:</strong> Automated functional tests → Security/safety eval → LLM-as-Judge → Browser-based → Trajectory inspection → Online/human review</span></div>
+        <div class="ci"><span>📈</span><span style="font-size:.78rem"><strong>Session convergence > turn accuracy.</strong> Mine corrections as labeled failure data.</span></div>
+        <div class="ci"><span>🖼</span><span style="font-size:.78rem"><strong>Judge the rendered artifact,</strong> not the diff. Multimodal judges + Playwright = complete coverage.</span></div>
+      </div>
+      <div class="alert ap">
+        <strong>Generation is largely solved. Verification, security, and architectural judgment are the new craft.</strong> Teams that thrive will be those that embrace AI as a high-velocity implementation engine while maintaining the rigorous discipline required to produce software the world can actually depend on.
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /deck -->
+<div class="nav">
+  <div class="nb" onclick="go(-1)">←</div>
+  <div class="nb" onclick="go(1)">→</div>
+  <span class="nc" id="ct">1 / 12</span>
+  <div class="ndw" id="dts"></div>
+  <span class="nt" id="nt">COVER</span>
+</div>
+<script>
+const T=['COVER','TWO AXES OF TRUST','7-PILLAR ARCHITECTURE','SANDBOXES + SUPPLY CHAIN','IDENTITY + JIT + VIBE DIFF','RED/BLUE/GREEN TEAMS','OBSERVABILITY: AUDITING THE MIND','WHY EVAL IS DIFFERENT','7 EVALUATION DIMENSIONS','6 EVALUATION METHODS','APPLIED EVAL TIPS','DAY 4 SUMMARY'];
+const slides=document.querySelectorAll('.slide');
+const dts=document.getElementById('dts');
+let cur=0;
+slides.forEach((_,i)=>{const d=document.createElement('div');d.className='nd'+(i===0?' on':'');d.onclick=()=>goTo(i);dts.appendChild(d);});
+function goTo(n){slides[cur].classList.remove('active','fi');slides[cur].style.display='none';cur=Math.max(0,Math.min(n,slides.length-1));slides[cur].style.display='flex';requestAnimationFrame(()=>slides[cur].classList.add('active','fi'));document.querySelectorAll('.nd').forEach((d,i)=>d.classList.toggle('on',i===cur));document.getElementById('ct').textContent=`${cur+1} / ${slides.length}`;document.getElementById('nt').textContent=T[cur]||'';}
+function go(d){goTo(cur+d);}
+document.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key===' ')go(1);if(e.key==='ArrowLeft')go(-1);});
+slides.forEach((s,i)=>{if(i!==0)s.style.display='none';});
+</script>
+</body>
+</html>
