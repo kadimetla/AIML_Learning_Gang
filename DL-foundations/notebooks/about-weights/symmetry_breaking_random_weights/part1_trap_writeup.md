@@ -60,9 +60,28 @@ rows share this shape — 4 features, 1 target — they only differ in value.
 
 Shape rule: a layer mapping *m* units → *n* units has weight matrix shape *m×n*.
 
-**`W1` (4×4)** connects 4 inputs to 4 hidden neurons. Convention: **rows = input
-features, columns = hidden neurons** — column *i* holds neuron *i*'s 4 preferences, one
-per feature.
+**The two 4s in "4×4" are two unrelated numbers that happen to coincide** — this is the
+part that's easy to misread as some inherent rule. They are:
+
+- **Rows = 4** because the *dataset* has 4 features (`GrLivArea`, `OverallQual`,
+  `YearBuilt`, `TotalBsmtSF`). Fixed by the data, not a choice.
+- **Columns = 4** because the notebook *chose* `n_hidden = 4` (see cell 4:
+  `n_in, n_hidden, n_out = 4, 4, 1`). This is an arbitrary architecture decision — it
+  could have been 8, 2, or 16 hidden neurons instead, and `W1` would then be 4×8, 4×2,
+  or 4×16. Nothing about having 4 input features *requires* 4 hidden neurons; the
+  notebook just picked equal widths so it could frame it as "4 appraisers looking at 4
+  features."
+
+Why the *order* is `(n_in, n_hidden)` and not `(n_hidden, n_in)` comes from the matmul
+in the code, `z1 = x @ W1`, where `x` is shape `(4,)`. For `x @ W1` to be valid, `W1`'s
+first dimension must match `x`'s length; the result's shape is whatever `W1`'s second
+dimension is. That line of code is what pins the shape to `(n_in, n_hidden)` — it's not
+a property of the data by itself. (If you're used to PyTorch's `nn.Linear`, which
+stores weights as `(out_features, in_features)` and computes `W @ x`, this notebook uses
+the transposed convention — same math, opposite storage order.)
+
+Convention here: **rows = input features, columns = hidden neurons** — column *i* holds
+neuron *i*'s 4 preferences, one per feature.
 
 |  | Neuron 1 | Neuron 2 | Neuron 3 | Neuron 4 |
 |---|---|---|---|---|
