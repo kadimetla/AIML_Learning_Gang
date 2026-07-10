@@ -80,6 +80,38 @@ a property of the data by itself. (If you're used to PyTorch's `nn.Linear`, whic
 stores weights as `(out_features, in_features)` and computes `W @ x`, this notebook uses
 the transposed convention — same math, opposite storage order.)
 
+### One neuron's weights vs. the whole layer's weight matrix
+
+It's easy to picture `W1` as *one* neuron's weights and get stuck — "one neuron sees 4
+inputs, so shouldn't it just be `[w11, w12, w13, w14]`, a single row of 4 numbers?" That
+row is exactly correct — **for one neuron**. If this hidden layer had only 1 neuron,
+`W1` would be precisely that: a single vector of 4 weights, shape `(4,)`.
+
+The reason `W1` is a 4×4 *matrix* instead of a single 4-number row is that the layer
+doesn't have 1 neuron — it has 4 (`n_hidden = 4`, a separate design choice, not
+something forced by having 4 inputs). Each of those 4 neurons is a fully separate unit
+that independently looks at all 4 inputs and needs its *own* row of 4 weights:
+
+```
+Neuron 1: [w11, w12, w13, w14]   ← one neuron's weights, exactly the row above
+Neuron 2: [w21, w22, w23, w24]   ← a different neuron, its own separate 4 weights
+Neuron 3: [w31, w32, w33, w34]   ← another different neuron
+Neuron 4: [w41, w42, w43, w44]   ← another different neuron
+```
+
+Stack those 4 independent rows together and that stack — 4 neurons × 4 weights each —
+is what the code names `W1`:
+
+```python
+W1 = np.random.randn(n_in, n_hidden) * 0.5   # shape (4, 4)
+```
+
+`W1` isn't one neuron's weights; it's the name for the *whole layer's* weight matrix —
+all 4 neurons' individual weight rows, stacked into one array. There's no separate
+variable per neuron anywhere in the code; a single neuron's weights are recovered by
+indexing into `W1` (e.g. `W1[:, 0]` is Neuron 1's 4 weights, using this notebook's
+column-per-neuron convention below).
+
 Convention here: **rows = input features, columns = hidden neurons** — column *i* holds
 neuron *i*'s 4 preferences, one per feature.
 
