@@ -444,6 +444,38 @@ now *n* = 2:
 (This particular `W2_multi` is freshly random and untrained — the notebook is
 illustrating the *mechanism*, not training a real second task.)
 
+### One output's weights vs. the whole layer's weight matrix
+
+Same style of confusion as `W1` can happen here too — "one output reads 4 hidden
+neurons, so shouldn't its weights just be a single column of 4 numbers,
+`[w1, w2, w3, w4]`?" Correct — **for one output**. `W2` in Part 4/5 (shape 4×1) *is*
+exactly that: one output, one column of 4 weights, one per neuron.
+
+Part 6 doesn't change that column — it adds a **second, independent** one, because
+there are now 2 outputs instead of 1, each needing its own separate set of 4 weights
+over the same 4 neurons:
+
+```
+Output 1: [w11, w21, w31, w41]   ← SalePrice's own 4 weights, one per neuron
+Output 2: [w12, w22, w32, w42]   ← DaysOnMarket's own separate 4 weights
+```
+
+Placed side by side as columns, those two independent weight vectors are what the code
+names `W2_multi`:
+
+```python
+W2_multi = np.random.randn(n_hidden, n_out2) * 0.5   # shape (4, 2)
+```
+
+Exactly the same pattern as `W1`, just one layer downstream and transposed in role:
+there `W1`'s columns were "one neuron's weights, stacked because there are multiple
+neurons"; here `W2_multi`'s columns are "one output's weights, stacked because there
+are multiple outputs." Neither matrix is ever "one unit's weights" by itself — it's
+always *N* units' independent weight vectors, stacked into one array and given one
+shared variable name. Scaling to 3 outputs would mean 3 columns (`W2_multi` → 4×3); it
+never changes how many weights any single output has (still 4, one per neuron) — it
+only adds more columns.
+
 **Each output is still just a weighted sum of the same 4 activations** — now there are
 two sums instead of one:
 
