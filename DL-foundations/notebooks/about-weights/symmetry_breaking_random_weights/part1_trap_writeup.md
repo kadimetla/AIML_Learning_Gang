@@ -385,6 +385,42 @@ And the prediction that matters: unstandardized, the trained network predicts
 | Neuron 3 | 1.541 |
 | Neuron 4 | 0.014 |
 
+### Training changes the numbers, not the structure
+
+Same question as before is worth re-asking here: is `W1_t` "one neuron's weights" or
+"the whole layer's weights"? Structurally, **training changes nothing about the shape
+or the stacking** — only the 16 + 4 numbers inside it. `W1_t` is still 4 neurons' weight
+rows, independently updated by gradient descent, stacked into the same 4×4 slot:
+
+```
+Neuron 1 (trained): [-0.504, -0.831, -0.185, -0.444]  ← was [0.783, -0.724, -0.511, -0.640] at random init
+Neuron 2 (trained): [-0.230, -0.237,  0.109, -1.069]  ← was [-0.033, -1.099, 0.354, 0.436]
+Neuron 3 (trained): [ 0.563,  1.166,  0.056, -0.184]  ← was [-0.278, 0.220, 0.122, 0.325]
+Neuron 4 (trained): [ 0.574, -0.001, -0.322, -0.426]  ← was [0.941, -0.251, -0.282, -0.050]
+```
+
+Every row moved by a *different* amount — because each neuron got a different gradient
+every epoch (the direct continuation of Part 2's point: different starting weights →
+different gradients → different updates, repeated 400 times instead of once). Nothing
+about training merges the 4 neurons back into 1, or changes `W1_t`'s shape from 4×4 —
+it only changes which 16 numbers live inside that shape.
+
+Same logic for `W2_t`: Part 5 still has just 1 output (multi-output doesn't arrive
+until Part 6), so `W2_t` is still a single column of 4 weights — one output, one weight
+per neuron, exactly the 4×1 shape from Part 4, just with different numbers after 400
+epochs of updates:
+
+```
+W2_t (trained, 1 output): [-2.415, -0.789, 1.541, 0.014]
+                            ↑ was [0.923, -0.535, -0.763, -0.346] at random init
+```
+
+Notice `W2_t`'s Neuron 4 weight (`0.014`) ended up near zero — training decided the
+output should barely listen to Neuron 4 at all, even though Neuron 4's own activation
+is far from zero (`h=0.612`, see the table above). That's the same "trust is encoded in
+`W2`, independent of how excited the neuron is" point from the reflection-questions
+answer, now visible in real trained numbers instead of a hypothetical.
+
 Compare to the random-init `W1`/`W2` from Part 2/4: the columns aren't just "still
 different," they've grown some large, decisive entries (`OverallQual → Neuron 3 =
 1.166`, `TotalBsmtSF → Neuron 2 = -1.069`) while others shrank toward near-zero
