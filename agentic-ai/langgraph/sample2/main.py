@@ -1,4 +1,4 @@
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, START, StateGraph
@@ -6,7 +6,7 @@ from langgraph.graph import END, START, StateGraph
 
 class GraphState(TypedDict):
     name: str
-    greeting: str
+    greeting: NotRequired[str]
 
 
 def greet(state: GraphState, config: RunnableConfig) -> GraphState:
