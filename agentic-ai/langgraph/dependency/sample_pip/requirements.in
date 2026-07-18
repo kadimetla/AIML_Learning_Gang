@@ -1,0 +1,6 @@
+# Human-edited source file: loose, unpinned dependencies.
+# Compile this into a pinned requirements.txt with:
+#   pip install pip-tools
+#   pip-compile requirements.in
+requests>=2.31
+rich

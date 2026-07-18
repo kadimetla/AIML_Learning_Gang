@@ -1,0 +1,13 @@
+# Machine-generated, fully pinned lockfile-equivalent for plain pip.
+# Regenerate with: pip-compile requirements.in
+# This is the file you actually `pip install -r` in CI/prod so every
+# install is byte-for-byte reproducible.
+certifi==2024.8.30
+charset-normalizer==3.3.2
+idna==3.8
+markdown-it-py==3.0.0
+mdurl==0.1.2
+pygments==2.18.0
+requests==2.32.3
+rich==13.8.1
+urllib3==2.2.2

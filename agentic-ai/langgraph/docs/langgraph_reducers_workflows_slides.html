@@ -1,0 +1,897 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LangGraph State, Reducers, Invoke, and Resume</title>
+  <style>
+    :root {
+      --bg: #f7f4ee;
+      --ink: #17211c;
+      --muted: #526157;
+      --line: #c9d2c8;
+      --panel: #ffffff;
+      --panel-2: #eef5f0;
+      --accent: #0f766e;
+      --accent-2: #b42318;
+      --accent-3: #7c5c00;
+      --code-bg: #111815;
+      --code-ink: #eef7ef;
+      --shadow: 0 18px 55px rgba(29, 42, 35, 0.16);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(90deg, rgba(15, 118, 110, 0.05) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(15, 118, 110, 0.05) 1px, transparent 1px),
+        var(--bg);
+      background-size: 34px 34px;
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: 1fr auto;
+    }
+
+    .deck {
+      position: relative;
+      min-height: calc(100vh - 76px);
+      overflow: hidden;
+    }
+
+    .slide {
+      display: none;
+      min-height: calc(100vh - 76px);
+      padding: 54px clamp(24px, 5vw, 72px);
+      align-items: center;
+    }
+
+    .slide.active {
+      display: grid;
+    }
+
+    .frame {
+      width: min(1180px, 100%);
+      margin: 0 auto;
+    }
+
+    .title-slide {
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 46px;
+      align-items: center;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    h1 {
+      font-size: clamp(42px, 7vw, 82px);
+      line-height: 0.96;
+      letter-spacing: 0;
+      margin-bottom: 24px;
+      max-width: 11ch;
+    }
+
+    h2 {
+      font-size: clamp(32px, 5vw, 58px);
+      line-height: 1.02;
+      letter-spacing: 0;
+      margin-bottom: 26px;
+      max-width: 16ch;
+    }
+
+    h3 {
+      font-size: 22px;
+      margin-bottom: 12px;
+    }
+
+    p,
+    li {
+      font-size: clamp(18px, 2vw, 24px);
+      line-height: 1.45;
+    }
+
+    .lead {
+      color: var(--muted);
+      font-size: clamp(21px, 2.2vw, 30px);
+      max-width: 760px;
+    }
+
+    .eyebrow {
+      color: var(--accent);
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+
+    .grid-2,
+    .grid-3 {
+      display: grid;
+      gap: 18px;
+    }
+
+    .grid-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .grid-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 22px;
+      box-shadow: 0 8px 22px rgba(29, 42, 35, 0.08);
+    }
+
+    .card.compact {
+      padding: 18px;
+    }
+
+    .card p,
+    .card li {
+      font-size: 18px;
+    }
+
+    .card strong {
+      color: var(--accent);
+    }
+
+    .diagram {
+      display: grid;
+      gap: 12px;
+      align-items: center;
+      justify-items: stretch;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    .step {
+      min-height: 94px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 8px;
+      padding: 16px;
+      display: grid;
+      align-content: center;
+      text-align: center;
+      font-weight: 800;
+      color: var(--ink);
+    }
+
+    .step small {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      margin-top: 6px;
+    }
+
+    .arrow {
+      color: var(--accent);
+      font-weight: 900;
+      text-align: center;
+      font-size: 24px;
+    }
+
+    .merge {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    .merge .result {
+      grid-column: 1 / -1;
+      border-color: rgba(15, 118, 110, 0.35);
+      background: var(--panel-2);
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 5px 9px;
+      border-radius: 6px;
+      background: var(--panel-2);
+      color: var(--accent);
+      border: 1px solid rgba(15, 118, 110, 0.24);
+      font-weight: 800;
+      font-size: 13px;
+      margin-bottom: 10px;
+    }
+
+    pre {
+      background: var(--code-bg);
+      color: var(--code-ink);
+      border-radius: 8px;
+      padding: 18px;
+      overflow: auto;
+      font-size: clamp(13px, 1.5vw, 17px);
+      line-height: 1.45;
+      box-shadow: var(--shadow);
+      margin: 0;
+    }
+
+    code {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    }
+
+    :not(pre) > code {
+      background: rgba(15, 118, 110, 0.11);
+      border: 1px solid rgba(15, 118, 110, 0.2);
+      border-radius: 5px;
+      padding: 1px 5px;
+      color: #0f5f5a;
+      font-size: 0.9em;
+    }
+
+    .columns {
+      display: grid;
+      grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+      gap: 28px;
+      align-items: start;
+    }
+
+    .big-number {
+      font-size: 58px;
+      line-height: 1;
+      color: var(--accent);
+      font-weight: 900;
+    }
+
+    .quote {
+      border-left: 5px solid var(--accent);
+      padding-left: 18px;
+      color: var(--muted);
+      font-size: 26px;
+      line-height: 1.35;
+    }
+
+    .notes {
+      margin-top: 18px;
+      border-top: 1px solid var(--line);
+      padding-top: 14px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    .footer {
+      height: 76px;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 18px;
+      align-items: center;
+      padding: 14px clamp(20px, 4vw, 42px);
+      border-top: 1px solid var(--line);
+      background: rgba(247, 244, 238, 0.92);
+      backdrop-filter: blur(10px);
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    button {
+      min-width: 44px;
+      min-height: 40px;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--ink);
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    button:hover {
+      border-color: var(--accent);
+    }
+
+    .progress {
+      height: 7px;
+      background: rgba(15, 118, 110, 0.16);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .progress span {
+      display: block;
+      height: 100%;
+      width: 0;
+      background: var(--accent);
+    }
+
+    .count {
+      text-align: center;
+      color: var(--muted);
+      font-weight: 800;
+      font-size: 14px;
+    }
+
+    .hint {
+      text-align: right;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .warning {
+      border-color: rgba(180, 35, 24, 0.32);
+      background: #fff4f2;
+    }
+
+    .warning strong {
+      color: var(--accent-2);
+    }
+
+    .gold {
+      border-color: rgba(124, 92, 0, 0.26);
+      background: #fff8df;
+    }
+
+    .gold strong {
+      color: var(--accent-3);
+    }
+
+    ul {
+      margin: 0;
+      padding-left: 24px;
+    }
+
+    .table {
+      display: grid;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--panel);
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 0.9fr 1.15fr 1.2fr;
+      border-top: 1px solid var(--line);
+    }
+
+    .row:first-child {
+      border-top: 0;
+      background: var(--panel-2);
+      font-weight: 900;
+    }
+
+    .cell {
+      padding: 14px 16px;
+      border-left: 1px solid var(--line);
+      font-size: 17px;
+      line-height: 1.4;
+    }
+
+    .cell:first-child {
+      border-left: 0;
+    }
+
+    @media (max-width: 860px) {
+      .title-slide,
+      .columns,
+      .grid-2,
+      .grid-3,
+      .merge {
+        grid-template-columns: 1fr;
+      }
+
+      .flow {
+        grid-template-columns: 1fr;
+      }
+
+      .slide {
+        padding: 30px 18px;
+      }
+
+      .footer {
+        grid-template-columns: auto auto;
+      }
+
+      .hint {
+        display: none;
+      }
+
+      .row {
+        grid-template-columns: 1fr;
+      }
+
+      .cell,
+      .cell:first-child {
+        border-left: 0;
+        border-top: 1px solid var(--line);
+      }
+
+      .row:first-child .cell:first-child {
+        border-top: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="deck" aria-live="polite">
+      <article class="slide active">
+        <div class="frame title-slide">
+          <div>
+            <div class="eyebrow">LangGraph classroom deck</div>
+            <h1>State, reducers, invoke, pause, resume</h1>
+            <p class="lead">A practical walkthrough of how graph state works in chat applications and parallel workflows.</p>
+          </div>
+          <div class="card">
+            <h3>Students should leave knowing</h3>
+            <ul>
+              <li>Why `Annotated` appears in state schemas.</li>
+              <li>Why reducers are required for concurrent writes.</li>
+              <li>How chat requests call `invoke` or `stream`.</li>
+              <li>How pause and resume work with checkpointed threads.</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">The big idea</div>
+          <h2>LangGraph nodes return state updates, not mutations</h2>
+          <div class="flow">
+            <div class="step">Input<small>new user event</small></div>
+            <div class="step">Node A<small>returns partial state</small></div>
+            <div class="step">Node B<small>returns partial state</small></div>
+            <div class="step">Runtime<small>merges writes</small></div>
+            <div class="step">Checkpoint<small>state is saved</small></div>
+          </div>
+          <p class="notes">Teaching note: separate what user code does from what the runtime does. A node says, "here is my update." The runtime decides how that update changes the shared state.</p>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">State schema</div>
+            <h2>The schema describes keys and merge behavior</h2>
+            <p class="lead">Every state key is backed by a channel. If you do not specify merge behavior, LangGraph uses replacement semantics.</p>
+          </div>
+          <pre><code>from typing import Annotated
+from typing_extensions import TypedDict
+from langgraph.graph import add_messages
+
+class State(TypedDict):
+    messages: Annotated[list, add_messages]
+    search_results: Annotated[list[str], operator.add]
+    status: str</code></pre>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Annotated</div>
+          <h2>`Annotated` means type plus metadata</h2>
+          <div class="grid-2">
+            <div class="card">
+              <span class="tag">Python typing</span>
+              <pre><code>from typing import Annotated
+
+field: Annotated[list[str], "metadata"]</code></pre>
+              <p>The real type is still `list[str]`. The extra value is metadata for tools and frameworks.</p>
+            </div>
+            <div class="card">
+              <span class="tag">LangGraph usage</span>
+              <pre><code>items: Annotated[list[str], operator.add]</code></pre>
+              <p>LangGraph reads the metadata and treats `operator.add` as the reducer for `items`.</p>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">Default behavior</div>
+            <h2>Plain fields allow one write per step</h2>
+            <p class="lead">Without a reducer, LangGraph cannot safely choose between two competing updates.</p>
+          </div>
+          <div class="merge">
+            <div class="card warning">
+              <strong>Node A</strong>
+              <pre><code>{"status": "approved"}</code></pre>
+            </div>
+            <div class="card warning">
+              <strong>Node B</strong>
+              <pre><code>{"status": "rejected"}</code></pre>
+            </div>
+            <div class="card warning result">
+              <strong>Runtime result</strong>
+              <p>Invalid concurrent update. The field needs one writer or an explicit reducer.</p>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">Reducers</div>
+            <h2>A reducer is a merge function</h2>
+            <p class="lead">Its shape is always current value plus new value gives next value.</p>
+          </div>
+          <pre><code>def reducer(current, update):
+    return next_value
+
+class State(TypedDict):
+    items: Annotated[list[str], reducer]</code></pre>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Example</div>
+          <h2>List accumulation with `operator.add`</h2>
+          <div class="merge">
+            <div class="card">
+              <strong>Node A writes</strong>
+              <pre><code>{"items": ["a"]}</code></pre>
+            </div>
+            <div class="card">
+              <strong>Node B writes</strong>
+              <pre><code>{"items": ["b"]}</code></pre>
+            </div>
+            <div class="card result">
+              <strong>Reducer result</strong>
+              <pre><code>operator.add([], ["a"])       # ["a"]
+operator.add(["a"], ["b"])   # ["a", "b"]</code></pre>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Why this matters</div>
+          <h2>Reducers make parallel graph execution explicit</h2>
+          <div class="grid-3">
+            <div class="card compact">
+              <div class="big-number">1</div>
+              <h3>Concurrent writes</h3>
+              <p>Fan-out nodes can write the same key in the same step.</p>
+            </div>
+            <div class="card compact">
+              <div class="big-number">2</div>
+              <h3>Incremental state</h3>
+              <p>Nodes return deltas instead of rebuilding the full state.</p>
+            </div>
+            <div class="card compact">
+              <div class="big-number">3</div>
+              <h3>Replay safety</h3>
+              <p>Checkpointed writes can be folded back into state.</p>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">Messages</div>
+            <h2>`add_messages` is a special reducer for chat</h2>
+            <p class="lead">It appends new messages, replaces messages with the same ID, and supports removal semantics.</p>
+          </div>
+          <pre><code>from langgraph.graph import add_messages
+
+class State(TypedDict):
+    messages: Annotated[list, add_messages]
+
+def chatbot(state: State):
+    return {
+        "messages": [
+            {"role": "assistant", "content": "Hello"}
+        ]
+    }</code></pre>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Chat request design</div>
+          <h2>One chat request sends one new event</h2>
+          <div class="flow">
+            <div class="step">Browser<small>message text</small></div>
+            <div class="step">API route<small>thread_id</small></div>
+            <div class="step">graph.invoke<small>new message only</small></div>
+            <div class="step">Checkpointer<small>loads history</small></div>
+            <div class="step">Response<small>state or stream</small></div>
+          </div>
+          <p class="notes">The frontend usually does not resend the whole conversation. The checkpoint stores history, and `add_messages` merges the new user message into it.</p>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">Invoke</div>
+            <h2>`invoke` continues the thread identified by config</h2>
+            <p class="lead">The graph definition is shared. The `thread_id` selects the persisted conversation or workflow run.</p>
+          </div>
+          <pre><code>config = {
+    "configurable": {
+        "thread_id": "chat-123",
+        "user_id": "user-7",
+    }
+}
+
+result = graph.invoke(
+    {"messages": [{"role": "user", "content": text}]},
+    config=config,
+)</code></pre>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Streaming</div>
+          <h2>Chat apps often prefer `stream`</h2>
+          <div class="grid-2">
+            <div class="card">
+              <h3>`invoke`</h3>
+              <p>Runs until the graph finishes or interrupts, then returns the final result.</p>
+            </div>
+            <div class="card">
+              <h3>`stream`</h3>
+              <p>Runs the same graph but lets the backend forward messages, tokens, or events as they arrive.</p>
+            </div>
+          </div>
+          <pre><code>for chunk in graph.stream(input, config=config, stream_mode="messages"):
+    send_to_browser(chunk)</code></pre>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Pause and resume</div>
+          <h2>A paused workflow is checkpointed, not frozen in memory</h2>
+          <div class="flow">
+            <div class="step">Run<small>node executes</small></div>
+            <div class="step">interrupt()<small>asks for input</small></div>
+            <div class="step">Checkpoint<small>state saved</small></div>
+            <div class="step">User action<small>approval or data</small></div>
+            <div class="step">Resume<small>same thread_id</small></div>
+          </div>
+          <p class="notes">This is why other requests can continue while one workflow waits for a person. The waiting run is represented by persisted state and execution metadata.</p>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">Resume command</div>
+            <h2>Resume targets one paused thread</h2>
+            <p class="lead">The same `thread_id` is the address of the paused workflow.</p>
+          </div>
+          <pre><code>from langgraph.types import Command
+
+graph.invoke(
+    Command(resume={"approved": True}),
+    config={
+        "configurable": {
+            "thread_id": "chat-123"
+        }
+    },
+)</code></pre>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Parallel requests</div>
+          <h2>Same graph, separate threads</h2>
+          <div class="table">
+            <div class="row">
+              <div class="cell">Request</div>
+              <div class="cell">Thread</div>
+              <div class="cell">What can happen</div>
+            </div>
+            <div class="row">
+              <div class="cell">Alice chat</div>
+              <div class="cell">`thread_id = alice-1`</div>
+              <div class="cell">Paused for human approval.</div>
+            </div>
+            <div class="row">
+              <div class="cell">Bob chat</div>
+              <div class="cell">`thread_id = bob-9`</div>
+              <div class="cell">Still streaming a model answer.</div>
+            </div>
+            <div class="row">
+              <div class="cell">Batch job</div>
+              <div class="cell">`thread_id = job-44`</div>
+              <div class="cell">Completed and checkpointed.</div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Use cases</div>
+          <h2>Choosing reducers by domain</h2>
+          <div class="table">
+            <div class="row">
+              <div class="cell">Use case</div>
+              <div class="cell">State key</div>
+              <div class="cell">Reducer idea</div>
+            </div>
+            <div class="row">
+              <div class="cell">Chat agent</div>
+              <div class="cell">`messages`</div>
+              <div class="cell">`add_messages` to preserve and update conversation history.</div>
+            </div>
+            <div class="row">
+              <div class="cell">Parallel search</div>
+              <div class="cell">`documents`</div>
+              <div class="cell">Concatenate lists, then optionally rank later.</div>
+            </div>
+            <div class="row">
+              <div class="cell">Voting classifier</div>
+              <div class="cell">`votes`</div>
+              <div class="cell">Append votes or merge counts by label.</div>
+            </div>
+            <div class="row">
+              <div class="cell">Form workflow</div>
+              <div class="cell">`profile`</div>
+              <div class="cell">Merge dictionaries while preserving verified fields.</div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">Classroom exercise</div>
+            <h2>Predict the final state</h2>
+            <p class="lead">Ask students what happens after the two nodes write in the same step.</p>
+          </div>
+          <pre><code>class State(TypedDict):
+    logs: Annotated[list[str], operator.add]
+    status: str
+
+node_a -> {"logs": ["A"], "status": "draft"}
+node_b -> {"logs": ["B"], "status": "final"}</code></pre>
+          <div class="card warning">
+            <strong>Expected answer</strong>
+            <p>`logs` can merge to `["A", "B"]`. `status` conflicts because it has no reducer and receives two writes in one step.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Design checklist</div>
+          <h2>Questions before building a graph</h2>
+          <div class="grid-2">
+            <div class="card gold">
+              <strong>State</strong>
+              <ul>
+                <li>Which keys are replaced?</li>
+                <li>Which keys accumulate?</li>
+                <li>Which keys may receive concurrent writes?</li>
+              </ul>
+            </div>
+            <div class="card gold">
+              <strong>Runtime</strong>
+              <ul>
+                <li>What is the `thread_id`?</li>
+                <li>Where are checkpoints stored?</li>
+                <li>Can the workflow interrupt and resume?</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Summary</div>
+          <h2>The mental model</h2>
+          <p class="quote">Nodes emit updates. Reducers merge updates. Checkpoints persist threads. `invoke` or `stream` advances one thread at a time.</p>
+          <div class="grid-3">
+            <div class="card compact">
+              <h3>`Annotated`</h3>
+              <p>Attaches metadata to a type.</p>
+            </div>
+            <div class="card compact">
+              <h3>Reducer</h3>
+              <p>Defines how multiple writes become one state value.</p>
+            </div>
+            <div class="card compact">
+              <h3>`thread_id`</h3>
+              <p>Identifies which workflow state to load or resume.</p>
+            </div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <footer class="footer">
+      <div class="controls">
+        <button type="button" id="prev" aria-label="Previous slide">Prev</button>
+        <button type="button" id="next" aria-label="Next slide">Next</button>
+      </div>
+      <div>
+        <div class="count" id="count">1 / 19</div>
+        <div class="progress" aria-hidden="true"><span id="bar"></span></div>
+      </div>
+      <div class="hint">Use Left and Right arrow keys</div>
+    </footer>
+  </main>
+
+  <script>
+    const slides = Array.from(document.querySelectorAll(".slide"));
+    const count = document.getElementById("count");
+    const bar = document.getElementById("bar");
+    const prev = document.getElementById("prev");
+    const next = document.getElementById("next");
+    let index = 0;
+
+    function showSlide(nextIndex) {
+      index = Math.max(0, Math.min(slides.length - 1, nextIndex));
+      slides.forEach((slide, i) => {
+        slide.classList.toggle("active", i === index);
+      });
+      count.textContent = `${index + 1} / ${slides.length}`;
+      bar.style.width = `${((index + 1) / slides.length) * 100}%`;
+      prev.disabled = index === 0;
+      next.disabled = index === slides.length - 1;
+      window.location.hash = `slide-${index + 1}`;
+    }
+
+    prev.addEventListener("click", () => showSlide(index - 1));
+    next.addEventListener("click", () => showSlide(index + 1));
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowRight" || event.key === "PageDown") {
+        showSlide(index + 1);
+      }
+      if (event.key === "ArrowLeft" || event.key === "PageUp") {
+        showSlide(index - 1);
+      }
+      if (event.key === "Home") {
+        showSlide(0);
+      }
+      if (event.key === "End") {
+        showSlide(slides.length - 1);
+      }
+    });
+
+    const match = window.location.hash.match(/slide-(\d+)/);
+    if (match) {
+      showSlide(Number(match[1]) - 1);
+    } else {
+      showSlide(0);
+    }
+  </script>
+</body>
+</html>

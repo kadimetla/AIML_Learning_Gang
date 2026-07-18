@@ -1,0 +1,31 @@
+[project]
+name = "aiml-learning-gang-greeting-kit"
+version = "0.1.0"
+description = "Toy package used to teach 'build once, publish anywhere' to PyPI."
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Your Name", email = "you@example.com" }]
+requires-python = ">=3.9"
+dependencies = []
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-org/your-repo"
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "build>=1.2", "twine>=5.0"]
+
+# hatchling is a plain PEP 517 build backend — unlike poetry-core or
+# uv_build, it isn't tied to a specific dependency-management tool.
+# ANY of pip, poetry, uv, or plain `python -m build` can build this project
+# because they all just speak the PEP 517 build-backend protocol below.
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/greeting_kit"]

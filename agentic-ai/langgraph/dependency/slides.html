@@ -1,0 +1,805 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Python Dependency Management — pip, conda, poetry, uv, PyPI</title>
+<style>
+  :root{
+    --bg: #0f1115;
+    --bg-elev: #161922;
+    --bg-elev-2: #1d212c;
+    --fg: #e8eaf0;
+    --fg-dim: #9aa1b2;
+    --border: #2a2f3d;
+    --accent: #5eb8ff;
+    --accent-2: #ffb454;
+    --code-bg: #0a0c10;
+    --code-fg: #d7dbe5;
+
+    --c-pip: #5eb8ff;
+    --c-conda: #56d364;
+    --c-poetry: #c792ea;
+    --c-uv: #ffb454;
+    --c-pypi: #ff8fa3;
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg: #f5f6f9;
+      --bg-elev: #ffffff;
+      --bg-elev-2: #eef0f5;
+      --fg: #1b1e27;
+      --fg-dim: #5b6270;
+      --border: #dde1ea;
+      --accent: #0b74c9;
+      --accent-2: #b7690a;
+      --code-bg: #10131a;
+      --code-fg: #e7eaf2;
+
+      --c-pip: #0b74c9;
+      --c-conda: #1f8f3a;
+      --c-poetry: #8a3fbf;
+      --c-uv: #b7690a;
+      --c-pypi: #c22a52;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg: #0f1115; --bg-elev: #161922; --bg-elev-2: #1d212c; --fg: #e8eaf0;
+    --fg-dim: #9aa1b2; --border: #2a2f3d; --accent: #5eb8ff; --accent-2: #ffb454;
+    --code-bg: #0a0c10; --code-fg: #d7dbe5;
+    --c-pip: #5eb8ff; --c-conda: #56d364; --c-poetry: #c792ea; --c-uv: #ffb454; --c-pypi: #ff8fa3;
+  }
+  :root[data-theme="light"]{
+    --bg: #f5f6f9; --bg-elev: #ffffff; --bg-elev-2: #eef0f5; --fg: #1b1e27;
+    --fg-dim: #5b6270; --border: #dde1ea; --accent: #0b74c9; --accent-2: #b7690a;
+    --code-bg: #10131a; --code-fg: #e7eaf2;
+    --c-pip: #0b74c9; --c-conda: #1f8f3a; --c-poetry: #8a3fbf; --c-uv: #b7690a; --c-pypi: #c22a52;
+  }
+
+  *{ box-sizing: border-box; }
+  html, body{
+    margin:0; padding:0; height:100%;
+    background: var(--bg); color: var(--fg);
+    font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    overflow: hidden;
+  }
+  code, pre, .mono{
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  .deck{
+    position: relative;
+    width: 100%;
+    height: 100vh;
+  }
+
+  .slide{
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    padding: clamp(28px, 5vw, 80px) clamp(32px, 8vw, 120px);
+    overflow-y: auto;
+  }
+  .slide.active{ display: flex; }
+
+  .kicker{
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    font-size: .78rem;
+    font-weight: 600;
+    color: var(--accent);
+    margin: 0 0 10px;
+  }
+  h1{ font-size: clamp(1.8rem, 4vw, 3rem); line-height: 1.1; margin: 0 0 .3em; letter-spacing: -.01em; }
+  h2{ font-size: clamp(1.4rem, 3vw, 2.1rem); line-height: 1.15; margin: 0 0 .5em; letter-spacing: -.01em; }
+  h3{ font-size: clamp(1.05rem, 1.6vw, 1.3rem); margin: 1.1em 0 .4em; color: var(--fg); }
+  p{ line-height: 1.55; color: var(--fg-dim); font-size: clamp(.95rem, 1.3vw, 1.15rem); max-width: 68ch; }
+  p.lead{ color: var(--fg); font-size: clamp(1.05rem, 1.6vw, 1.35rem); max-width: 62ch; }
+  ul, ol{ line-height: 1.6; color: var(--fg-dim); font-size: clamp(.92rem, 1.25vw, 1.08rem); padding-left: 1.25em; max-width: 72ch; }
+  li{ margin-bottom: .45em; }
+  li strong, li b{ color: var(--fg); font-weight: 600; }
+  li code{ color: var(--fg); }
+  a{ color: var(--accent); }
+
+  .subtitle{ color: var(--fg-dim); font-size: clamp(1rem, 1.6vw, 1.3rem); margin: 0 0 2em; }
+
+  pre{
+    background: var(--code-bg);
+    color: var(--code-fg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    overflow-x: auto;
+    font-size: clamp(.78rem, 1.1vw, .95rem);
+    line-height: 1.55;
+    max-width: 100%;
+  }
+  pre .c{ color: #7d8497; }
+  code.inline{
+    background: var(--bg-elev-2);
+    border: 1px solid var(--border);
+    padding: .1em .4em;
+    border-radius: 5px;
+    font-size: .92em;
+  }
+
+  .grid2{ display:grid; grid-template-columns: 1fr 1fr; gap: 28px; width:100%; max-width: 1200px; }
+  .grid3{ display:grid; grid-template-columns: repeat(3,1fr); gap: 20px; width:100%; max-width: 1200px; }
+  @media (max-width: 900px){ .grid2, .grid3{ grid-template-columns: 1fr; } }
+
+  .card{
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 20px;
+  }
+  .card h3{ margin-top:0; }
+  .card p{ font-size: .95rem; margin: 0; }
+
+  .tool-card{ border-top: 3px solid var(--tc, var(--accent)); }
+  .tool-pip{ --tc: var(--c-pip); }
+  .tool-conda{ --tc: var(--c-conda); }
+  .tool-poetry{ --tc: var(--c-poetry); }
+  .tool-uv{ --tc: var(--c-uv); }
+  .tool-pypi{ --tc: var(--c-pypi); }
+  .tool-tag{
+    display:inline-block; font-weight:700; font-size: .95rem;
+    color: var(--tc); margin-bottom: 6px;
+  }
+
+  table{ border-collapse: collapse; width: 100%; max-width: 1150px; font-size: clamp(.8rem, 1.1vw, .98rem); }
+  th, td{ border: 1px solid var(--border); padding: 9px 12px; text-align: left; vertical-align: top; }
+  th{ background: var(--bg-elev-2); color: var(--fg); font-weight: 600; }
+  td{ color: var(--fg-dim); }
+  td strong, td code{ color: var(--fg); }
+  tr:nth-child(even) td{ background: color-mix(in srgb, var(--bg-elev) 60%, transparent); }
+  .table-wrap{ width:100%; overflow-x: auto; }
+
+  .pill{
+    display:inline-block; padding: 2px 10px; border-radius: 999px;
+    font-size: .75rem; font-weight: 700; border: 1px solid var(--border);
+  }
+  .pill-yes{ color: var(--c-conda); border-color: color-mix(in srgb, var(--c-conda) 50%, var(--border)); }
+  .pill-no{ color: var(--fg-dim); }
+  .pill-part{ color: var(--c-uv); border-color: color-mix(in srgb, var(--c-uv) 50%, var(--border)); }
+
+  .flow{
+    display:flex; flex-wrap: wrap; gap: 10px; align-items:center; max-width: 1100px;
+  }
+  .flow .step{
+    background: var(--bg-elev); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 14px; font-size: .92rem; color: var(--fg);
+  }
+  .flow .arrow{ color: var(--fg-dim); font-size: 1.1rem; }
+
+  .title-slide{ justify-content: center; align-items: flex-start; }
+  .title-slide .logos{
+    display:flex; gap: 10px; margin-bottom: 26px; flex-wrap: wrap;
+  }
+  .logos .chip{
+    font-family: ui-monospace, monospace; font-size: .82rem; font-weight: 700;
+    padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border);
+  }
+  .chip-pip{ color: var(--c-pip); }
+  .chip-conda{ color: var(--c-conda); }
+  .chip-poetry{ color: var(--c-poetry); }
+  .chip-uv{ color: var(--c-uv); }
+  .chip-pypi{ color: var(--c-pypi); }
+
+  .footer-note{
+    margin-top: 1.6em; color: var(--fg-dim); font-size: .82rem; font-style: italic;
+  }
+
+  /* Chrome: progress bar, counter, nav */
+  .progress{
+    position: fixed; top: 0; left: 0; height: 3px; background: var(--accent);
+    width: 0%; z-index: 50; transition: width .25s ease;
+  }
+  .hud{
+    position: fixed; bottom: 16px; right: 20px; z-index: 50;
+    display:flex; align-items:center; gap: 10px;
+    font-family: ui-monospace, monospace; font-size: .8rem; color: var(--fg-dim);
+  }
+  .hud button{
+    width: 34px; height: 34px; border-radius: 8px;
+    background: var(--bg-elev); border: 1px solid var(--border); color: var(--fg);
+    cursor: pointer; font-size: 1rem; display:flex; align-items:center; justify-content:center;
+  }
+  .hud button:hover{ border-color: var(--accent); color: var(--accent); }
+  .counter{ min-width: 52px; text-align:center; }
+
+  .jump{
+    position: fixed; bottom: 16px; left: 20px; z-index: 50;
+    font-family: ui-monospace, monospace; font-size: .72rem; color: var(--fg-dim);
+    opacity: .75;
+  }
+
+  ::-webkit-scrollbar{ width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb{ background: var(--border); border-radius: 6px; }
+
+  @media print{
+    body{ overflow: visible; }
+    .hud, .progress, .jump{ display: none; }
+    .slide{ position: relative; display: flex !important; page-break-after: always; height: 100vh; }
+  }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+
+<div class="deck" id="deck">
+
+  <!-- 1 -->
+  <section class="slide active title-slide">
+    <p class="kicker">AIML Learning Gang — Deep Dive</p>
+    <h1>Python Dependency Management</h1>
+    <p class="subtitle">pip · conda · poetry · uv — and PyPI, the format they all target</p>
+    <div class="logos">
+      <span class="chip chip-pip">pip</span>
+      <span class="chip chip-conda">conda</span>
+      <span class="chip chip-poetry">poetry</span>
+      <span class="chip chip-uv">uv</span>
+      <span class="chip chip-pypi">PyPI</span>
+    </div>
+    <p>Every runnable example in this section lives next to these slides in
+      <code class="inline">dependency/sample_pip</code>,
+      <code class="inline">sample_conda</code>,
+      <code class="inline">sample_poetry</code>,
+      <code class="inline">sample_uv</code>, and
+      <code class="inline">sample_pypi_package</code> — all built and verified, not just illustrated.</p>
+  </section>
+
+  <!-- 2 -->
+  <section class="slide">
+    <p class="kicker">Why this matters</p>
+    <h2>The problem every one of these tools is solving</h2>
+    <p class="lead">"It works on my machine" is a dependency-management failure, not a mystery.</p>
+    <div class="grid2">
+      <div class="card">
+        <h3>Isolation</h3>
+        <p>Project A needs <code class="inline">django==4</code>, project B needs <code class="inline">django==5</code>. Installing both globally breaks one of them. You need a separate environment per project.</p>
+      </div>
+      <div class="card">
+        <h3>Reproducibility</h3>
+        <p>"Works on my machine" happens when your teammate's <code class="inline">pip install</code> silently resolves different transitive versions than yours did last month.</p>
+      </div>
+      <div class="card">
+        <h3>Resolution</h3>
+        <p>Your dependencies have dependencies. Two packages can each demand an incompatible version of a third. Something has to solve that constraint problem.</p>
+      </div>
+      <div class="card">
+        <h3>Distribution</h3>
+        <p>Once your code is useful to someone else, you need a standard format to package it and a registry to publish it to — that's PyPI.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section class="slide">
+    <p class="kicker">The landscape</p>
+    <h2>Five names, three different jobs</h2>
+    <div class="grid3">
+      <div class="card tool-card tool-pypi">
+        <span class="tool-tag">PyPI</span>
+        <p><strong>The registry.</strong> Where packages are hosted. Not a tool you run — a website/API every tool below talks to.</p>
+      </div>
+      <div class="card tool-card tool-pip">
+        <span class="tool-tag">pip</span>
+        <p><strong>The installer.</strong> Ships with Python. Talks to PyPI, installs into whatever environment is currently active.</p>
+      </div>
+      <div class="card tool-card tool-conda">
+        <span class="tool-tag">conda</span>
+        <p><strong>A parallel universe.</strong> Its own installer + environment manager + package format, not limited to Python.</p>
+      </div>
+      <div class="card tool-card tool-poetry">
+        <span class="tool-tag">poetry</span>
+        <p><strong>Dependency manager + build tool.</strong> Wraps pip/venv concepts with a lock file, and can build & publish too.</p>
+      </div>
+      <div class="card tool-card tool-uv">
+        <span class="tool-tag">uv</span>
+        <p><strong>All of the above, rewritten in Rust.</strong> Installer, resolver, venv manager, lock file, build backend, publisher, even a Python-version manager.</p>
+      </div>
+    </div>
+    <p class="footer-note">venv (or virtualenv) is the fourth quiet character here — the standard-library mechanism for isolated environments that pip, poetry, and uv all build on top of.</p>
+  </section>
+
+  <!-- 4 -->
+  <section class="slide">
+    <p class="kicker">PyPI</p>
+    <h2>PyPI is a format before it's a website</h2>
+    <p class="lead">Every tool on these slides ultimately produces (or consumes) the same two file types.</p>
+    <div class="grid2">
+      <div class="card">
+        <h3>sdist — source distribution</h3>
+        <p>A <code class="inline">.tar.gz</code> of your source tree plus metadata. Portable, but installing it may require a build step (e.g. compiling C extensions) on the user's machine.</p>
+      </div>
+      <div class="card">
+        <h3>wheel — built distribution</h3>
+        <p>A pre-built <code class="inline">.whl</code> (a zip file) that pip can unpack straight into <code class="inline">site-packages</code>. No build step at install time — this is what makes <code class="inline">pip install</code> fast.</p>
+      </div>
+    </div>
+    <h3>What actually describes a package today</h3>
+    <p><strong>pyproject.toml</strong> — a single, tool-agnostic manifest standardized across three PEPs:</p>
+    <ul>
+      <li><strong>PEP 518</strong> — declares the <code class="inline">[build-system]</code>, so pip knows what to install before it can even build your package</li>
+      <li><strong>PEP 517</strong> — a standard build-backend interface, so <em>any</em> frontend (pip, uv, poetry) can build <em>any</em> backend (hatchling, setuptools, poetry-core, uv_build)</li>
+      <li><strong>PEP 621</strong> — the standard <code class="inline">[project]</code> table: name, version, dependencies, in one format every tool reads</li>
+    </ul>
+  </section>
+
+  <!-- 5 -->
+  <section class="slide">
+    <p class="kicker">pip</p>
+    <h2>pip — the installer everyone starts with</h2>
+    <div class="grid2">
+      <div>
+        <p class="lead">Ships with Python. Talks directly to PyPI. Installs into whatever environment is currently active — global, or a <code class="inline">venv</code>.</p>
+        <h3>Strengths</h3>
+        <ul>
+          <li>Always available, zero setup</li>
+          <li>Simple mental model: one command, one index</li>
+          <li>Universal — every CI system and tutorial assumes it exists</li>
+        </ul>
+        <h3>Limitations</h3>
+        <ul>
+          <li>No lock file by default — <code class="inline">requirements.txt</code> is whatever you typed or froze, not a resolver-verified graph</li>
+          <li>Doesn't manage environments itself — pair with <code class="inline">venv</code></li>
+          <li>Doesn't build or publish packages on its own</li>
+        </ul>
+      </div>
+      <div>
+        <h3>The two-file pattern (pip-tools)</h3>
+        <pre>requirements.in   <span class="c"># human-edited, loose</span>
+    requests&gt;=2.31
+    rich
+
+requirements.txt  <span class="c"># pip-compile output, fully pinned</span>
+    requests==2.32.3
+    rich==13.8.1
+    urllib3==2.2.2
+    <span class="c">... (all transitive deps, pinned)</span></pre>
+        <p class="footer-note">See <code class="inline">sample_pip/</code> — both files, plus a script that only runs once they're installed.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 -->
+  <section class="slide">
+    <p class="kicker">pip — hands-on</p>
+    <h2>The pip + venv workflow</h2>
+    <pre><span class="c"># 1. create an isolated environment</span>
+python -m venv .venv
+source .venv/bin/activate        <span class="c"># .venv\Scripts\activate on Windows</span>
+
+<span class="c"># 2. install pinned dependencies</span>
+pip install -r requirements.txt
+
+<span class="c"># 3. run something that needs them</span>
+python demo.py
+
+<span class="c"># 4. regenerate the pin file after editing requirements.in</span>
+pip install pip-tools
+pip-compile requirements.in
+
+<span class="c"># 5. snapshot exactly what's installed (not the same as a real lock file!)</span>
+pip freeze &gt; requirements.txt</pre>
+    <p class="footer-note">Try it: <code class="inline">cd dependency/sample_pip</code> and run the block above.</p>
+  </section>
+
+  <!-- 7 -->
+  <section class="slide">
+    <p class="kicker">conda</p>
+    <h2>conda — not really a Python tool</h2>
+    <p class="lead">conda manages <em>binaries</em>, of which Python packages are only one kind. That's the whole reason it exists alongside pip rather than instead of it.</p>
+    <div class="grid2">
+      <div>
+        <h3>What makes it different</h3>
+        <ul>
+          <li>Installs <strong>compiled, non-Python dependencies</strong> — CUDA toolkits, MKL, gcc, HDF5, GDAL — that pip has no concept of</li>
+          <li>Own package format (<code class="inline">.conda</code>/<code class="inline">.tar.bz2</code>) and channels (<code class="inline">conda-forge</code>, <code class="inline">defaults</code>) — separate from PyPI entirely</li>
+          <li>Manages the Python interpreter itself as just another package</li>
+          <li><strong>mamba</strong> is a drop-in, much faster reimplementation of the conda solver (conda's uv, in spirit)</li>
+        </ul>
+      </div>
+      <div>
+        <h3><code class="inline">environment.yml</code></h3>
+        <pre>name: dep-demo
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - numpy
+  - pandas
+  - scikit-learn
+  - cudatoolkit=11.8   <span class="c"># not a Python package —
+                          # this is the point</span>
+  - pip
+  - pip:
+      - rich            <span class="c"># layer in pip for the rest</span></pre>
+      </div>
+    </div>
+    <pre>conda env create -f environment.yml
+conda activate dep-demo
+conda env export --no-builds &gt; environment.lock.yml   <span class="c"># reproducible pin</span></pre>
+  </section>
+
+  <!-- 8 -->
+  <section class="slide">
+    <p class="kicker">conda</p>
+    <h2>When to reach for conda — and when not to</h2>
+    <div class="grid2">
+      <div class="card tool-card tool-conda">
+        <h3>Reach for conda when...</h3>
+        <p>Your stack needs GPU/CUDA drivers, MKL-accelerated numpy, or other compiled scientific libraries where pip wheels are missing, broken, or platform-specific. Classic in ML/data-science and HPC environments, and historically much less painful on Windows for exactly this reason.</p>
+      </div>
+      <div class="card">
+        <h3>Skip conda when...</h3>
+        <p>You're building a pure-Python app or library with no native/GPU dependencies. It adds a second package universe, a slower solver, and — critically — <strong>you cannot publish a conda package to PyPI</strong>; PyPI only understands sdists and wheels.</p>
+      </div>
+    </div>
+    <p class="footer-note">Common real-world pattern: use conda (or an ML-vendor base image) to get the GPU/CUDA layer right, then <code class="inline">pip install</code> the rest of your Python dependencies inside that environment.</p>
+  </section>
+
+  <!-- 9 -->
+  <section class="slide">
+    <p class="kicker">poetry</p>
+    <h2>poetry — dependency management as a product</h2>
+    <div class="grid2">
+      <div>
+        <p class="lead">One tool for the whole lifecycle: resolve, lock, install, build, publish — with a deterministic solver so "it worked on my machine" stops being a coin flip.</p>
+        <h3>Strengths</h3>
+        <ul>
+          <li><code class="inline">poetry.lock</code> — every transitive dependency pinned with a hash, committed to git</li>
+          <li>Manages its own virtualenv per project automatically</li>
+          <li>Dependency <strong>groups</strong> (<code class="inline">dev</code>, <code class="inline">test</code>, ...) instead of separate requirements files</li>
+          <li><code class="inline">poetry build</code> / <code class="inline">poetry publish</code> built in — no extra tools</li>
+        </ul>
+      </div>
+      <div>
+        <h3><code class="inline">pyproject.toml</code> (Poetry 2.x)</h3>
+        <pre>[project]
+name = "dep-demo"
+version = "0.1.0"
+dependencies = [
+  "requests&gt;=2.31",
+  "rich&gt;=13.7",
+]
+
+[tool.poetry]
+packages = [
+  {include = "dep_demo", from = "src"}
+]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+
+[build-system]
+requires = ["poetry-core&gt;=2.0.0,&lt;3.0.0"]
+build-backend = "poetry.core.masonry.api"</pre>
+      </div>
+    </div>
+    <p class="footer-note">Poetry 2.x adopted the standard PEP 621 <code class="inline">[project]</code> table — earlier versions used a poetry-only <code class="inline">[tool.poetry]</code> schema for everything.</p>
+  </section>
+
+  <!-- 10 -->
+  <section class="slide">
+    <p class="kicker">poetry — hands-on</p>
+    <h2>The poetry workflow</h2>
+    <pre><span class="c"># install deps + this package into an auto-managed venv, write poetry.lock</span>
+poetry install
+
+<span class="c"># add a runtime dependency (updates pyproject.toml + poetry.lock)</span>
+poetry add httpx
+
+<span class="c"># add a dev-only dependency</span>
+poetry add --group dev pytest
+
+<span class="c"># run inside the managed venv without activating it</span>
+poetry run pytest
+
+<span class="c"># build sdist + wheel</span>
+poetry build
+
+<span class="c"># publish to PyPI (needs a token: poetry config pypi-token.pypi &lt;token&gt;)</span>
+poetry publish</pre>
+    <p class="footer-note">Verified in <code class="inline">sample_poetry/</code> — <code class="inline">poetry check</code> and <code class="inline">poetry build</code> both pass as-is.</p>
+  </section>
+
+  <!-- 11 -->
+  <section class="slide">
+    <p class="kicker">uv</p>
+    <h2>uv — one tool, written in Rust, for speed</h2>
+    <div class="grid2">
+      <div>
+        <p class="lead">From Astral (the Ruff team). Reimplements pip, pip-tools, venv, poetry's workflow, pyenv, and pipx as one binary — reported <strong>10–100x faster</strong> installs and resolution because it's not Python resolving Python packages.</p>
+        <h3>What it replaces</h3>
+        <ul>
+          <li><code class="inline">pip</code> + <code class="inline">pip-tools</code> → <code class="inline">uv pip</code>, <code class="inline">uv add</code></li>
+          <li><code class="inline">venv</code> → <code class="inline">uv venv</code> (automatic via <code class="inline">uv sync</code>/<code class="inline">uv run</code>)</li>
+          <li><code class="inline">pyenv</code> → <code class="inline">uv python install 3.12</code></li>
+          <li><code class="inline">pipx</code> → <code class="inline">uv tool install</code></li>
+          <li><code class="inline">poetry build/publish</code> → <code class="inline">uv build</code>, <code class="inline">uv publish</code></li>
+        </ul>
+      </div>
+      <div>
+        <h3><code class="inline">pyproject.toml</code></h3>
+        <pre>[project]
+name = "dep-demo"
+version = "0.1.0"
+requires-python = "&gt;=3.12"
+dependencies = [
+  "requests&gt;=2.31",
+  "rich&gt;=13.7",
+]
+
+[dependency-groups]
+dev = ["pytest&gt;=8.0", "ruff&gt;=0.6"]
+
+[build-system]
+requires = ["uv_build&gt;=0.11.7,&lt;0.12.0"]
+build-backend = "uv_build"</pre>
+        <p class="footer-note">Same <code class="inline">[project]</code> table PEP 621 shape as Poetry 2.x — the manifest format has converged, only the backend differs.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 12 -->
+  <section class="slide">
+    <p class="kicker">uv — hands-on</p>
+    <h2>The uv workflow</h2>
+    <pre><span class="c"># create .venv, install deps, write uv.lock — all in one step</span>
+uv sync
+
+<span class="c"># add a runtime dependency</span>
+uv add httpx
+
+<span class="c"># add a dev-only dependency</span>
+uv add --dev pytest
+
+<span class="c"># run a script — auto-syncs the env first, no "activate" needed</span>
+uv run python -c "import dep_demo; print(dep_demo.hello())"
+
+<span class="c"># build sdist + wheel</span>
+uv build
+
+<span class="c"># publish to PyPI (needs UV_PUBLISH_TOKEN)</span>
+uv publish</pre>
+    <p class="footer-note">Verified in <code class="inline">sample_uv/</code> — <code class="inline">uv sync</code>, <code class="inline">uv run</code>, and <code class="inline">uv build</code> all ran clean and produced a working wheel.</p>
+  </section>
+
+  <!-- 13 -->
+  <section class="slide">
+    <p class="kicker">Side by side</p>
+    <h2>Comparison</h2>
+    <div class="table-wrap">
+    <table>
+      <tr><th></th><th>pip (+venv)</th><th>conda</th><th>poetry</th><th>uv</th></tr>
+      <tr><td>Speed</td><td>baseline</td><td>slow solver<br/>(fast with mamba)</td><td>slower than uv</td><td><strong>fastest</strong> (Rust)</td></tr>
+      <tr><td>Lock file</td><td><span class="pill pill-part">via pip-tools</span></td><td><span class="pill pill-part">export, not true lock</span></td><td><span class="pill pill-yes">poetry.lock</span></td><td><span class="pill pill-yes">uv.lock</span></td></tr>
+      <tr><td>Manages venvs</td><td><span class="pill pill-part">manual (venv)</span></td><td><span class="pill pill-yes">yes</span></td><td><span class="pill pill-yes">automatic</span></td><td><span class="pill pill-yes">automatic</span></td></tr>
+      <tr><td>Manages Python versions</td><td><span class="pill pill-no">no</span></td><td><span class="pill pill-yes">yes</span></td><td><span class="pill pill-no">no</span></td><td><span class="pill pill-yes">yes</span></td></tr>
+      <tr><td>Non-Python / native deps (CUDA, MKL...)</td><td><span class="pill pill-no">no</span></td><td><span class="pill pill-yes">yes</span></td><td><span class="pill pill-no">no</span></td><td><span class="pill pill-no">no</span></td></tr>
+      <tr><td>Builds packages</td><td><span class="pill pill-no">no</span></td><td><span class="pill pill-no">n/a (own format)</span></td><td><span class="pill pill-yes">yes</span></td><td><span class="pill pill-yes">yes</span></td></tr>
+      <tr><td>Publishes to PyPI</td><td><span class="pill pill-no">no</span></td><td><span class="pill pill-no">no</span></td><td><span class="pill pill-yes">yes</span></td><td><span class="pill pill-yes">yes</span></td></tr>
+      <tr><td>Ecosystem maturity</td><td><strong>oldest, universal</strong></td><td>mature, data-science-centric</td><td>mature</td><td>newest, moving fast</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <!-- 13b -->
+  <section class="slide">
+    <p class="kicker">For the Java crowd</p>
+    <h2>If you know Maven, here's the mapping</h2>
+    <div class="table-wrap">
+    <table>
+      <tr><th>Maven</th><th>pip</th><th>poetry</th><th>uv</th></tr>
+      <tr><td><code>pom.xml</code></td><td><code>requirements.txt</code> (no real manifest)</td><td><code>pyproject.toml</code> <code>[project]</code>+<code>[tool.poetry]</code></td><td><code>pyproject.toml</code> <code>[project]</code> (PEP 621)</td></tr>
+      <tr><td><code>groupId:artifactId:version</code></td><td>name + version only — flat namespace, no groupId</td><td>same</td><td>same</td></tr>
+      <tr><td>Maven Central</td><td>PyPI</td><td>PyPI</td><td>PyPI</td></tr>
+      <tr><td><code>~/.m2/repository</code></td><td><code>~/.cache/pip</code> (download cache only)</td><td>poetry cache</td><td><code>~/.cache/uv</code></td></tr>
+      <tr><td><code>&lt;scope&gt;</code> compile/test/provided/runtime</td><td>separate <code>requirements-dev.txt</code> by convention</td><td>dependency <strong>groups</strong> (<code>[tool.poetry.group.dev]</code>)</td><td><strong>dependency-groups</strong> (<code>[dependency-groups]</code>, PEP 735)</td></tr>
+      <tr><td><code>&lt;dependencyManagement&gt;</code> / BOM</td><td><code>constraints.txt</code> (<code>-c</code> flag)</td><td>lock file pins the whole graph</td><td>lock file pins the whole graph</td></tr>
+      <tr><td><code>&lt;exclusions&gt;</code></td><td><code>--no-deps</code> (blunt, whole-package)</td><td>no per-edge exclusion — one resolved version globally</td><td>same</td></tr>
+      <tr><td><code>mvn dependency:tree</code></td><td><code>pipdeptree</code> (3rd-party)</td><td><code>poetry show --tree</code></td><td><code>uv tree</code></td></tr>
+      <tr><td>lifecycle: compile→test→package→install→deploy</td><td>no compile phase — <code>pip install</code>, then <code>twine upload</code></td><td><code>poetry install</code> / <code>build</code> / <code>publish</code></td><td><code>uv sync</code> / <code>build</code> / <code>publish</code></td></tr>
+      <tr><td>parent pom + <code>&lt;modules&gt;</code> (reactor build)</td><td>no native concept</td><td>no first-class workspaces — path deps only</td><td><strong><code>[tool.uv.workspace]</code></strong> — closest real equivalent</td></tr>
+      <tr><td>Nexus / Artifactory</td><td><code>--index-url</code></td><td><code>[[tool.poetry.source]]</code></td><td><code>[[tool.uv.index]]</code></td></tr>
+      <tr><td><code>-SNAPSHOT</code> versions</td><td colspan="3">no formal convention — PEP 440 pre-releases (<code>1.0.0.dev0</code>, <code>1.0.0a1</code>) + TestPyPI cover the same need</td></tr>
+    </table>
+    </div>
+    <h3>Where the analogy breaks</h3>
+    <ul>
+      <li><strong>No groupId.</strong> PyPI names are one flat global namespace — <code class="inline">requests</code> is <code class="inline">requests</code> for everyone. No <code class="inline">com.company:requests</code> disambiguation, which is why typosquatting is a bigger practical risk on PyPI than on Maven Central.</li>
+      <li><strong>Resolution is stricter, not looser.</strong> Maven's classic "nearest wins" can silently pick a wrong transitive version. pip's modern resolver, poetry, and uv all resolve against <strong>one single environment</strong> (no classpath-per-jar isolation) and fail loudly on a real conflict instead of silently picking one.</li>
+      <li><strong><code class="inline">~/.m2</code> isn't quite matched.</strong> Maven's local repo doubles as "where <code class="inline">mvn install</code> publishes your in-progress artifact for sibling projects." Python's equivalent for that job is an <strong>editable install</strong> (<code class="inline">pip install -e .</code> / <code class="inline">uv pip install -e .</code>) or a path dependency, not the download cache.</li>
+    </ul>
+  </section>
+
+  <!-- 14 -->
+  <section class="slide">
+    <p class="kicker">Decision guide</p>
+    <h2>Which one do you actually reach for?</h2>
+    <div class="grid2">
+      <div class="card tool-card tool-uv">
+        <span class="tool-tag">Default answer in 2026: uv</span>
+        <p>For new pure-Python projects, apps, and libraries. It's faster, it does everything poetry does plus Python-version and tool management, and its manifest is the standard PEP 621 format — low lock-in if you change your mind later.</p>
+      </div>
+      <div class="card tool-card tool-conda">
+        <span class="tool-tag">conda / mamba</span>
+        <p>When your stack has real native/GPU dependencies — CUDA-enabled PyTorch, MKL-backed numpy/scipy, geospatial libraries (GDAL). Common as the base layer in ML environments, often with pip/uv layered on top for the pure-Python packages.</p>
+      </div>
+      <div class="card tool-card tool-poetry">
+        <span class="tool-tag">poetry</span>
+        <p>Perfectly good, mature choice if a team already standardized on it — the workflow is nearly identical to uv's. Not usually worth migrating away from unless speed or Python-version management is a real pain point.</p>
+      </div>
+      <div class="card tool-card tool-pip">
+        <span class="tool-tag">pip + venv</span>
+        <p>Still the right teaching tool for "what is actually happening under the hood" — every other tool on this slide is built on the same concepts pip and venv expose directly. Also the safe default when a environment (CI image, notebook) only guarantees stdlib + pip.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 15 -->
+  <section class="slide">
+    <p class="kicker">Publishing</p>
+    <h2>What "package and push to PyPI" actually means</h2>
+    <div class="flow">
+      <div class="step">write <code class="inline">pyproject.toml</code></div>
+      <div class="arrow">→</div>
+      <div class="step">build sdist + wheel</div>
+      <div class="arrow">→</div>
+      <div class="step">check metadata</div>
+      <div class="arrow">→</div>
+      <div class="step">upload to TestPyPI</div>
+      <div class="arrow">→</div>
+      <div class="step">verify install</div>
+      <div class="arrow">→</div>
+      <div class="step">upload to PyPI</div>
+    </div>
+    <h3>Rules that surprise people</h3>
+    <ul>
+      <li>Package names are <strong>global and first-come-first-served</strong> across all of PyPI</li>
+      <li>A given <code class="inline">name==version</code> can <strong>never be re-uploaded</strong>, even to fix a typo — bump the version instead</li>
+      <li>Use <strong>semantic versioning</strong> (<code class="inline">MAJOR.MINOR.PATCH</code>) so consumers' <code class="inline">&gt;=</code>/<code class="inline">^</code> constraints behave predictably</li>
+      <li>Auth is via <strong>API tokens</strong> now, not username/password — scope one token per project</li>
+      <li>The build backend (hatchling / setuptools / poetry-core / uv_build) is an implementation detail — the <em>output format</em> (sdist + wheel) is what PyPI actually cares about</li>
+    </ul>
+  </section>
+
+  <!-- 16 -->
+  <section class="slide">
+    <p class="kicker">Publishing — hands-on</p>
+    <h2>Tool-agnostic build &amp; publish</h2>
+    <p class="lead"><code class="inline">sample_pypi_package/</code> uses plain <strong>hatchling</strong> as its build backend on purpose — it proves the package isn't tied to pip, poetry, or uv. Any of them can build it.</p>
+    <pre><span class="c"># build (works with pip's `build`, or equally with `uv build` / `poetry build`)</span>
+python -m pip install build twine
+python -m build              <span class="c"># -&gt; dist/*.whl and dist/*.tar.gz</span>
+
+<span class="c"># inspect exactly what will ship</span>
+unzip -l dist/*.whl
+twine check dist/*             <span class="c"># catches bad README rendering, missing metadata</span>
+
+<span class="c"># rehearse on TestPyPI first — same rules, mistakes are free to fix</span>
+twine upload --repository testpypi dist/*
+pip install --index-url https://test.pypi.org/simple/ aiml-learning-gang-greeting-kit
+
+<span class="c"># the real thing, once you're confident</span>
+twine upload dist/*</pre>
+    <p class="footer-note">Also builds and publishable via <code class="inline">uv build</code> / <code class="inline">uv publish</code> or <code class="inline">poetry build</code> / <code class="inline">poetry publish</code> — same source tree, your choice of frontend. Verified locally: build → <code class="inline">twine check</code> (PASSED) → <code class="inline">pytest</code> (2 passed).</p>
+  </section>
+
+  <!-- 17 -->
+  <section class="slide">
+    <p class="kicker">Cheat sheet</p>
+    <h2>Command equivalents</h2>
+    <div class="table-wrap">
+    <table>
+      <tr><th>Task</th><th>pip + venv</th><th>poetry</th><th>uv</th></tr>
+      <tr><td>Create env</td><td><code>python -m venv .venv</code></td><td><code>poetry install</code> (implicit)</td><td><code>uv venv</code> (implicit)</td></tr>
+      <tr><td>Install from lock/pins</td><td><code>pip install -r requirements.txt</code></td><td><code>poetry install</code></td><td><code>uv sync</code></td></tr>
+      <tr><td>Add a dependency</td><td>edit file, <code>pip install</code></td><td><code>poetry add pkg</code></td><td><code>uv add pkg</code></td></tr>
+      <tr><td>Add a dev dependency</td><td>separate requirements-dev.txt</td><td><code>poetry add --group dev pkg</code></td><td><code>uv add --dev pkg</code></td></tr>
+      <tr><td>Run a script in-env</td><td>activate, then <code>python x.py</code></td><td><code>poetry run python x.py</code></td><td><code>uv run x.py</code></td></tr>
+      <tr><td>Regenerate lock/pins</td><td><code>pip-compile</code> (pip-tools)</td><td>automatic on <code>add</code></td><td>automatic on <code>add</code></td></tr>
+      <tr><td>Build package</td><td><code>python -m build</code> (extra tool)</td><td><code>poetry build</code></td><td><code>uv build</code></td></tr>
+      <tr><td>Publish to PyPI</td><td><code>twine upload dist/*</code> (extra tool)</td><td><code>poetry publish</code></td><td><code>uv publish</code></td></tr>
+      <tr><td>Install a Python version</td><td>n/a — use system/pyenv</td><td>n/a — use system/pyenv</td><td><code>uv python install 3.12</code></td></tr>
+    </table>
+    </div>
+  </section>
+
+  <!-- 18 -->
+  <section class="slide">
+    <p class="kicker">Takeaways</p>
+    <h2>What to actually remember</h2>
+    <ul>
+      <li><strong>PyPI is a format</strong> (sdist + wheel, described by <code class="inline">pyproject.toml</code>) before it's a website — every tool here just produces or consumes that format</li>
+      <li><strong>pip + venv</strong> is the substrate everything else is built on — worth understanding even if you never use it directly day-to-day</li>
+      <li><strong>conda</strong> solves a different problem (native/binary/GPU dependencies) — it's not a pip competitor, it's a superset for a specific niche</li>
+      <li><strong>poetry and uv</strong> converged on the same idea: a lock file + one command per lifecycle step. uv is the faster, newer, more batteries-included version of that idea</li>
+      <li>Whatever you build, <strong>rehearse the publish on TestPyPI</strong> — PyPI has no undo button for a given version</li>
+    </ul>
+  </section>
+
+  <!-- 19 -->
+  <section class="slide">
+    <p class="kicker">Try it yourself</p>
+    <h2>Exercises using the sample_* folders</h2>
+    <ol>
+      <li>In <code class="inline">sample_pip/</code>: create a venv, install from <code class="inline">requirements.txt</code>, run <code class="inline">demo.py</code>. Then add a new package to <code class="inline">requirements.in</code> and re-run <code class="inline">pip-compile</code>.</li>
+      <li>In <code class="inline">sample_conda/</code>: read <code class="inline">environment.yml</code> and identify the one line that pip/poetry/uv could never express.</li>
+      <li>In <code class="inline">sample_poetry/</code>: run <code class="inline">poetry install</code>, then <code class="inline">poetry add httpx</code>, and look at the diff in <code class="inline">pyproject.toml</code> and the generated <code class="inline">poetry.lock</code>.</li>
+      <li>In <code class="inline">sample_uv/</code>: run <code class="inline">uv sync</code> then <code class="inline">uv build</code>; unzip the resulting wheel and see exactly what shipped.</li>
+      <li>In <code class="inline">sample_pypi_package/</code>: build it, run <code class="inline">twine check dist/*</code>, and try publishing to <a href="https://test.pypi.org">TestPyPI</a> with your own free account.</li>
+    </ol>
+  </section>
+
+  <!-- 20 -->
+  <section class="slide">
+    <p class="kicker">Fin</p>
+    <h1>Questions?</h1>
+    <p class="lead">Slides + all sample code: <code class="inline">agentic-ai/langgraph/dependency/</code></p>
+    <div class="logos">
+      <span class="chip chip-pip">pip</span>
+      <span class="chip chip-conda">conda</span>
+      <span class="chip chip-poetry">poetry</span>
+      <span class="chip chip-uv">uv</span>
+      <span class="chip chip-pypi">PyPI</span>
+    </div>
+  </section>
+
+</div>
+
+<div class="hud">
+  <button id="prevBtn" title="Previous (←)">‹</button>
+  <span class="counter" id="counter">1 / 1</span>
+  <button id="nextBtn" title="Next (→)">›</button>
+</div>
+<div class="jump">← → space · Home/End · click arrows</div>
+
+<script>
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const total = slides.length;
+  let idx = 0;
+
+  const progress = document.getElementById('progress');
+  const counter = document.getElementById('counter');
+
+  function render(){
+    slides.forEach((s, i) => s.classList.toggle('active', i === idx));
+    counter.textContent = (idx + 1) + ' / ' + total;
+    progress.style.width = (((idx + 1) / total) * 100) + '%';
+  }
+
+  function go(delta){
+    idx = Math.min(total - 1, Math.max(0, idx + delta));
+    render();
+  }
+
+  document.getElementById('prevBtn').addEventListener('click', () => go(-1));
+  document.getElementById('nextBtn').addEventListener('click', () => go(1));
+
+  window.addEventListener('keydown', (e) => {
+    if (['ArrowRight', 'PageDown', ' '].includes(e.key)) { go(1); e.preventDefault(); }
+    else if (['ArrowLeft', 'PageUp'].includes(e.key)) { go(-1); e.preventDefault(); }
+    else if (e.key === 'Home') { idx = 0; render(); }
+    else if (e.key === 'End') { idx = total - 1; render(); }
+  });
+
+  let touchStartX = null;
+  window.addEventListener('touchstart', (e) => { touchStartX = e.changedTouches[0].clientX; });
+  window.addEventListener('touchend', (e) => {
+    if (touchStartX === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
+    touchStartX = null;
+  });
+
+  render();
+</script>
+
+</body>
+</html>

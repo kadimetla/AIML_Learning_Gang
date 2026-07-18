@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LangGraph Controls for Beginners</title>
+  <style>
+    :root {
+      --bg: #f7f6f1;
+      --ink: #17201b;
+      --muted: #5a665f;
+      --panel: #ffffff;
+      --soft: #edf6f2;
+      --line: #ccd7d1;
+      --accent: #0b7668;
+      --blue: #1d4ed8;
+      --red: #b42318;
+      --gold: #8a6100;
+      --code-bg: #111816;
+      --code-ink: #edf8f2;
+      --shadow: 0 18px 55px rgba(23, 32, 27, 0.14);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        linear-gradient(90deg, rgba(11, 118, 104, 0.055) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(11, 118, 104, 0.055) 1px, transparent 1px),
+        var(--bg);
+      background-size: 32px 32px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main { min-height: 100vh; display: grid; grid-template-rows: 1fr auto; }
+    .deck { min-height: calc(100vh - 76px); overflow: hidden; }
+    .slide { display: none; min-height: calc(100vh - 76px); padding: 48px clamp(20px, 5vw, 70px); align-items: center; }
+    .slide.active { display: grid; }
+    .frame { width: min(1180px, 100%); margin: 0 auto; }
+
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { font-size: clamp(42px, 7vw, 78px); line-height: 0.98; letter-spacing: 0; max-width: 12ch; margin-bottom: 24px; }
+    h2 { font-size: clamp(31px, 5vw, 56px); line-height: 1.04; letter-spacing: 0; max-width: 16ch; margin-bottom: 24px; }
+    h3 { font-size: 22px; margin-bottom: 12px; }
+    p, li { font-size: clamp(18px, 2vw, 23px); line-height: 1.45; }
+    ul { margin: 0; padding-left: 24px; }
+
+    .eyebrow { color: var(--accent); font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; font-size: 14px; margin-bottom: 14px; }
+    .lead { color: var(--muted); font-size: clamp(21px, 2.3vw, 30px); max-width: 800px; }
+    .title-grid, .columns, .grid-2, .grid-3, .grid-4 { display: grid; gap: 20px; }
+    .title-grid { grid-template-columns: 1.05fr 0.95fr; align-items: center; gap: 44px; }
+    .columns { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); align-items: start; gap: 30px; }
+    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 22px; box-shadow: 0 8px 22px rgba(23, 32, 27, 0.08); }
+    .card p, .card li { font-size: 18px; }
+    .soft { background: var(--soft); border-color: rgba(11, 118, 104, 0.28); }
+    .danger { background: #fff4f2; border-color: rgba(180, 35, 24, 0.32); }
+    .danger strong, .danger h3 { color: var(--red); }
+    .warn { background: #fff8e3; border-color: rgba(138, 97, 0, 0.28); }
+    .warn strong, .warn h3 { color: var(--gold); }
+    .blue { background: #eff6ff; border-color: rgba(29, 78, 216, 0.25); }
+    .blue strong, .blue h3 { color: var(--blue); }
+
+    .tag { display: inline-block; padding: 5px 9px; border-radius: 6px; color: var(--accent); background: var(--soft); border: 1px solid rgba(11, 118, 104, 0.25); font-weight: 900; font-size: 13px; margin-bottom: 10px; }
+    .big { font-size: 54px; line-height: 1; font-weight: 900; color: var(--accent); margin-bottom: 10px; }
+
+    pre { margin: 0; padding: 18px; border-radius: 8px; background: var(--code-bg); color: var(--code-ink); overflow: auto; font-size: clamp(13px, 1.45vw, 16px); line-height: 1.45; box-shadow: var(--shadow); }
+    code { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+    :not(pre) > code { background: rgba(11, 118, 104, 0.11); border: 1px solid rgba(11, 118, 104, 0.2); border-radius: 5px; padding: 1px 5px; color: #0b6157; font-size: 0.9em; }
+
+    .flow { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; align-items: stretch; }
+    .flow.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .step { min-height: 96px; display: grid; align-content: center; text-align: center; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; font-weight: 900; }
+    .step small { display: block; margin-top: 6px; color: var(--muted); font-size: 13px; line-height: 1.35; }
+
+    .table { display: grid; overflow: hidden; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+    .row { display: grid; grid-template-columns: 0.72fr 1.05fr 1.25fr 1.2fr; border-top: 1px solid var(--line); }
+    .row:first-child { border-top: 0; background: var(--soft); font-weight: 900; }
+    .cell { padding: 14px 16px; border-left: 1px solid var(--line); font-size: 16px; line-height: 1.4; }
+    .cell:first-child { border-left: 0; }
+
+    .quote { border-left: 5px solid var(--accent); padding-left: 18px; color: var(--muted); font-size: 26px; line-height: 1.35; }
+    .notes { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 15px; line-height: 1.5; }
+
+    .footer { height: 76px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 18px; padding: 14px clamp(20px, 4vw, 42px); border-top: 1px solid var(--line); background: rgba(247, 246, 241, 0.92); backdrop-filter: blur(10px); }
+    .controls { display: flex; gap: 10px; }
+    button { min-width: 44px; min-height: 40px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); font-weight: 900; cursor: pointer; }
+    button:hover { border-color: var(--accent); }
+    .count { color: var(--muted); text-align: center; font-weight: 900; font-size: 14px; }
+    .progress { height: 7px; border-radius: 999px; overflow: hidden; background: rgba(11, 118, 104, 0.16); }
+    .progress span { display: block; height: 100%; width: 0; background: var(--accent); }
+    .hint { text-align: right; color: var(--muted); font-size: 13px; }
+
+    @media (max-width: 900px) {
+      .title-grid, .columns, .grid-2, .grid-3, .grid-4, .flow, .flow.four { grid-template-columns: 1fr; }
+      .slide { padding: 30px 18px; }
+      .footer { grid-template-columns: auto auto; }
+      .hint { display: none; }
+      .row { grid-template-columns: 1fr; }
+      .cell, .cell:first-child { border-left: 0; border-top: 1px solid var(--line); }
+      .row:first-child .cell:first-child { border-top: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="deck" aria-live="polite">
+      <article class="slide active">
+        <div class="frame title-grid">
+          <div>
+            <div class="eyebrow">LangGraph basics</div>
+            <h1>Run, control, pause, dispatch, debug</h1>
+            <p class="lead">Entry-level slides for understanding `invoke`, `Command`, `Send`, `interrupt`, and debug streaming.</p>
+          </div>
+          <div class="card soft">
+            <h3>Goal</h3>
+            <p>Students should be able to look at a LangGraph example and explain which API starts the graph, which API controls it, which API fans out work, and which API pauses it.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">One sentence each</div>
+          <h2>The five terms</h2>
+          <div class="grid-3">
+            <div class="card"><h3>`invoke`</h3><p>Run the graph once and wait for the result.</p></div>
+            <div class="card"><h3>`Command`</h3><p>Send a control instruction such as resume, update, or route.</p></div>
+            <div class="card"><h3>`Send`</h3><p>Create dynamic work for a specific node.</p></div>
+            <div class="card"><h3>`interrupt`</h3><p>Pause inside a node and ask for outside input.</p></div>
+            <div class="card"><h3>`debug`</h3><p>Observe execution details while the graph runs.</p></div>
+            <div class="card soft"><h3>Thread</h3><p>The workflow instance selected by `thread_id`.</p></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Analogy</div>
+          <h2>Think of a graph like a small team</h2>
+          <div class="table">
+            <div class="row"><div class="cell">Term</div><div class="cell">Analogy</div><div class="cell">What it does</div><div class="cell">Simple phrase</div></div>
+            <div class="row"><div class="cell">`invoke`</div><div class="cell">Press Run</div><div class="cell">Starts or continues one graph run.</div><div class="cell">Do the workflow.</div></div>
+            <div class="row"><div class="cell">`Command`</div><div class="cell">Manager instruction</div><div class="cell">Resume, update, or route the workflow.</div><div class="cell">Control the workflow.</div></div>
+            <div class="row"><div class="cell">`Send`</div><div class="cell">Assign task</div><div class="cell">Dispatches custom input to a node.</div><div class="cell">Do this work over there.</div></div>
+            <div class="row"><div class="cell">`interrupt`</div><div class="cell">Raise hand</div><div class="cell">Pauses and asks for outside input.</div><div class="cell">I need help.</div></div>
+            <div class="row"><div class="cell">`debug`</div><div class="cell">Observation window</div><div class="cell">Shows what happened during execution.</div><div class="cell">Show me the steps.</div></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">Shared example</div>
+            <h2>We will use a tiny support workflow</h2>
+            <p class="lead">A user asks for help. The graph may search, ask for approval, and answer.</p>
+          </div>
+          <pre><code>class State(TypedDict):
+    question: str
+    answer: str | None
+    approved: bool | None
+    notes: Annotated[list[str], operator.add]</code></pre>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">invoke</div>
+          <h2>`invoke` runs a graph</h2>
+          <div class="flow four">
+            <div class="step">Input<small>state update</small></div>
+            <div class="step">Graph<small>runs nodes</small></div>
+            <div class="step">State<small>updates merge</small></div>
+            <div class="step">Result<small>returned to caller</small></div>
+          </div>
+          <p class="notes">For beginners: `invoke` is the first method to learn. It is the normal way to call a compiled graph when you want the final result.</p>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">invoke code</div>
+            <h2>Start or continue one thread</h2>
+            <p class="lead">The same graph definition can serve many users. `thread_id` tells LangGraph which conversation or workflow instance this call belongs to.</p>
+          </div>
+          <pre><code>config = {
+    "configurable": {
+        "thread_id": "support-ticket-1"
+    }
+}
+
+result = graph.invoke(
+    {"question": "Can I get a refund?"},
+    config=config,
+)</code></pre>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Common confusion</div>
+          <h2>`invoke` is not always “start from scratch”</h2>
+          <div class="grid-2">
+            <div class="card soft">
+              <h3>New `thread_id`</h3>
+              <p>LangGraph starts a new workflow state.</p>
+              <pre><code>thread_id = "ticket-1"</code></pre>
+            </div>
+            <div class="card blue">
+              <h3>Existing `thread_id`</h3>
+              <p>LangGraph loads the existing checkpoint and continues from that state.</p>
+              <pre><code>thread_id = "ticket-1"</code></pre>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">Command</div>
+            <h2>`Command` is control input</h2>
+            <p class="lead">Use normal dictionaries for ordinary state input. Use `Command` when you want to control the graph.</p>
+          </div>
+          <pre><code>from langgraph.types import Command
+
+Command(
+    resume={"approved": True},
+    update={"notes": ["approved by manager"]},
+    goto="answer_user",
+)</code></pre>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Command cases</div>
+          <h2>Three common uses of `Command`</h2>
+          <div class="grid-3">
+            <div class="card"><h3>`resume`</h3><p>Continue after an `interrupt()`.</p><pre><code>Command(resume=True)</code></pre></div>
+            <div class="card"><h3>`update`</h3><p>Apply a state update while controlling the graph.</p><pre><code>Command(update={"x": 1})</code></pre></div>
+            <div class="card"><h3>`goto`</h3><p>Route to a node by name.</p><pre><code>Command(goto="review")</code></pre></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">interrupt</div>
+            <h2>`interrupt()` pauses inside a node</h2>
+            <p class="lead">It returns a value only after the graph is resumed. On the first run, it pauses the graph and sends the payload to the caller.</p>
+          </div>
+          <pre><code>from langgraph.types import interrupt
+
+
+def approval_node(state):
+    decision = interrupt({
+        "question": "Approve refund?",
+        "ticket": state["question"],
+    })
+
+    return {"approved": decision["approved"]}</code></pre>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">interrupt flow</div>
+          <h2>First run pauses, second run resumes</h2>
+          <div class="flow">
+            <div class="step">invoke<small>normal input</small></div>
+            <div class="step">node runs<small>hits interrupt</small></div>
+            <div class="step">pause<small>returns question</small></div>
+            <div class="step">human answers<small>approve/reject</small></div>
+            <div class="step">Command resume<small>same thread_id</small></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">resume code</div>
+            <h2>`Command(resume=...)` answers the pause</h2>
+            <p class="lead">Use the same `thread_id`, or LangGraph will not know which paused run to continue.</p>
+          </div>
+          <pre><code>result = graph.invoke(
+    Command(resume={"approved": True}),
+    config={
+        "configurable": {
+            "thread_id": "support-ticket-1"
+        }
+    },
+)</code></pre>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Important rule</div>
+          <h2>The interrupted node re-runs from the top</h2>
+          <div class="grid-2">
+            <div class="card danger">
+              <h3>Unsafe before interrupt</h3>
+              <pre><code>def node(state):
+    send_email("Please approve")
+    decision = interrupt("Approve?")
+    return {"approved": decision}</code></pre>
+              <p>The email can be sent twice.</p>
+            </div>
+            <div class="card soft">
+              <h3>Safe before interrupt</h3>
+              <pre><code>def node(state):
+    payload = {"amount": state["amount"]}
+    decision = interrupt(payload)
+    return {"approved": decision}</code></pre>
+              <p>Building a payload from state is safe to repeat.</p>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">Send</div>
+            <h2>`Send` creates dynamic node work</h2>
+            <p class="lead">Use `Send` when the graph decides at runtime how many tasks to launch.</p>
+          </div>
+          <pre><code>from langgraph.types import Send
+
+
+def split_questions(state):
+    return [
+        Send("search", {"query": q})
+        for q in state["queries"]
+    ]</code></pre>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Send example</div>
+          <h2>Fan out search work</h2>
+          <div class="flow">
+            <div class="step">Input<small>3 queries</small></div>
+            <div class="step">Router<small>returns 3 Sends</small></div>
+            <div class="step">Search node<small>query A</small></div>
+            <div class="step">Search node<small>query B</small></div>
+            <div class="step">Search node<small>query C</small></div>
+          </div>
+          <p class="notes">`Send` is not for pausing. It is for dispatching work to nodes, often parallel map-style work.</p>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Command vs Send</div>
+          <h2>Both can route, but they mean different things</h2>
+          <div class="grid-2">
+            <div class="card blue">
+              <h3>`Command(goto=...)`</h3>
+              <p>Control the current graph path.</p>
+              <pre><code>return Command(goto="review")</code></pre>
+            </div>
+            <div class="card soft">
+              <h3>`Send(...)`</h3>
+              <p>Create a task for a node with custom input.</p>
+              <pre><code>return Send("worker", {"item": item})</code></pre>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">debug</div>
+            <h2>`debug` helps you see what happened</h2>
+            <p class="lead">Debug streaming is for observation. It does not change graph behavior.</p>
+          </div>
+          <pre><code>for event in graph.stream(
+    {"question": "Can I get a refund?"},
+    config=config,
+    stream_mode="debug",
+):
+    print(event)</code></pre>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Debug use</div>
+          <h2>When should students use debug?</h2>
+          <div class="grid-3">
+            <div class="card"><h3>Learning</h3><p>See which node ran and when.</p></div>
+            <div class="card"><h3>Troubleshooting</h3><p>Find where state changed or where a graph paused.</p></div>
+            <div class="card"><h3>Testing</h3><p>Verify execution order and emitted events.</p></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Complete mini workflow</div>
+          <h2>All terms in one story</h2>
+          <pre><code># 1. User starts the workflow
+result = graph.invoke({"question": "Refund $100?"}, config=config)
+
+# 2. A node calls interrupt(...), so the app shows approval UI
+
+# 3. Human clicks Approve
+result = graph.invoke(Command(resume={"approved": True}), config=config)
+
+# 4. A router may dynamically fan out work
+return [Send("search", {"query": q}) for q in queries]
+
+# 5. During development, observe with debug
+for event in graph.stream(input, config=config, stream_mode="debug"):
+    print(event)</code></pre>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Decision guide</div>
+          <h2>Which one should I use?</h2>
+          <div class="table">
+            <div class="row"><div class="cell">Need</div><div class="cell">Use</div><div class="cell">Why</div><div class="cell">Example</div></div>
+            <div class="row"><div class="cell">Run graph</div><div class="cell">`invoke`</div><div class="cell">You want final output.</div><div class="cell">Chat request</div></div>
+            <div class="row"><div class="cell">Resume pause</div><div class="cell">`Command(resume=...)`</div><div class="cell">You are answering an interrupt.</div><div class="cell">Approve refund</div></div>
+            <div class="row"><div class="cell">Fan out tasks</div><div class="cell">`Send`</div><div class="cell">You need dynamic parallel work.</div><div class="cell">Search 5 queries</div></div>
+            <div class="row"><div class="cell">Ask human</div><div class="cell">`interrupt()`</div><div class="cell">A node needs external input.</div><div class="cell">Policy review</div></div>
+            <div class="row"><div class="cell">Inspect run</div><div class="cell">`stream_mode="debug"`</div><div class="cell">You need visibility.</div><div class="cell">Find execution path</div></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">Exercise 1</div>
+            <h2>Name the API</h2>
+            <p class="lead">Ask students which API belongs in each blank.</p>
+          </div>
+          <pre><code># A. Run the graph and wait for result
+result = graph._____(input, config=config)
+
+# B. Pause inside a node
+answer = _____({"question": "Approve?"})
+
+# C. Resume after the pause
+graph.invoke(_____(resume={"approved": True}), config=config)
+
+# D. Dispatch one node per item
+return [_____("worker", {"item": item}) for item in items]</code></pre>
+          <div class="card soft">
+            <strong>Answers</strong>
+            <p>A: `invoke`, B: `interrupt`, C: `Command`, D: `Send`.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">Exercise 2</div>
+            <h2>Find the bug</h2>
+            <p class="lead">What can go wrong when this workflow resumes?</p>
+          </div>
+          <pre><code>def approval_node(state):
+    create_ticket("Need approval")
+
+    decision = interrupt("Approve?")
+
+    if decision["approved"]:
+        refund_customer(state["payment_id"])
+
+    return {"approved": True}</code></pre>
+          <div class="card danger">
+            <strong>Expected answer</strong>
+            <p>`create_ticket` is before `interrupt()`, so it may run again when the node resumes. Move it elsewhere, store a ticket ID, or make it idempotent.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Common mistakes</div>
+          <h2>Beginner pitfalls</h2>
+          <div class="grid-2">
+            <div class="card danger"><h3>Wrong `thread_id`</h3><p>Resume fails or starts the wrong workflow because the config points to another thread.</p></div>
+            <div class="card danger"><h3>No checkpointer</h3><p>Interrupt resume cannot work because there is nowhere to load paused state from.</p></div>
+            <div class="card danger"><h3>Side effects before interrupt</h3><p>Emails, tickets, or payments may happen twice.</p></div>
+            <div class="card danger"><h3>Using `Send` to pause</h3><p>`Send` dispatches work. It does not wait for human input.</p></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Final summary</div>
+          <h2>Keep this mental model</h2>
+          <p class="quote">`invoke` runs. `Command` controls. `Send` dispatches. `interrupt` pauses. `debug` observes.</p>
+          <div class="grid-3">
+            <div class="card"><h3>Runtime</h3><p>Use `invoke` or `stream` to execute the graph.</p></div>
+            <div class="card"><h3>Control</h3><p>Use `Command` to resume, update, or route.</p></div>
+            <div class="card"><h3>Workflow design</h3><p>Use `Send` for dynamic work and `interrupt` for HITL.</p></div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <footer class="footer">
+      <div class="controls">
+        <button type="button" id="prev" aria-label="Previous slide">Prev</button>
+        <button type="button" id="next" aria-label="Next slide">Next</button>
+      </div>
+      <div>
+        <div class="count" id="count">1 / 24</div>
+        <div class="progress" aria-hidden="true"><span id="bar"></span></div>
+      </div>
+      <div class="hint">Use Left and Right arrow keys</div>
+    </footer>
+  </main>
+
+  <script>
+    const slides = Array.from(document.querySelectorAll(".slide"));
+    const count = document.getElementById("count");
+    const bar = document.getElementById("bar");
+    const prev = document.getElementById("prev");
+    const next = document.getElementById("next");
+    let index = 0;
+
+    function showSlide(nextIndex) {
+      index = Math.max(0, Math.min(slides.length - 1, nextIndex));
+      slides.forEach((slide, i) => slide.classList.toggle("active", i === index));
+      count.textContent = `${index + 1} / ${slides.length}`;
+      bar.style.width = `${((index + 1) / slides.length) * 100}%`;
+      prev.disabled = index === 0;
+      next.disabled = index === slides.length - 1;
+      window.location.hash = `slide-${index + 1}`;
+    }
+
+    prev.addEventListener("click", () => showSlide(index - 1));
+    next.addEventListener("click", () => showSlide(index + 1));
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowRight" || event.key === "PageDown") showSlide(index + 1);
+      if (event.key === "ArrowLeft" || event.key === "PageUp") showSlide(index - 1);
+      if (event.key === "Home") showSlide(0);
+      if (event.key === "End") showSlide(slides.length - 1);
+    });
+
+    const match = window.location.hash.match(/slide-(\d+)/);
+    showSlide(match ? Number(match[1]) - 1 : 0);
+  </script>
+</body>
+</html>

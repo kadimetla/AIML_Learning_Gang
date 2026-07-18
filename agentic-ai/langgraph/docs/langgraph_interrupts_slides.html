@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LangGraph Interrupts and Human-in-the-Loop</title>
+  <style>
+    :root {
+      --bg: #f6f7f3;
+      --ink: #17201b;
+      --muted: #5a665f;
+      --panel: #ffffff;
+      --panel-soft: #edf6f2;
+      --line: #cbd7d1;
+      --accent: #0b7668;
+      --danger: #b42318;
+      --warn: #8a6100;
+      --code-bg: #111816;
+      --code-ink: #edf8f2;
+      --shadow: 0 18px 55px rgba(23, 32, 27, 0.15);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        linear-gradient(90deg, rgba(11, 118, 104, 0.055) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(11, 118, 104, 0.055) 1px, transparent 1px),
+        var(--bg);
+      background-size: 32px 32px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main { min-height: 100vh; display: grid; grid-template-rows: 1fr auto; }
+    .deck { min-height: calc(100vh - 76px); overflow: hidden; }
+    .slide { display: none; min-height: calc(100vh - 76px); padding: 48px clamp(20px, 5vw, 70px); align-items: center; }
+    .slide.active { display: grid; }
+    .frame { width: min(1180px, 100%); margin: 0 auto; }
+
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { font-size: clamp(42px, 7vw, 78px); line-height: 0.98; letter-spacing: 0; max-width: 12ch; margin-bottom: 24px; }
+    h2 { font-size: clamp(31px, 5vw, 56px); line-height: 1.04; letter-spacing: 0; max-width: 16ch; margin-bottom: 24px; }
+    h3 { font-size: 22px; margin-bottom: 12px; }
+    p, li { font-size: clamp(18px, 2vw, 23px); line-height: 1.45; }
+    ul { margin: 0; padding-left: 24px; }
+
+    .eyebrow { color: var(--accent); font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; font-size: 14px; margin-bottom: 14px; }
+    .lead { color: var(--muted); font-size: clamp(21px, 2.3vw, 30px); max-width: 780px; }
+    .title-grid, .columns, .grid-2, .grid-3 { display: grid; gap: 20px; }
+    .title-grid { grid-template-columns: 1.05fr 0.95fr; align-items: center; gap: 44px; }
+    .columns { grid-template-columns: minmax(0, 0.88fr) minmax(0, 1.12fr); align-items: start; gap: 30px; }
+    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 22px; box-shadow: 0 8px 22px rgba(23, 32, 27, 0.08); }
+    .card p, .card li { font-size: 18px; }
+    .soft { background: var(--panel-soft); border-color: rgba(11, 118, 104, 0.28); }
+    .danger { background: #fff4f2; border-color: rgba(180, 35, 24, 0.32); }
+    .danger strong { color: var(--danger); }
+    .warn { background: #fff8e3; border-color: rgba(138, 97, 0, 0.28); }
+    .warn strong { color: var(--warn); }
+    .tag { display: inline-block; padding: 5px 9px; border-radius: 6px; color: var(--accent); background: var(--panel-soft); border: 1px solid rgba(11, 118, 104, 0.25); font-weight: 900; font-size: 13px; margin-bottom: 10px; }
+
+    pre { margin: 0; padding: 18px; border-radius: 8px; background: var(--code-bg); color: var(--code-ink); overflow: auto; font-size: clamp(13px, 1.45vw, 16px); line-height: 1.45; box-shadow: var(--shadow); }
+    code { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+    :not(pre) > code { background: rgba(11, 118, 104, 0.11); border: 1px solid rgba(11, 118, 104, 0.2); border-radius: 5px; padding: 1px 5px; color: #0b6157; font-size: 0.9em; }
+
+    .flow { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; align-items: stretch; }
+    .step { min-height: 96px; display: grid; align-content: center; text-align: center; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; font-weight: 900; }
+    .step small { display: block; margin-top: 6px; color: var(--muted); font-size: 13px; line-height: 1.35; }
+
+    .sequence { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .sequence .wide { grid-column: 1 / -1; }
+    .quote { border-left: 5px solid var(--accent); padding-left: 18px; color: var(--muted); font-size: 26px; line-height: 1.35; }
+    .notes { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 15px; line-height: 1.5; }
+
+    .table { display: grid; overflow: hidden; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+    .row { display: grid; grid-template-columns: 0.85fr 1.15fr 1.15fr; border-top: 1px solid var(--line); }
+    .row:first-child { border-top: 0; background: var(--panel-soft); font-weight: 900; }
+    .cell { padding: 14px 16px; border-left: 1px solid var(--line); font-size: 17px; line-height: 1.4; }
+    .cell:first-child { border-left: 0; }
+
+    .footer { height: 76px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 18px; padding: 14px clamp(20px, 4vw, 42px); border-top: 1px solid var(--line); background: rgba(246, 247, 243, 0.92); backdrop-filter: blur(10px); }
+    .controls { display: flex; gap: 10px; }
+    button { min-width: 44px; min-height: 40px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); font-weight: 900; cursor: pointer; }
+    button:hover { border-color: var(--accent); }
+    .count { color: var(--muted); text-align: center; font-weight: 900; font-size: 14px; }
+    .progress { height: 7px; border-radius: 999px; overflow: hidden; background: rgba(11, 118, 104, 0.16); }
+    .progress span { display: block; height: 100%; width: 0; background: var(--accent); }
+    .hint { text-align: right; color: var(--muted); font-size: 13px; }
+
+    @media (max-width: 880px) {
+      .title-grid, .columns, .grid-2, .grid-3, .sequence, .flow { grid-template-columns: 1fr; }
+      .slide { padding: 30px 18px; }
+      .footer { grid-template-columns: auto auto; }
+      .hint { display: none; }
+      .row { grid-template-columns: 1fr; }
+      .cell, .cell:first-child { border-left: 0; border-top: 1px solid var(--line); }
+      .row:first-child .cell:first-child { border-top: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="deck" aria-live="polite">
+      <article class="slide active">
+        <div class="frame title-grid">
+          <div>
+            <div class="eyebrow">LangGraph HITL</div>
+            <h1>How interrupts work</h1>
+            <p class="lead">A student-friendly deep dive into pausing, checkpointing, resuming, and writing safe node code.</p>
+          </div>
+          <div class="card soft">
+            <h3>Learning goals</h3>
+            <ul>
+              <li>Understand what `interrupt()` does internally.</li>
+              <li>Explain why a checkpointer is required.</li>
+              <li>Resume a workflow with `Command(resume=...)`.</li>
+              <li>Write code that is safe to re-run.</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Mental model</div>
+          <h2>Interrupt means “pause and ask outside world”</h2>
+          <div class="flow">
+            <div class="step">Node runs<small>normal graph execution</small></div>
+            <div class="step">interrupt()<small>asks for input</small></div>
+            <div class="step">Checkpoint<small>state is persisted</small></div>
+            <div class="step">Caller returns<small>worker is free</small></div>
+            <div class="step">Resume later<small>same thread_id</small></div>
+          </div>
+          <p class="notes">Key point: LangGraph does not keep a live Python stack waiting. It saves durable state and lets the process return.</p>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">Basic code</div>
+            <h2>A node can request human input</h2>
+            <p class="lead">The value passed to `interrupt()` is returned to the app as the interrupt payload.</p>
+          </div>
+          <pre><code>from langgraph.types import interrupt
+
+
+def review_node(state):
+    decision = interrupt({
+        "type": "approval",
+        "question": "Approve refund?",
+        "amount": state["amount"],
+    })
+
+    return {"approved": decision["approved"]}</code></pre>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">Compile</div>
+            <h2>Interrupts require a checkpointer</h2>
+            <p class="lead">The paused workflow must be stored somewhere durable so it can be resumed by a later request.</p>
+          </div>
+          <pre><code>from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.graph import StateGraph, START
+
+builder = StateGraph(State)
+builder.add_node("review", review_node)
+builder.add_edge(START, "review")
+
+graph = builder.compile(
+    checkpointer=InMemorySaver()
+)</code></pre>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">First call</div>
+            <h2>The first invoke reaches the interrupt</h2>
+            <p class="lead">Use a stable `thread_id`. This is the address of the workflow instance.</p>
+          </div>
+          <pre><code>config = {
+    "configurable": {
+        "thread_id": "refund-123"
+    }
+}
+
+result = graph.invoke(
+    {"amount": 100, "approved": None},
+    config=config,
+)
+
+# result contains __interrupt__</code></pre>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Returned payload</div>
+          <h2>The app receives an interrupt object</h2>
+          <div class="sequence">
+            <div class="card">
+              <span class="tag">What the node requested</span>
+              <pre><code>interrupt({
+    "question": "Approve refund?",
+    "amount": 100,
+})</code></pre>
+            </div>
+            <div class="card">
+              <span class="tag">What the caller sees</span>
+              <pre><code>{
+  "__interrupt__": (
+    Interrupt(
+      value={"question": "Approve refund?", "amount": 100},
+      id="..."
+    ),
+  )
+}</code></pre>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Who resumes?</div>
+          <h2>LangGraph waits for an external caller</h2>
+          <div class="grid-3">
+            <div class="card"><h3>Human UI</h3><p>A user clicks approve, reject, edit, or answer.</p></div>
+            <div class="card"><h3>Backend API</h3><p>The server receives the UI action and calls the graph.</p></div>
+            <div class="card"><h3>Worker/service</h3><p>A queue consumer, scheduler, or external system can resume too.</p></div>
+          </div>
+          <p class="notes">The human usually does not call LangGraph directly. The app resumes the graph on behalf of the human.</p>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">Resume</div>
+            <h2>Resume with the same `thread_id`</h2>
+            <p class="lead">`Command(resume=...)` supplies the answer that `interrupt()` will return when the node re-runs.</p>
+          </div>
+          <pre><code>from langgraph.types import Command
+
+result = graph.invoke(
+    Command(resume={"approved": True}),
+    config={
+        "configurable": {
+            "thread_id": "refund-123"
+        }
+    },
+)</code></pre>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Most important detail</div>
+          <h2>The node starts over on resume</h2>
+          <div class="sequence">
+            <div class="card danger">
+              <strong>First run</strong>
+              <pre><code>def node(state):
+    print("before")
+    answer = interrupt("Approve?")
+    print("after")</code></pre>
+              <p>Prints `before`, then pauses.</p>
+            </div>
+            <div class="card soft">
+              <strong>Resume run</strong>
+              <pre><code>def node(state):
+    print("before")
+    answer = interrupt("Approve?")
+    print("after")</code></pre>
+              <p>Prints `before` again. Then `interrupt()` returns the resume value and the node continues.</p>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">Why re-run?</div>
+            <h2>LangGraph saves state, not Python stack frames</h2>
+            <p class="lead">This makes interruption durable and scalable. A paused run does not occupy a worker.</p>
+          </div>
+          <div class="grid-2">
+            <div class="card soft">
+              <h3>Saved</h3>
+              <ul>
+                <li>State values</li>
+                <li>Checkpoint metadata</li>
+                <li>Pending writes</li>
+                <li>Interrupt payloads</li>
+                <li>Resume metadata</li>
+              </ul>
+            </div>
+            <div class="card danger">
+              <h3>Not saved</h3>
+              <ul>
+                <li>Live call stack</li>
+                <li>Open network sockets</li>
+                <li>Local variables outside state</li>
+                <li>Worker thread</li>
+                <li>In-progress side effects</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Unsafe pattern</div>
+          <h2>Do not perform one-time side effects before interrupt</h2>
+          <div class="card danger">
+            <pre><code>def review_node(state):
+    send_email(
+        to="manager@example.com",
+        subject="Please approve refund",
+    )
+
+    decision = interrupt("Approve refund?")
+    return {"approved": decision["approved"]}</code></pre>
+            <p>This email can be sent once before the pause and again when the node re-runs on resume.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Safe pattern</div>
+          <h2>Before interrupt: compute, read, prepare</h2>
+          <div class="card soft">
+            <pre><code>def review_node(state):
+    review_payload = {
+        "question": "Approve refund?",
+        "amount": state["amount"],
+        "customer_id": state["customer_id"],
+    }
+
+    decision = interrupt(review_payload)
+
+    return {"approved": decision["approved"]}</code></pre>
+            <p>This is safe because building the payload from state can be repeated.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">External effects</div>
+          <h2>Put irreversible actions after approval</h2>
+          <div class="card soft">
+            <pre><code>def refund_node(state):
+    decision = interrupt({
+        "question": "Approve refund?",
+        "amount": state["amount"],
+    })
+
+    if decision["approved"]:
+        refund_customer(
+            payment_id=state["payment_id"],
+            amount=state["amount"],
+            idempotency_key=f"{state['request_id']}:refund",
+        )
+
+    return {"refund_status": "approved"}</code></pre>
+          </div>
+          <p class="notes">Even after interrupt, use idempotency keys for external APIs because retries or failures can still re-run work.</p>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Dynamic HITL</div>
+          <h2>Interrupt only when runtime logic requires it</h2>
+          <div class="card">
+            <pre><code>def risk_gate(state):
+    risk = score_risk(state)
+
+    if risk > 0.8:
+        decision = interrupt({
+            "type": "high_risk_review",
+            "risk": risk,
+            "action": state["proposed_action"],
+        })
+
+        if not decision["approved"]:
+            return {"status": "rejected"}
+
+    return {"status": "approved"}</code></pre>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Multiple interrupts</div>
+          <h2>Resume by ID when more than one is pending</h2>
+          <div class="sequence">
+            <div class="card">
+              <span class="tag">Why</span>
+              <p>If several parallel tasks interrupt, one plain resume value is ambiguous.</p>
+            </div>
+            <div class="card">
+              <span class="tag">How</span>
+              <pre><code>graph.invoke(
+    Command(resume={
+        interrupt_id_1: {"approved": True},
+        interrupt_id_2: {"approved": False},
+    }),
+    config=config,
+)</code></pre>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Chat app flow</div>
+          <h2>Interrupts fit naturally into request/response apps</h2>
+          <div class="flow">
+            <div class="step">POST /chat<small>user asks</small></div>
+            <div class="step">graph.invoke<small>same thread</small></div>
+            <div class="step">Interrupt<small>approval needed</small></div>
+            <div class="step">UI button<small>human decides</small></div>
+            <div class="step">Resume<small>Command(resume)</small></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Use cases</div>
+          <h2>Where interrupts are useful</h2>
+          <div class="table">
+            <div class="row"><div class="cell">Use case</div><div class="cell">Interrupt question</div><div class="cell">Resume value</div></div>
+            <div class="row"><div class="cell">Refund</div><div class="cell">Approve this refund?</div><div class="cell">`{"approved": true}`</div></div>
+            <div class="row"><div class="cell">Tool call</div><div class="cell">Allow this API action?</div><div class="cell">`{"approved": true, "edited_args": ...}`</div></div>
+            <div class="row"><div class="cell">Data entry</div><div class="cell">What missing field should we use?</div><div class="cell">`{"account_id": "A-123"}`</div></div>
+            <div class="row"><div class="cell">Policy review</div><div class="cell">Is this response compliant?</div><div class="cell">`{"decision": "revise"}`</div></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">Exercise</div>
+            <h2>What happens on resume?</h2>
+            <p class="lead">Ask students to count how many times each line can run.</p>
+          </div>
+          <pre><code>def node(state):
+    log_to_database("started review")
+    payload = {"amount": state["amount"]}
+
+    decision = interrupt(payload)
+
+    if decision["approved"]:
+        refund_customer(state["payment_id"])
+
+    return {"done": True}</code></pre>
+          <div class="card danger">
+            <strong>Expected discussion</strong>
+            <p>The database log before `interrupt()` can happen twice. The refund is after approval, but should still use idempotency.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Checklist</div>
+          <h2>Interrupt-safe node design</h2>
+          <div class="grid-2">
+            <div class="card soft">
+              <h3>Good before `interrupt()`</h3>
+              <ul>
+                <li>Read graph state</li>
+                <li>Compute deterministic values</li>
+                <li>Build a review payload</li>
+                <li>Decide whether HITL is needed</li>
+              </ul>
+            </div>
+            <div class="card danger">
+              <h3>Avoid before `interrupt()`</h3>
+              <ul>
+                <li>Charging or refunding money</li>
+                <li>Sending emails or messages</li>
+                <li>Creating tickets</li>
+                <li>Non-idempotent external writes</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Summary</div>
+          <h2>What students should remember</h2>
+          <p class="quote">`interrupt()` pauses by checkpointing. `Command(resume=...)` continues the same `thread_id`. The interrupted node re-runs from the top, so code before the interrupt must be safe to repeat.</p>
+          <div class="grid-3">
+            <div class="card"><h3>Pause</h3><p>Raises a special interrupt, saves state, returns payload.</p></div>
+            <div class="card"><h3>Resume</h3><p>External caller sends a resume value to the same thread.</p></div>
+            <div class="card"><h3>Design</h3><p>Keep state compact and make side effects idempotent.</p></div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <footer class="footer">
+      <div class="controls">
+        <button type="button" id="prev" aria-label="Previous slide">Prev</button>
+        <button type="button" id="next" aria-label="Next slide">Next</button>
+      </div>
+      <div>
+        <div class="count" id="count">1 / 20</div>
+        <div class="progress" aria-hidden="true"><span id="bar"></span></div>
+      </div>
+      <div class="hint">Use Left and Right arrow keys</div>
+    </footer>
+  </main>
+
+  <script>
+    const slides = Array.from(document.querySelectorAll(".slide"));
+    const count = document.getElementById("count");
+    const bar = document.getElementById("bar");
+    const prev = document.getElementById("prev");
+    const next = document.getElementById("next");
+    let index = 0;
+
+    function showSlide(nextIndex) {
+      index = Math.max(0, Math.min(slides.length - 1, nextIndex));
+      slides.forEach((slide, i) => slide.classList.toggle("active", i === index));
+      count.textContent = `${index + 1} / ${slides.length}`;
+      bar.style.width = `${((index + 1) / slides.length) * 100}%`;
+      prev.disabled = index === 0;
+      next.disabled = index === slides.length - 1;
+      window.location.hash = `slide-${index + 1}`;
+    }
+
+    prev.addEventListener("click", () => showSlide(index - 1));
+    next.addEventListener("click", () => showSlide(index + 1));
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowRight" || event.key === "PageDown") showSlide(index + 1);
+      if (event.key === "ArrowLeft" || event.key === "PageUp") showSlide(index - 1);
+      if (event.key === "Home") showSlide(0);
+      if (event.key === "End") showSlide(slides.length - 1);
+    });
+
+    const match = window.location.hash.match(/slide-(\d+)/);
+    showSlide(match ? Number(match[1]) - 1 : 0);
+  </script>
+</body>
+</html>
