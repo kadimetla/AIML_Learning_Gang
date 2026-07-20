@@ -6,6 +6,7 @@ wires up by hand (chatbot node → `ToolNode` → `tools_condition` → loop bac
 
 ```bash
 uv run examples/react_agent/01_create_agent.py
+uv run examples/react_agent/02_create_agent_with_graph_features.py
 ```
 
 ## `01_create_agent.py`
@@ -37,3 +38,16 @@ LangGraph 1.0 — this uses its replacement, `langchain.agents.create_agent`
 Start with `create_agent`; drop down to manual wiring the moment you need
 something the prebuilt doesn't support (e.g. the `Command`/`interrupt()`
 patterns in [`../command/`](../command/) and [`../hitl/`](../hitl/)).
+
+## `02_create_agent_with_graph_features.py`
+
+`create_agent` returns an ordinary `CompiledStateGraph` -- every LangGraph
+feature this repo teaches elsewhere still applies to it. This example passes
+`checkpointer=InMemorySaver()` and `interrupt_before=["tools"]`, the same
+pause-before-a-node mechanism as [`../07_interrupt_before.py`](../07_interrupt_before.py),
+aimed at `create_agent`'s built-in `"tools"` node (confirmed via
+`agent.get_graph().nodes` -- it's always named `"model"`/`"tools"`) instead
+of a hand-written one. Also uses `system_prompt=` instead of a manual
+`SystemMessage` check. Real `OPENAI_API_KEY` call -- the model actually
+decides to call `send_email`, which then pauses for approval before it
+"sends" anything.
