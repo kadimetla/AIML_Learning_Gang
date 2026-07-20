@@ -33,7 +33,12 @@ builder.add_edge(START, "answer")
 builder.add_edge("answer", END)
 
 graph = builder.compile()
-graph.invoke(
-    {"question": "What is state?"},
-    context={"user_name": "Ada"},
-)
+
+if __name__ == "__main__":
+    result = graph.invoke(
+        {"question": "What is state?"},
+        context={"user_name": "Ada"},
+    )
+    # output_schema=OutputState means only 'answer' comes back, even though
+    # answer_node also wrote 'internal_score' into the graph's internal state
+    print(f"result={result!r}")

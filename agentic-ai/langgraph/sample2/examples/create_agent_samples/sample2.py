@@ -1,3 +1,7 @@
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from typing import TypedDict
 
 from langchain.agents import create_agent
@@ -35,3 +39,9 @@ builder.add_edge(START, "call_agent")
 builder.add_edge("call_agent", END)
 
 workflow = builder.compile()
+
+
+if __name__ == "__main__":
+    result = workflow.invoke({"question": "What is the capital of France?"})
+    print(f"question={result['question']!r}")
+    print(f"answer={result['answer']!r}")

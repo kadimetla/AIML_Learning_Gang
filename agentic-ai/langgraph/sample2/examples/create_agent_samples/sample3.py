@@ -1,3 +1,7 @@
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from typing import TypedDict
 
 from langchain.agents import create_agent
@@ -50,3 +54,9 @@ builder.add_edge("write_draft", "review_draft")
 builder.add_edge("review_draft", END)
 
 workflow = builder.compile()
+
+
+if __name__ == "__main__":
+    result = workflow.invoke({"topic": "the benefits of unit testing"})
+    print(f"draft={result['draft']!r}\n")
+    print(f"review={result['review']!r}")
