@@ -41,3 +41,31 @@ collapsed into ordinary `invoke()` config.
 |---|---|
 | `init_chat_model("openai:gpt-4o-mini")` | the model is fixed for this node/graph |
 | `init_chat_model(configurable_fields=...)` | callers need to pick the model per-request (e.g. a "fast" vs "smart" mode, or a user-selectable model in a UI) |
+
+## Planned: `03_litellm_and_bedrock.py` (not yet built)
+
+Two more provider strings `init_chat_model` already supports natively,
+confirmed by reading `langchain/chat_models/base.py`'s provider map directly
+(not assumed) -- neither needs new LangGraph code, only a different string
+passed to the same `init_chat_model` call `01`/`02` already use:
+
+- **`"bedrock:..."` / `"bedrock_converse:..."`** -- routes to
+  `langchain_aws.ChatBedrockConverse`. Already installable today (`uv add
+  langchain-aws`); would need real AWS credentials to run for real. This is
+  the direct answer to "swap to a Bedrock model": with
+  `configurable_fields=("model", "model_provider")` from `02`, a caller
+  passes `{"model": "anthropic.claude-...", "model_provider":
+  "bedrock_converse"}` in `config["configurable"]` at invoke time -- no code
+  change, same mechanism `02` already demonstrates for OpenAI/Anthropic.
+- **`"litellm:..."`** -- routes to `langchain_litellm.ChatLiteLLM`. Needs
+  `uv add langchain-litellm` (not currently a dependency here). Worth
+  building when there's an actual need for litellm's wider provider
+  coverage or its proxy-level routing/fallback/cost-tracking -- otherwise
+  the native provider strings above do the same provider-agnostic job with
+  one fewer dependency.
+
+When this gets built: same shape as `02`, just adding `"bedrock_converse"`
+and `"litellm"` to the set of providers exercised at invoke time, plus a
+docstring explaining each requires its own installed integration package
+(`langchain-aws`, `langchain-litellm`) since `init_chat_model` only ships
+the provider *map*, not the provider packages themselves.
