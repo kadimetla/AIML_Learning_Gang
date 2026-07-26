@@ -1,0 +1,13 @@
+[project]
+name = "sample-2-embeddings"
+version = "0.1.0"
+description = "Token ids to embedding vectors, by hand"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "ipykernel>=7.3.0",
+    "jupyter>=1.1.1",
+    "matplotlib>=3.11.0",
+    "nbformat>=5.10.4",
+    "numpy>=2.5.1",
+]

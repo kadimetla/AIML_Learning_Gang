@@ -1,0 +1,15 @@
+[project]
+name = "sample-7-pretrained-inference-huggingface"
+version = "0.1.0"
+description = "Deep dive: real GPT-2 tokenizer, architecture, and generation via HuggingFace transformers"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "ipykernel>=7.3.0",
+    "jupyter>=1.1.1",
+    "matplotlib>=3.11.0",
+    "nbformat>=5.10.4",
+    "numpy>=2.5.1",
+    "torch>=2.13.0",
+    "transformers>=4.57.0",
+]

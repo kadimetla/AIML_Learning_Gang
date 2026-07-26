@@ -1,0 +1,11 @@
+[project]
+name = "sample-1-tokenization"
+version = "0.1.0"
+description = "Building a tokenizer by hand"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "ipykernel>=7.3.0",
+    "jupyter>=1.1.1",
+    "nbformat>=5.10.4",
+]
