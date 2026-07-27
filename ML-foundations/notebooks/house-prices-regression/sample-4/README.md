@@ -25,7 +25,7 @@ uv run python scripts/train_sklearn.py   # trains + saves models/sklearn_model.*
 uv run uvicorn app.main:app --reload     # http://127.0.0.1:8000/docs
 ```
 
-Then, from another terminal:
+Then, from another terminal, either curl it directly:
 
 ```bash
 curl http://127.0.0.1:8000/example                     # a real house payload to test with
@@ -34,6 +34,20 @@ curl -X POST http://127.0.0.1:8000/predict/sklearn/raw-json \
 curl -X POST http://127.0.0.1:8000/predict/compare \
   -H "Content-Type: application/json" -d @house.json      # all 8 model/format combos at once
 ```
+
+...or use the Streamlit UI as a client instead of curl:
+
+```bash
+uv run streamlit run streamlit_app.py    # http://127.0.0.1:8501
+```
+
+It's a form (prefilled from a random real house — click "Load random example
+from dataset" in the sidebar for a new one) that POSTs to the FastAPI server
+above. Pick a single model/format to see one prediction, or check "Compare
+all 8 model/format combinations" to bar-chart every combo against the
+house's actual sale price. `streamlit_app.py` talks to the API over HTTP —
+it's the client half of the client/server split, not another way to load
+the models in-process.
 
 ## Layout
 
@@ -54,6 +68,9 @@ models/                8 files: {scratch,sklearn}_model.{pkl,joblib} and
                       {scratch,sklearn}_model_raw.{json,npz}.
 app/main.py            FastAPI server: loads all 8 at startup, one
                       /predict/{model}/{format} endpoint for all of them.
+streamlit_app.py        UI client: a form that POSTs to the FastAPI server
+                      above and charts the results. Not a second way to load
+                      models — it never imports HousePriceModel directly.
 ```
 
 ## The three formats, and what "inference" actually does with each
