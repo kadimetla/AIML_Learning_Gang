@@ -16,6 +16,11 @@ isn't which one wins, it's that **inference doesn't care how a linear model
 was trained**. Once you have a coefficient vector and an intercept, serving
 it is identical either way.
 
+New to this project? Start with **`training_walkthrough.ipynb`** — it
+imports the same modules `scripts/train_*.py` use (nothing is
+reimplemented) and adds the loss curve, a by-hand-vs-sklearn coefficient
+comparison, and a step-by-step trace of one house through inference.
+
 ## How to run
 
 All commands below are run from this directory (`sample-4/`). Requires
@@ -42,6 +47,10 @@ Each prints its test-set R²/RMSE and writes 4 files to `models/`
 Re-run either script any time (e.g. after editing `scratch_model.py`) to
 regenerate its 4 artifacts; the API only picks up new files on its next
 startup.
+
+Prefer notebooks? `uv run jupyter lab` and open `training_walkthrough.ipynb`
+instead — it does the same training + saving, plus loss-curve and
+coefficient-comparison plots, cell by cell.
 
 ### 3. Start the API server
 
@@ -101,6 +110,10 @@ pkill -f "streamlit run streamlit_app.py"
 ## Layout
 
 ```
+training_walkthrough.ipynb  Notebook walkthrough — imports the same modules
+                      below rather than reimplementing training; adds a loss
+                      curve, a by-hand-vs-sklearn coefficient comparison, and
+                      a step-by-step trace of one house through inference.
 preprocessing.py     Raw Kaggle columns -> 175-feature encoding. Imported by
                       both training scripts and the API, so encoding logic
                       never has two implementations to drift apart.
