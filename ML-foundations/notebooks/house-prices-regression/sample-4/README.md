@@ -16,38 +16,87 @@ isn't which one wins, it's that **inference doesn't care how a linear model
 was trained**. Once you have a coefficient vector and an intercept, serving
 it is identical either way.
 
-## Quickstart
+## How to run
+
+All commands below are run from this directory (`sample-4/`). Requires
+Python 3.13 and [`uv`](https://docs.astral.sh/uv/).
+
+### 1. Install dependencies
 
 ```bash
 uv sync
-uv run python scripts/train_scratch.py   # trains + saves models/scratch_model.*
-uv run python scripts/train_sklearn.py   # trains + saves models/sklearn_model.*
-uv run uvicorn app.main:app --reload     # http://127.0.0.1:8000/docs
 ```
 
-Then, from another terminal, either curl it directly:
+Installs everything in `pyproject.toml` (FastAPI, scikit-learn, Streamlit,
+etc.) into a local `.venv`, resolved from `uv.lock`.
+
+### 2. Train both models
 
 ```bash
-curl http://127.0.0.1:8000/example                     # a real house payload to test with
+uv run python scripts/train_scratch.py    # gradient descent, by hand
+uv run python scripts/train_sklearn.py    # sklearn's closed-form OLS
+```
+
+Each prints its test-set R²/RMSE and writes 4 files to `models/`
+(`{name}_model.pkl`, `.joblib`, `_raw.json`, `_raw.npz`) — 8 files total.
+Re-run either script any time (e.g. after editing `scratch_model.py`) to
+regenerate its 4 artifacts; the API only picks up new files on its next
+startup.
+
+### 3. Start the API server
+
+```bash
+uv run uvicorn app.main:app --reload
+```
+
+Loads all 8 model/format combinations at startup and serves them at
+`http://127.0.0.1:8000`. Open `http://127.0.0.1:8000/docs` for interactive
+Swagger docs, or confirm it's up from another terminal:
+
+```bash
+curl http://127.0.0.1:8000/health
+# {"status":"ok","loaded_models":8}
+```
+
+Leave this terminal running — steps 4 and 5 both talk to it.
+
+### 4. Call it directly with curl (optional)
+
+```bash
+curl http://127.0.0.1:8000/example > house.json         # save a real house payload
+python3 -c "import json; d=json.load(open('house.json')); json.dump(d['raw_house'], open('house.json','w'))"
+
 curl -X POST http://127.0.0.1:8000/predict/sklearn/raw-json \
   -H "Content-Type: application/json" -d @house.json
+
 curl -X POST http://127.0.0.1:8000/predict/compare \
   -H "Content-Type: application/json" -d @house.json      # all 8 model/format combos at once
 ```
 
-...or use the Streamlit UI as a client instead of curl:
+### 5. Or use the Streamlit UI (optional)
+
+In a **second terminal** (keep the API running in the first):
 
 ```bash
-uv run streamlit run streamlit_app.py    # http://127.0.0.1:8501
+uv run streamlit run streamlit_app.py
 ```
 
-It's a form (prefilled from a random real house — click "Load random example
-from dataset" in the sidebar for a new one) that POSTs to the FastAPI server
-above. Pick a single model/format to see one prediction, or check "Compare
-all 8 model/format combinations" to bar-chart every combo against the
-house's actual sale price. `streamlit_app.py` talks to the API over HTTP —
-it's the client half of the client/server split, not another way to load
-the models in-process.
+Opens `http://127.0.0.1:8501` — a form prefilled from a random real house
+(sidebar button to load a different one) that POSTs to the FastAPI server
+from step 3. Pick a single model/format to see one prediction, or check
+"Compare all 8 model/format combinations" to bar-chart every combo against
+the house's actual sale price. It talks to the API over HTTP — it's the
+client half of the client/server split, not another way to load the models
+in-process.
+
+### 6. Stop everything
+
+`Ctrl+C` in each terminal. If either was started in the background:
+
+```bash
+pkill -f "uvicorn app.main:app"
+pkill -f "streamlit run streamlit_app.py"
+```
 
 ## Layout
 
