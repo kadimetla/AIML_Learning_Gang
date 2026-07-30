@@ -71,7 +71,11 @@ START -> controller -> service -+-> formatter     -> END
 This exact flow is also implemented directly with LangGraph's `StateGraph`
 in `../learn1/src/learn1/my_sample1/example2.py` — open the two files side
 by side; every `add_node` / `add_edge` / `add_conditional_edges` call in
-the LangGraph version has a literal counterpart here.
+the LangGraph version has a literal counterpart here. And
+`../learn1/src/learn1/my_sample1/example3.py` builds the *same* flow with
+no framework at all — the same node functions, wired with plain
+sequential calls and an `if/else` — to show the graph shape isn't special
+machinery.
 
 ```bash
 uv run uvicorn learn2.api_pipeline.app:app --reload --port 8001
