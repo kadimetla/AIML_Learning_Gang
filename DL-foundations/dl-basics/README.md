@@ -1,6 +1,6 @@
 # dl-basics — Neural Networks From Scratch
 
-Seven notebooks that build a neural network from nothing but numpy, one
+Nine notebooks that build a neural network from nothing but numpy, one
 concept at a time. Loosely follows the structure of
 ["Neural Networks from Scratch - First Principles of AI"](https://www.youtube.com/watch?v=vJxK8qWDcdA)
 (Ai Guru): neurons → weights/activations → forward pass → loss →
@@ -22,6 +22,8 @@ for the hidden layer built in Chapter 7.
 | 5 | [`05_backpropagation.ipynb`](05_backpropagation.ipynb) | the chain rule, verified against numerical gradients |
 | 6 | [`06_gradient_descent_training_loop.ipynb`](06_gradient_descent_training_loop.ipynb) | the update rule; a single neuron solves OR, fails XOR |
 | 7 | [`07_building_the_full_network.ipynb`](07_building_the_full_network.ipynb) | a reusable `NeuralNetwork` class that solves XOR and two-moons |
+| 8 | [`08_backpropagation_deep_dive.ipynb`](08_backpropagation_deep_dive.ipynb) | a from-scratch autodiff engine, backprop through 3 layers, gradient flow |
+| 9 | [`09_batch_vs_online_learning.ipynb`](09_batch_vs_online_learning.ipynb) | batch vs. mini-batch vs. online training, and why this series used batch |
 
 Each notebook is self-contained but assumes the previous chapters' vocabulary
 — read them in order the first time through.
