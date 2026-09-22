@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Word Vectors to Modern Embeddings</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Lora:wght@600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#1E2D4E;--teal:#0E7C86;--amber:#D97706;--red:#DC2626;
+  --green:#16A34A;--purple:#7C3AED;--blue:#2563EB;--muted:#64748B;
+  --light:#E2E8F0;--bg:#FFFFFF;--bg2:#F4F6FA;--bg3:#E8EDF6;
+  --mint:#ECFDF5;--peach:#FFF7ED;--lavend:#F5F3FF;--rose:#FEF2F2;--ice:#E6F4F5;
+}
+html,body{height:100%;font-family:'Inter',sans-serif;background:#1E2D4E;overflow:hidden}
+#app{display:flex;flex-direction:column;height:100vh}
+#topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:#162340;color:#7EB8C9;font-size:13px;flex-shrink:0}
+#topbar strong{color:#fff;font-size:14px}
+#stage{flex:1;display:flex;align-items:center;justify-content:center;padding:16px;overflow:hidden}
+.slide{width:min(1100px,calc(100vw - 32px));aspect-ratio:16/9;background:white;border-radius:12px;overflow:hidden;position:relative;box-shadow:0 20px 60px rgba(0,0,0,.45);display:none}
+.slide.active{display:block;animation:fadeIn .25s ease}
+.slide.dark{background:#1E2D4E}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+#controls{display:flex;align-items:center;justify-content:center;gap:12px;padding:12px;flex-shrink:0;background:#162340}
+.btn-nav{background:#243050;border:1px solid #334466;color:#CADCFC;padding:8px 22px;border-radius:8px;cursor:pointer;font-size:14px;font-family:'Inter',sans-serif;font-weight:500;transition:background .15s}
+.btn-nav:hover{background:#2e3d65}
+.btn-nav:disabled{opacity:.35;cursor:default}
+#progress-dots{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:center;max-width:700px}
+.dot{width:8px;height:8px;border-radius:50%;background:#334466;cursor:pointer;transition:background .2s,transform .2s;flex-shrink:0}
+.dot.active{background:#7EB8C9;transform:scale(1.4)}
+.dot:hover{background:#5a7a9a}
+#hint{color:#446;font-size:12px;text-align:center;padding:4px 0 8px;background:#162340}
+
+/* slide internals */
+.si{width:100%;height:100%;padding:3.5% 4.5%;display:flex;flex-direction:column}
+h1.t{font-family:'Lora',serif;font-size:clamp(20px,3.6vw,36px);font-weight:700;color:var(--navy);line-height:1.15}
+h1.t.lt{color:#fff}
+.sub{font-size:clamp(10px,1.3vw,13px);color:var(--muted);margin-top:3px;margin-bottom:12px}
+.sub.lt{color:#8BA8BC}
+.card{background:var(--bg2);border-radius:10px;border:1px solid var(--light);padding:12px 14px}
+.card.mint{background:var(--mint);border-color:#86efac}
+.card.peach{background:var(--peach);border-color:#fcd34d}
+.card.lavend{background:var(--lavend);border-color:#c4b5fd}
+.card.rose{background:var(--rose);border-color:#fca5a5}
+.card.teal{background:var(--ice);border-color:#99e6e9}
+.card.dk{background:#162340;border-color:#2a3d5e;border-radius:10px}
+.ct{font-weight:600;font-size:clamp(11px,1.4vw,14px);margin-bottom:5px}
+.cb{font-size:clamp(10px,1.2vw,12.5px);color:var(--navy);line-height:1.55}
+.badge{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;font-size:12px;font-weight:700;color:#fff;flex-shrink:0}
+.cp{display:inline-block;padding:3px 12px;border-radius:20px;font-size:12px;font-weight:600;color:#fff}
+.code{font-family:'JetBrains Mono',monospace;font-size:clamp(9px,1.1vw,12px);background:var(--bg3);border-radius:8px;padding:10px 14px;line-height:1.7;border:1px solid var(--light)}
+.cc{color:var(--teal)}.ca{color:var(--amber)}.cp2{color:var(--purple)}.cg{color:var(--green)}.cm{color:var(--muted)}.cr{color:var(--red)}
+.row{display:flex;gap:12px}
+.col{display:flex;flex-direction:column;gap:8px}
+.f1{flex:1}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px}
+.sr{display:flex;align-items:flex-start;gap:10px;padding:8px 12px;border-radius:8px;border:1px solid var(--light)}
+.sl{font-family:'JetBrains Mono',monospace;font-weight:600;font-size:clamp(9px,1.1vw,12px)}
+.sf{font-family:'JetBrains Mono',monospace;font-size:clamp(9px,1.05vw,11.5px);color:var(--navy)}
+.sn{font-size:clamp(8px,.95vw,10.5px);color:var(--muted);margin-left:auto;text-align:right;min-width:90px;line-height:1.4}
+.node{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:#fff;flex-shrink:0}
+.dot2{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:3px}
+.take{border-radius:10px;background:#162340;border:1px solid;padding:14px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:5px}
+.ti{font-size:26px}.th{font-weight:700;font-size:clamp(10px,1.2vw,13px)}.tb{font-size:clamp(9px,1.05vw,11px);color:#8BA8BC;line-height:1.4}
+</style>
+</head>
+<body>
+<div id="app">
+<div id="topbar"><div><strong>Word Vectors to Modern Embeddings</strong> — Word2Vec · GloVe · Sparse vs Dense · BGE-M3</div><div id="sc">Slide 1 / 15</div></div>
+<div id="stage">
+
+<!-- S1 Title -->
+<div class="slide dark active" id="s1">
+  <svg style="position:absolute;top:0;right:0;height:100%;width:45%;opacity:.9" viewBox="0 0 300 400">
+    <circle cx="80" cy="80" r="16" fill="#0E7C86"/><circle cx="110" cy="65" r="16" fill="#0E7C86"/>
+    <circle cx="145" cy="90" r="16" fill="#0E7C86"/><circle cx="90" cy="108" r="16" fill="#0E7C86"/>
+    <circle cx="190" cy="70" r="16" fill="#D97706"/><circle cx="225" cy="55" r="16" fill="#D97706"/>
+    <circle cx="255" cy="80" r="16" fill="#D97706"/><circle cx="205" cy="100" r="16" fill="#D97706"/>
+    <circle cx="140" cy="200" r="16" fill="#7C3AED"/><circle cx="170" cy="185" r="16" fill="#7C3AED"/>
+    <circle cx="200" cy="210" r="16" fill="#7C3AED"/><circle cx="145" cy="225" r="16" fill="#7C3AED"/>
+    <line x1="145" y1="90" x2="190" y2="70" stroke="#334466" stroke-width="1.5"/>
+    <line x1="170" y1="95" x2="160" y2="185" stroke="#334466" stroke-width="1.5"/>
+  </svg>
+  <div class="si" style="justify-content:center;max-width:55%">
+    <div style="margin-bottom:10px">
+      <span class="cp" style="background:#0E7C86">Word2Vec</span>
+      <span class="cp" style="background:#D97706;margin-left:5px">GloVe</span>
+      <span class="cp" style="background:#7C3AED;margin-left:5px">Sparse vs Dense</span>
+      <span class="cp" style="background:#16A34A;margin-left:5px">BGE-M3</span>
+    </div>
+    <h1 class="t lt" style="font-size:clamp(24px,4.2vw,44px);margin-bottom:6px">Word Vectors to<br><span style="color:#7EB8C9">Modern Embeddings</span></h1>
+    <div class="sub lt" style="font-size:clamp(12px,1.6vw,16px);margin-bottom:20px">From one-hot chaos to hybrid semantic search</div>
+    <div style="display:flex;flex-direction:column;gap:7px;font-size:13px">
+      <div style="color:#CADCFC">🔤 One-hot → sparse, no meaning</div>
+      <div style="color:#CADCFC">🧠 Word2Vec → dense, contextual</div>
+      <div style="color:#CADCFC">🌍 GloVe → global co-occurrence</div>
+      <div style="color:#CADCFC">⚡ BGE-M3 → dense + sparse + ColBERT</div>
+    </div>
+  </div>
+</div>
+
+<!-- S2 Representation Problem -->
+<div class="slide" id="s2">
+  <div class="si">
+    <h1 class="t">The Representation Problem</h1>
+    <div class="sub">How do we turn words into numbers that capture meaning?</div>
+    <div class="row" style="flex:1">
+      <div class="card rose f1" style="display:flex;flex-direction:column;gap:8px">
+        <div class="ct" style="color:var(--red)">One-Hot Encoding (the old way)</div>
+        <div class="code cr">cat  = [1, 0, 0, 0, 0, … 0]  <span class="cm">(70,000 dim)</span>
+dog  = [0, 1, 0, 0, 0, … 0]
+king = [0, 0, 1, 0, 0, … 0]</div>
+        <div style="display:flex;flex-direction:column;gap:4px;font-size:12px">
+          <div style="color:var(--red)">✗ Vocabulary-sized vectors (50k–100k dims)</div>
+          <div style="color:var(--red)">✗ All words equidistant — no similarity</div>
+          <div style="color:var(--red)">✗ cat and dog have 0 relationship</div>
+          <div style="color:var(--red)">✗ Sparse: mostly zeros, wastes memory</div>
+          <div style="color:var(--red)">✗ No meaning — just identity tags</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;font-size:28px;color:var(--light);padding:0 6px">→</div>
+      <div class="card mint f1" style="display:flex;flex-direction:column;gap:8px">
+        <div class="ct" style="color:var(--green)">Dense Embeddings (the goal)</div>
+        <div class="code cg">cat  = [0.2, -0.4,  0.7, 0.1, …] <span class="cm">(300 dim)</span>
+dog  = [0.3, -0.3,  0.8, 0.2, …]
+king = [0.6,  0.1,  0.2, 0.9, …]</div>
+        <div style="display:flex;flex-direction:column;gap:4px;font-size:12px">
+          <div style="color:var(--green)">✓ Compact (100–1024 dims typical)</div>
+          <div style="color:var(--green)">✓ cat and dog vectors are CLOSE</div>
+          <div style="color:var(--green)">✓ Meaning encoded in vector position</div>
+          <div style="color:var(--green)">✓ Dense: every dimension carries info</div>
+          <div style="color:var(--green)">✓ Vector arithmetic on meaning works</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- S3 Word2Vec -->
+<div class="slide" id="s3">
+  <div class="si">
+    <h1 class="t">Word2Vec: Learning from Context</h1>
+    <div class="sub">Trask Ch.11 — "Fill in the blank" trains richer word meanings than labels alone</div>
+    <div class="g2" style="flex:1;margin-bottom:8px">
+      <div class="card teal" style="display:flex;flex-direction:column;gap:6px">
+        <div class="ct" style="color:var(--teal)">Skip-Gram</div>
+        <div class="cb">Given a word → predict surrounding context</div>
+        <div class="code cc" style="margin:4px 0">"sat" → predict: the, cat, on, the</div>
+        <div style="font-size:11px;color:var(--muted);font-style:italic">Good for rare words. Slower training.</div>
+      </div>
+      <div class="card lavend" style="display:flex;flex-direction:column;gap:6px">
+        <div class="ct" style="color:var(--purple)">CBOW (Continuous Bag of Words)</div>
+        <div class="cb">Given context words → predict the middle word</div>
+        <div class="code cp2" style="margin:4px 0">[the, cat, on, the] → "sat"</div>
+        <div style="font-size:11px;color:var(--muted);font-style:italic">Faster. Better for frequent words.</div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:4px">
+      <div class="ct" style="color:var(--navy);margin-bottom:4px">Why "fill in the blank" works (Trask Ch.11)</div>
+      <div class="cb">Words in similar contexts get similar weights → similar vectors. "terrible" and "horrible" both predict/are-predicted-by words like "acting", "plot", "film" → their vectors cluster. The loss function's objective forces the hidden layer to encode linguistic relationships. <strong>Meaning is derived from loss.</strong></div>
+      <div class="code" style="margin-top:8px">print(similar('terrible'))  →  [('horrible', -2.8), ('brilliant', -3.0), ('pathetic', -3.5), ('phenomenal', -3.7)]</div>
+    </div>
+  </div>
+</div>
+
+<!-- S4 Word2Vec Architecture -->
+<div class="slide" id="s4">
+  <div class="si">
+    <h1 class="t">Word2Vec Architecture — From Trask's Network</h1>
+    <div class="sub">The embedding layer IS weights_0_1. No matrix multiply needed — just row selection.</div>
+    <div class="row" style="flex:1">
+      <div class="card f1" style="display:flex;flex-direction:column;gap:6px">
+        <div class="ct" style="color:var(--teal)">Network layers</div>
+        <div class="sr" style="background:var(--bg3)"><div style="font-size:12px;font-weight:600;color:var(--navy)">Input (one-hot)</div><div style="font-size:11px;color:var(--muted);margin-left:auto">70,000 dim</div></div>
+        <div style="text-align:center;color:var(--muted);font-size:18px">↓</div>
+        <div class="sr" style="background:var(--ice);border-color:var(--teal)"><div style="font-size:12px;font-weight:600;color:var(--teal)">weights_0_1 = EMBEDDING LAYER</div><div style="font-size:11px;color:var(--muted);margin-left:auto">70k × 300</div></div>
+        <div style="text-align:center;color:var(--muted);font-size:18px">↓</div>
+        <div class="sr" style="background:var(--lavend);border-color:var(--purple)"><div style="font-size:12px;font-weight:600;color:var(--purple)">layer_1 (hidden — no activation!)</div><div style="font-size:11px;color:var(--muted);margin-left:auto">300 dim</div></div>
+        <div style="text-align:center;color:var(--muted);font-size:18px">↓</div>
+        <div class="sr" style="background:var(--mint);border-color:var(--green)"><div style="font-size:12px;font-weight:600;color:var(--green)">Output (predict vocab)</div><div style="font-size:11px;color:var(--muted);margin-left:auto">70,000 dim</div></div>
+      </div>
+      <div class="col f1">
+        <div class="card teal" style="flex:none">
+          <div class="ct" style="color:var(--teal)">The Embedding Trick</div>
+          <div class="code" style="margin-top:4px"><span class="cm"># one-hot × weights_0_1 = row selection</span>
+<span class="cc">layer_1</span> = weights_0_1[word_index]
+<span class="cm"># no matrix multiply! Just index.</span></div>
+        </div>
+        <div class="card peach" style="flex:1">
+          <div class="ct" style="color:var(--amber)">What the network learns</div>
+          <div class="code" style="margin-top:4px"><span class="ca">king − man + woman ≈ queen</span>
+
+<span class="cm">similar('terrible'):</span>
+<span class="cc">  horrible, brilliant, pathetic,</span>
+<span class="cc">  phenomenal, superb, marvelous</span>
+
+<span class="cm">Semantic geometry from</span>
+<span class="cm">co-occurrence stats alone.</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- S5 GloVe -->
+<div class="slide" id="s5">
+  <div class="si">
+    <h1 class="t">GloVe: Global Vectors for Word Representation</h1>
+    <div class="sub">Stanford 2014 — Uses the ENTIRE corpus co-occurrence matrix, not just sliding windows</div>
+    <div class="row" style="flex:1">
+      <div class="card f1" style="display:flex;flex-direction:column;gap:8px">
+        <div class="ct" style="color:var(--teal)">How GloVe Works</div>
+        <div class="sr" style="background:var(--ice);border-color:var(--teal)"><div class="badge" style="background:var(--teal)">1</div><div><strong style="font-size:12px">Build co-occurrence matrix X</strong><div style="font-size:11px;color:var(--muted)">X_ij = how often word i appears near word j across the whole corpus</div></div></div>
+        <div class="sr"><div class="badge" style="background:var(--amber)">2</div><div><strong style="font-size:12px">Weight rare vs common pairs</strong><div style="font-size:11px;color:var(--muted)">f(X_ij) caps the influence of very frequent pairs like "the", "a", "is"</div></div></div>
+        <div class="sr" style="background:var(--lavend);border-color:var(--purple)"><div class="badge" style="background:var(--purple)">3</div><div><strong style="font-size:12px">Optimize: wᵢᵀwⱼ + bᵢ + bⱼ ≈ log(X_ij)</strong><div style="font-size:11px;color:var(--muted)">Dot product of word vectors ≈ log co-occurrence count</div></div></div>
+        <div class="sr" style="background:var(--mint);border-color:var(--green)"><div class="badge" style="background:var(--green)">4</div><div><strong style="font-size:12px">Result: dense vectors with geometry</strong><div style="font-size:11px;color:var(--muted)">Words that co-occur often → similar vectors → analogy arithmetic works</div></div></div>
+      </div>
+      <div class="card f1">
+        <div class="ct" style="color:var(--purple);margin-bottom:8px">Word2Vec vs GloVe</div>
+        <table style="width:100%;font-size:11px;border-collapse:collapse">
+          <tr style="background:var(--navy);color:#fff"><th style="padding:5px 8px;text-align:left">Factor</th><th style="padding:5px 8px;color:#7EB8C9">Word2Vec</th><th style="padding:5px 8px;color:#fcd34d">GloVe</th></tr>
+          <tr style="background:var(--bg2)"><td style="padding:5px 8px;font-weight:600">Approach</td><td style="padding:5px 8px;color:var(--teal)">Predictive (local)</td><td style="padding:5px 8px;color:var(--amber)">Count-based (global)</td></tr>
+          <tr><td style="padding:5px 8px;font-weight:600">Context</td><td style="padding:5px 8px;color:var(--teal)">Sliding window</td><td style="padding:5px 8px;color:var(--amber)">Entire corpus</td></tr>
+          <tr style="background:var(--bg2)"><td style="padding:5px 8px;font-weight:600">Training</td><td style="padding:5px 8px;color:var(--teal)">Neural net + SGD</td><td style="padding:5px 8px;color:var(--amber)">Matrix factorization</td></tr>
+          <tr><td style="padding:5px 8px;font-weight:600">Speed (big data)</td><td style="padding:5px 8px;color:var(--teal)">Faster</td><td style="padding:5px 8px;color:var(--amber)">Slower (matrix ops)</td></tr>
+          <tr style="background:var(--bg2)"><td style="padding:5px 8px;font-weight:600">Key insight</td><td style="padding:5px 8px;color:var(--teal)">Predict neighbors</td><td style="padding:5px 8px;color:var(--amber)">Ratio of co-occurrences</td></tr>
+          <tr><td style="padding:5px 8px;font-weight:600">Analogies</td><td style="padding:5px 8px;color:var(--teal)">Very good</td><td style="padding:5px 8px;color:var(--amber)">Slightly better</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- S6 GloVe Objective -->
+<div class="slide" id="s6">
+  <div class="si">
+    <h1 class="t">GloVe Objective Function — Unpacked</h1>
+    <div class="sub">Every term in the loss function has a specific linguistic purpose</div>
+    <div class="card teal" style="margin-bottom:12px;text-align:center">
+      <div style="font-family:'Lora',serif;font-size:clamp(16px,2.2vw,22px);font-weight:700;color:var(--navy)">J = Σᵢⱼ &nbsp;f(Xᵢⱼ) &nbsp;· &nbsp;(wᵢᵀwⱼ + bᵢ + bⱼ − log Xᵢⱼ)²</div>
+    </div>
+    <div class="g2" style="flex:1">
+      <div class="card teal" style="display:flex;flex-direction:column;gap:5px">
+        <div style="font-family:'Lora',serif;font-size:22px;font-weight:700;color:var(--teal)">Xᵢⱼ</div>
+        <div style="font-weight:600;font-size:12px">Co-occurrence count</div>
+        <div style="font-size:11.5px;color:var(--navy);line-height:1.5">How many times word i and word j appear together across the full corpus. GloVe calls this "global" statistics — every word pair in every document contributes.</div>
+      </div>
+      <div class="card peach" style="display:flex;flex-direction:column;gap:5px">
+        <div style="font-family:'Lora',serif;font-size:22px;font-weight:700;color:var(--amber)">f(Xᵢⱼ)</div>
+        <div style="font-weight:600;font-size:12px">Weighting function</div>
+        <div style="font-size:11.5px;color:var(--navy);line-height:1.5">Caps the contribution of very frequent pairs. "the" and "a" co-occur with everything — without this they dominate. f(x) = (x/100)^0.75 for x &lt; 100.</div>
+      </div>
+      <div class="card lavend" style="display:flex;flex-direction:column;gap:5px">
+        <div style="font-family:'Lora',serif;font-size:22px;font-weight:700;color:var(--purple)">wᵢᵀwⱼ</div>
+        <div style="font-weight:600;font-size:12px">Dot product of word vectors</div>
+        <div style="font-size:11.5px;color:var(--navy);line-height:1.5">The model predicts log co-occurrence using the dot product. At optimum, this equals log(X_ij). Similar words → high dot product → close in vector space.</div>
+      </div>
+      <div class="card mint" style="display:flex;flex-direction:column;gap:5px">
+        <div style="font-family:'Lora',serif;font-size:22px;font-weight:700;color:var(--green)">bᵢ + bⱼ</div>
+        <div style="font-weight:600;font-size:12px">Bias terms</div>
+        <div style="font-size:11.5px;color:var(--navy);line-height:1.5">Per-word bias scalars. Words that are globally common (like "movie" in a film corpus) get a high bias, preventing confusion with pairwise semantic similarity.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- S7 Sparse vs Dense -->
+<div class="slide" id="s7">
+  <div class="si">
+    <h1 class="t">Sparse vs Dense Representations</h1>
+    <div class="sub">Two fundamentally different philosophies for encoding text</div>
+    <div class="row" style="margin-bottom:8px">
+      <div class="card rose f1" style="padding:8px 14px;text-align:center"><div class="ct" style="color:var(--red)">SPARSE (Keyword)</div></div>
+      <div class="card teal f1" style="padding:8px 14px;text-align:center"><div class="ct" style="color:var(--teal)">DENSE (Semantic)</div></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:5px;flex:1;justify-content:center">
+      <div class="row"><div class="card f1" style="padding:6px 10px"><strong style="font-size:11px">Representation</strong></div><div class="card rose f1" style="padding:6px 10px;font-size:11px;color:var(--red)">Each dim = one vocab word</div><div class="card teal f1" style="padding:6px 10px;font-size:11px;color:var(--teal)">Each dim = learned feature</div></div>
+      <div class="row"><div class="card f1" style="padding:6px 10px;background:var(--bg3)"><strong style="font-size:11px">Vector size</strong></div><div class="card rose f1" style="padding:6px 10px;font-size:11px;color:var(--red);background:#fff5f5">50,000–100,000 dims</div><div class="card teal f1" style="padding:6px 10px;font-size:11px;color:var(--teal);background:#f0fbfc">100–1,024 dims</div></div>
+      <div class="row"><div class="card f1" style="padding:6px 10px"><strong style="font-size:11px">Most entries</strong></div><div class="card rose f1" style="padding:6px 10px;font-size:11px;color:var(--red)">0 (mostly empty)</div><div class="card teal f1" style="padding:6px 10px;font-size:11px;color:var(--teal)">Non-zero (dense)</div></div>
+      <div class="row"><div class="card f1" style="padding:6px 10px;background:var(--bg3)"><strong style="font-size:11px">Match type</strong></div><div class="card rose f1" style="padding:6px 10px;font-size:11px;color:var(--red);background:#fff5f5">Exact keyword match</div><div class="card teal f1" style="padding:6px 10px;font-size:11px;color:var(--teal);background:#f0fbfc">Semantic / meaning match</div></div>
+      <div class="row"><div class="card f1" style="padding:6px 10px"><strong style="font-size:11px">Example match</strong></div><div class="card rose f1" style="padding:6px 10px;font-size:11px;color:var(--red)">"car" finds "car" only</div><div class="card teal f1" style="padding:6px 10px;font-size:11px;color:var(--teal)">"car" also finds "automobile"</div></div>
+      <div class="row"><div class="card f1" style="padding:6px 10px;background:var(--bg3)"><strong style="font-size:11px">Misses</strong></div><div class="card rose f1" style="padding:6px 10px;font-size:11px;color:var(--red);background:#fff5f5">Synonyms, paraphrases</div><div class="card teal f1" style="padding:6px 10px;font-size:11px;color:var(--teal);background:#f0fbfc">Rare terms, exact codes</div></div>
+      <div class="row"><div class="card f1" style="padding:6px 10px"><strong style="font-size:11px">Classic algo</strong></div><div class="card rose f1" style="padding:6px 10px;font-size:11px;color:var(--red)">TF-IDF, BM25</div><div class="card teal f1" style="padding:6px 10px;font-size:11px;color:var(--teal)">word2vec, GloVe, BERT</div></div>
+      <div class="row"><div class="card f1" style="padding:6px 10px;background:var(--bg3)"><strong style="font-size:11px">Best for</strong></div><div class="card rose f1" style="padding:6px 10px;font-size:11px;color:var(--red);background:#fff5f5">Known terms, product codes</div><div class="card teal f1" style="padding:6px 10px;font-size:11px;color:var(--teal);background:#f0fbfc">Concepts, paraphrase queries</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- S8 When Each Wins -->
+<div class="slide" id="s8">
+  <div class="si">
+    <h1 class="t">When Each Method Wins — Real Examples</h1>
+    <div class="sub">Understanding failure modes is the key to building hybrid systems</div>
+    <div style="overflow-x:auto;flex:1">
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <tr style="background:var(--navy)">
+          <th style="padding:7px 8px;text-align:left;color:#fff;font-size:12px">Query</th>
+          <th style="padding:7px 8px;color:#fca5a5;font-size:12px">BM25 / Sparse</th>
+          <th style="padding:7px 8px;color:#99e6e9;font-size:12px">Semantic / Dense</th>
+          <th style="padding:7px 8px;color:#fcd34d;font-size:12px">Verdict</th>
+        </tr>
+        <tr style="background:var(--bg2)"><td style="padding:8px">"car insurance quotes"</td><td style="padding:8px;color:var(--red)">"auto coverage pricing" → MISS</td><td style="padding:8px;color:var(--teal)">"car insurance quotes" → HIT</td><td style="padding:8px;color:var(--teal);font-weight:600">Dense wins</td></tr>
+        <tr><td style="padding:8px">"ERR_SSL_VERSION_MISMATCH"</td><td style="padding:8px;color:var(--green)">Exact code → precise HIT</td><td style="padding:8px;color:var(--amber)">SSL errors generally → blurred</td><td style="padding:8px;color:var(--red);font-weight:600">Sparse wins</td></tr>
+        <tr style="background:var(--bg2)"><td style="padding:8px">"time off work policy"</td><td style="padding:8px;color:var(--red)">"vacation PTO policy" → MISS</td><td style="padding:8px;color:var(--teal)">Finds "leave", "holiday", "annual"</td><td style="padding:8px;color:var(--teal);font-weight:600">Dense wins</td></tr>
+        <tr><td style="padding:8px">"RTX-4090 vs RTX-4070"</td><td style="padding:8px;color:var(--green)">Exact SKUs → both found</td><td style="padding:8px;color:var(--red)">Both similar vectors → confusion</td><td style="padding:8px;color:var(--red);font-weight:600">Sparse wins</td></tr>
+        <tr style="background:var(--bg2)"><td style="padding:8px">"how to fix slow queries"</td><td style="padding:8px;color:var(--amber)">Finds "slow" and "queries"</td><td style="padding:8px;color:var(--teal)">Finds "performance", "index", "optimize"</td><td style="padding:8px;color:var(--green);font-weight:600">Both! Hybrid</td></tr>
+        <tr><td style="padding:8px">"ML model overfitting"</td><td style="padding:8px;color:var(--red)">Misses "regularization" docs</td><td style="padding:8px;color:var(--teal)">Finds dropout, L2, cross-validation</td><td style="padding:8px;color:var(--teal);font-weight:600">Dense wins</td></tr>
+      </table>
+    </div>
+    <div class="card" style="margin-top:8px;background:var(--bg3)"><div style="font-size:12px;color:var(--navy)"><strong>Key insight:</strong> Dense retrieval fails on rare exact tokens (codes, SKUs, error strings) because pooling destroys lexical identity. BM25 fails on paraphrase. Neither is universally better — the answer is <strong>hybrid</strong>.</div></div>
+  </div>
+</div>
+
+<!-- S9 BM25 -->
+<div class="slide" id="s9">
+  <div class="si">
+    <h1 class="t">BM25: The Gold Standard Sparse Retrieval</h1>
+    <div class="sub">Published 1994. Still beats neural models on specific query types in 2025.</div>
+    <div class="card rose" style="margin-bottom:10px;text-align:center">
+      <div style="font-family:'Lora',serif;font-size:clamp(12px,1.8vw,18px);font-weight:700;color:var(--navy)">BM25(D,Q) = Σₜ &nbsp;IDF(t) · f(t,D)·(k₁+1) / [f(t,D) + k₁·(1 − b + b·|D|/avgdl)]</div>
+    </div>
+    <div class="g2" style="flex:1">
+      <div class="card rose" style="display:flex;flex-direction:column;gap:4px">
+        <div style="font-family:'Lora',serif;font-size:20px;font-weight:700;color:var(--red)">IDF(t)</div>
+        <div style="font-weight:600;font-size:12px">Inverse Document Frequency</div>
+        <div style="font-size:11px;color:var(--navy);line-height:1.5">log(N/df_t) — rare words across corpus get higher weight. "the" scores ≈ 0; "photosynthesis" scores high. Penalizes stop words automatically.</div>
+      </div>
+      <div class="card peach" style="display:flex;flex-direction:column;gap:4px">
+        <div style="font-family:'Lora',serif;font-size:20px;font-weight:700;color:var(--amber)">f(t,D)</div>
+        <div style="font-weight:600;font-size:12px">Term frequency in document</div>
+        <div style="font-size:11px;color:var(--navy);line-height:1.5">Raw count of term t in document D. More = higher relevance, but saturates with k₁ (1.2–2.0) so 100 occurrences ≠ 100× better than 1.</div>
+      </div>
+      <div class="card lavend" style="display:flex;flex-direction:column;gap:4px">
+        <div style="font-family:'Lora',serif;font-size:20px;font-weight:700;color:var(--purple)">|D|/avgdl</div>
+        <div style="font-weight:600;font-size:12px">Document length normalization</div>
+        <div style="font-size:11px;color:var(--navy);line-height:1.5">Longer docs naturally contain more words. b (usually 0.75) controls how much to penalize longer docs, preventing them from dominating unfairly.</div>
+      </div>
+      <div class="card mint" style="display:flex;flex-direction:column;gap:4px">
+        <div style="font-family:'Lora',serif;font-size:20px;font-weight:700;color:var(--green)">k₁, b</div>
+        <div style="font-weight:600;font-size:12px">Tunable hyperparameters</div>
+        <div style="font-size:11px;color:var(--navy);line-height:1.5">k₁ = term frequency saturation (1.2–2.0). b = length normalization (0–1). <strong>No training needed</strong> — set by domain knowledge.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- S10 BGE-M3 -->
+<div class="slide" id="s10">
+  <div class="si">
+    <h1 class="t">BGE-M3 — One Model, Three Retrieval Modes</h1>
+    <div class="sub">BAAI 2024 — Multi-functionality · Multi-linguality · Multi-granularity</div>
+    <div class="row" style="flex:1;align-items:stretch">
+      <div class="col" style="width:30%;gap:8px">
+        <div class="card teal f1">
+          <div class="ct" style="color:var(--teal)">Dense Vector</div>
+          <div class="code" style="margin-top:4px;font-size:10px"><span class="cc">1024-dim float vector</span>
+ANN / cosine search
+Semantic matching</div>
+        </div>
+        <div class="card rose f1">
+          <div class="ct" style="color:var(--red)">Sparse Vector</div>
+          <div class="code" style="margin-top:4px;font-size:10px"><span class="cr">Token weight scores</span>
+BM25-style matching
+Keyword / lexical</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;padding:0 12px">
+        <div class="card dk" style="padding:18px;text-align:center;min-width:160px">
+          <div style="font-family:'Lora',serif;font-size:24px;font-weight:700;color:#fff">BGE-M3</div>
+          <div style="font-size:10.5px;color:#8BA8BC;margin-top:6px;line-height:1.6">XLM-RoBERTa backbone<br>568M parameters<br>1024-dim output<br>8,192 token context<br>100+ languages</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;width:30%">
+        <div class="card lavend" style="width:100%">
+          <div class="ct" style="color:var(--purple)">ColBERT Multi-vector</div>
+          <div class="code" style="margin-top:4px;font-size:10px"><span class="cp2">Per-token vectors</span>
+Late interaction
+Fine-grained matching</div>
+        </div>
+      </div>
+    </div>
+    <div class="card mint" style="margin-top:8px">
+      <div style="font-size:13px;color:var(--navy)"><strong style="color:var(--green)">Key advantage:</strong> All three representations from a SINGLE forward pass. No separate BM25 index needed. Hybrid retrieval is built in.</div>
+    </div>
+    <div class="code" style="margin-top:6px;font-size:10.5px">
+output = model.encode(text, <span class="cc">return_dense=True</span>, <span class="cr">return_sparse=True</span>, <span class="cp2">return_colbert_vecs=True</span>)
+    </div>
+  </div>
+</div>
+
+<!-- S11 ColBERT -->
+<div class="slide" id="s11">
+  <div class="si">
+    <h1 class="t">ColBERT: Late Interaction — The Third Mode</h1>
+    <div class="sub">Token-level matching: more precise than a single vector, cheaper than cross-encoders</div>
+    <div class="row" style="flex:1">
+      <div class="card f1">
+        <div class="ct" style="color:var(--teal);margin-bottom:8px">Single-vector (standard dense)</div>
+        <div class="code" style="margin-bottom:8px">Query → <span class="cc">1 vector</span>
+Doc → <span class="cc">1 vector</span>
+Score = cosine(q_vec, d_vec)
+<span class="cm">
+Fast but lossy: a 500-word doc
+compressed to one 1024-dim point.</span></div>
+        <div class="ct" style="color:var(--purple);margin-bottom:6px">ColBERT late interaction</div>
+        <div class="code">Query → <span class="cp2">N token vectors</span>
+Doc → <span class="cp2">M token vectors</span>
+Score = Σᵢ max_j(qᵢ · dⱼ)
+<span class="cm">
+Each query token finds its
+best matching doc token.
+Much more granular.</span></div>
+      </div>
+      <div class="card f1">
+        <div class="ct" style="color:var(--purple);margin-bottom:8px">Why it matters</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <div class="dot2" style="background:var(--teal)"></div>
+            <div><strong style="color:var(--teal);font-size:12px">Precision for long documents</strong><br><span style="font-size:11px">A 500-page technical doc has many topics. Token-level matching finds the exact paragraph relevant to the query, not just "this doc is about ML."</span></div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <div class="dot2" style="background:var(--amber)"></div>
+            <div><strong style="color:var(--amber);font-size:12px">Handles polysemy better</strong><br><span style="font-size:11px">Query "bank" (financial) matched token-by-token: "bank deposit" tokens score high; "river bank" tokens score low — within the same doc.</span></div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <div class="dot2" style="background:var(--red)"></div>
+            <div><strong style="color:var(--red);font-size:12px">Higher accuracy, more memory</strong><br><span style="font-size:11px">Stores N×M vectors per doc. Needs a vector DB supporting multi-vector search (Vespa, Qdrant). Worth it for high-precision RAG.</span></div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <div class="dot2" style="background:var(--green)"></div>
+            <div><strong style="color:var(--green);font-size:12px">BGE-M3 produces it for free</strong><br><span style="font-size:11px">The same forward pass that gives dense + sparse also gives ColBERT vectors. No extra model, no extra cost.</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- S12 Hybrid Pipeline -->
+<div class="slide" id="s12">
+  <div class="si">
+    <h1 class="t">Hybrid Retrieval: Dense + Sparse + Rerank</h1>
+    <div class="sub">The production-recommended pipeline for 2024–2025 RAG systems</div>
+    <div style="display:flex;align-items:center;gap:8px;margin:10px 0;flex-wrap:wrap">
+      <div class="card lavend" style="padding:8px 12px;text-align:center;min-width:80px"><div style="font-size:13px;font-weight:600;color:var(--purple)">Query</div></div>
+      <div style="font-size:20px;color:var(--light)">→</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="card teal" style="padding:7px 12px;font-size:11px"><strong style="color:var(--teal)">Dense retrieval</strong><br>ANN cosine search · Top-K semantic</div>
+        <div class="card rose" style="padding:7px 12px;font-size:11px"><strong style="color:var(--red)">Sparse retrieval</strong><br>BM25 inverted index · Top-K keyword</div>
+      </div>
+      <div style="font-size:20px;color:var(--light)">→</div>
+      <div class="card lavend" style="padding:7px 12px;font-size:11px;text-align:center">
+        <strong style="color:var(--purple)">RRF Fusion</strong><br>
+        <code style="font-size:10px">1/(60 + rankᵢ)</code><br>
+        merged ranked list
+      </div>
+      <div style="font-size:20px;color:var(--light)">→</div>
+      <div class="card mint" style="padding:7px 12px;font-size:11px;text-align:center">
+        <strong style="color:var(--green)">Reranker</strong><br>
+        cross-encoder<br>
+        fine-grained score
+      </div>
+      <div style="font-size:20px;color:var(--light)">→</div>
+      <div class="card peach" style="padding:7px 12px;font-size:13px;font-weight:700;color:var(--amber);text-align:center">Top-K<br>results</div>
+    </div>
+    <div class="g2" style="flex:1">
+      <div class="card dk" style="display:flex;flex-direction:column;gap:5px">
+        <div style="font-size:12px;font-weight:600;color:#7EB8C9">BGE-M3 advantage</div>
+        <div style="font-size:11.5px;color:#CADCFC;line-height:1.5">Dense + Sparse from ONE model call. No separate BM25 index needed. 40% less infrastructure. One embedding pass gives you all three retrieval signals.</div>
+        <div class="code" style="font-size:10px;margin-top:4px"><span class="cp2">from FlagEmbedding import BGEM3FlagModel</span>
+model = BGEM3FlagModel('BAAI/bge-m3')
+out = model.encode(text,
+  <span class="cc">return_dense=True</span>,
+  <span class="cr">return_sparse=True</span>)</div>
+      </div>
+      <div class="card lavend" style="display:flex;flex-direction:column;gap:5px">
+        <div style="font-size:12px;font-weight:600;color:var(--purple)">Reciprocal Rank Fusion (RRF)</div>
+        <div style="font-family:'Lora',serif;font-size:16px;font-weight:700;color:var(--purple);text-align:center;margin:6px 0">RRF(doc) = Σ 1/(60 + rankᵢ)</div>
+        <div style="font-size:11.5px;color:var(--navy);line-height:1.5">k=60 means rank-1 and rank-2 are treated similarly. No score normalisation needed — ranks from any retriever are directly comparable. Simple and robust.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- S13 Evolution -->
+<div class="slide" id="s13">
+  <div class="si">
+    <h1 class="t">The Evolution: Word2Vec → GloVe → BERT → BGE-M3</h1>
+    <div class="sub">Each generation fixed a critical limitation of the previous one</div>
+    <div class="g4" style="flex:1">
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="cp" style="background:var(--teal);text-align:center;border-radius:6px;padding:5px">2013 — Word2Vec</div>
+        <div class="card teal f1">
+          <div style="font-size:11px;font-weight:600;color:var(--teal);margin-bottom:4px">What it fixed</div>
+          <div style="font-size:11px;line-height:1.5">Local context windows<br>Neural prediction<br>300-dim dense vectors<br>Analogy arithmetic</div>
+        </div>
+        <div class="card rose" style="flex:none">
+          <div style="font-size:10px;font-weight:600;color:var(--red);margin-bottom:3px">Still limited by</div>
+          <div style="font-size:10px;color:var(--muted)">"bank" = same vector always. No sentence context.</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="cp" style="background:var(--amber);text-align:center;border-radius:6px;padding:5px">2014 — GloVe</div>
+        <div class="card peach f1">
+          <div style="font-size:11px;font-weight:600;color:var(--amber);margin-bottom:4px">What it fixed</div>
+          <div style="font-size:11px;line-height:1.5">Global co-occurrence<br>Matrix factorization<br>Better on analogies<br>No training loop</div>
+        </div>
+        <div class="card rose" style="flex:none">
+          <div style="font-size:10px;font-weight:600;color:var(--red);margin-bottom:3px">Still limited by</div>
+          <div style="font-size:10px;color:var(--muted)">Still static. No sentence context. Word-level only.</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="cp" style="background:var(--purple);text-align:center;border-radius:6px;padding:5px">2018 — BERT</div>
+        <div class="card lavend f1">
+          <div style="font-size:11px;font-weight:600;color:var(--purple);margin-bottom:4px">What it fixed</div>
+          <div style="font-size:11px;line-height:1.5">Bidirectional context<br>Contextual embeddings<br>"bank" changes by sentence<br>Fine-tunable</div>
+        </div>
+        <div class="card rose" style="flex:none">
+          <div style="font-size:10px;font-weight:600;color:var(--red);margin-bottom:3px">Still limited by</div>
+          <div style="font-size:10px;color:var(--muted)">512 token limit. Slow. No sparse output.</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="cp" style="background:var(--green);text-align:center;border-radius:6px;padding:5px">2024 — BGE-M3</div>
+        <div class="card mint f1">
+          <div style="font-size:11px;font-weight:600;color:var(--green);margin-bottom:4px">What it fixed</div>
+          <div style="font-size:11px;line-height:1.5">Dense + Sparse + ColBERT<br>8,192 token context<br>100+ languages<br>Single model, 3 modes</div>
+        </div>
+        <div class="card" style="flex:none;background:var(--bg3)">
+          <div style="font-size:10px;font-weight:600;color:var(--muted);margin-bottom:3px">Still limited by</div>
+          <div style="font-size:10px;color:var(--muted)">568M params. ColBERT needs compatible vector DB.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- S14 Decision Guide -->
+<div class="slide" id="s14">
+  <div class="si">
+    <h1 class="t">Decision Guide: Which Approach for Your Use Case?</h1>
+    <div class="sub">Match your retrieval strategy to your query type and infrastructure constraints</div>
+    <div style="overflow-x:auto;flex:1">
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <tr style="background:var(--navy)">
+          <th style="padding:7px 8px;text-align:left;color:#fff">Use Case</th>
+          <th style="padding:7px 8px;color:#fca5a5">Sparse Only</th>
+          <th style="padding:7px 8px;color:#99e6e9">Dense Only</th>
+          <th style="padding:7px 8px;color:#c4b5fd">Hybrid</th>
+          <th style="padding:7px 8px;color:#fcd34d">Recommendation</th>
+        </tr>
+        <tr style="background:var(--bg2)"><td style="padding:7px 8px;font-weight:600;color:var(--teal)">FAQ / customer support</td><td style="padding:7px 8px;color:var(--red)">❌ misses paraphrase</td><td style="padding:7px 8px;color:var(--green)">✅ finds synonyms</td><td style="padding:7px 8px;color:var(--green)">✅ best coverage</td><td style="padding:7px 8px;font-weight:600;color:var(--teal)">Dense or Hybrid</td></tr>
+        <tr><td style="padding:7px 8px;font-weight:600;color:var(--amber)">Product SKU search</td><td style="padding:7px 8px;color:var(--green)">✅ exact code match</td><td style="padding:7px 8px;color:var(--red)">❌ RTX-4090 ≈ RTX-4070</td><td style="padding:7px 8px;color:var(--green)">✅ precise + semantic</td><td style="padding:7px 8px;font-weight:600;color:var(--amber)">Sparse or Hybrid</td></tr>
+        <tr style="background:var(--bg2)"><td style="padding:7px 8px;font-weight:600;color:var(--purple)">Legal / medical docs</td><td style="padding:7px 8px;color:var(--green)">✅ exact terms matter</td><td style="padding:7px 8px;color:var(--green)">✅ concept retrieval</td><td style="padding:7px 8px;color:var(--green)">✅ essential</td><td style="padding:7px 8px;font-weight:600;color:var(--purple)">Hybrid + Rerank</td></tr>
+        <tr><td style="padding:7px 8px;font-weight:600;color:var(--red)">Code / error search</td><td style="padding:7px 8px;color:var(--green)">✅ ERR_CODE exact</td><td style="padding:7px 8px;color:var(--red)">❌ codes blur together</td><td style="padding:7px 8px;color:var(--green)">✅ covers both</td><td style="padding:7px 8px;font-weight:600;color:var(--red)">Sparse-heavy Hybrid</td></tr>
+        <tr style="background:var(--bg2)"><td style="padding:7px 8px;font-weight:600;color:var(--green)">Multilingual RAG</td><td style="padding:7px 8px;color:var(--amber)">⚠️ language-specific</td><td style="padding:7px 8px;color:var(--green)">✅ cross-lingual</td><td style="padding:7px 8px;color:var(--green)">✅ with BGE-M3</td><td style="padding:7px 8px;font-weight:600;color:var(--green)">BGE-M3 Hybrid</td></tr>
+        <tr><td style="padding:7px 8px;font-weight:600;color:var(--blue)">Long document search</td><td style="padding:7px 8px;color:var(--green)">✅ keyword in doc</td><td style="padding:7px 8px;color:var(--amber)">⚠️ pooling loses detail</td><td style="padding:7px 8px;color:var(--green)">✅ ColBERT helps</td><td style="padding:7px 8px;font-weight:600;color:var(--blue)">BGE-M3 + ColBERT</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- S15 Summary -->
+<div class="slide dark" id="s15">
+  <div class="si" style="justify-content:space-between">
+    <h1 class="t lt" style="text-align:center;font-size:clamp(20px,3.2vw,32px)">The Journey: Words → Vectors → Hybrid Search</h1>
+    <div class="g3" style="flex:1;padding:8px 0">
+      <div class="take" style="border-color:var(--teal)"><div class="ti">🔤</div><div class="th" style="color:var(--teal)">One-hot = identity</div><div class="tb">Every word equidistant. No meaning. Dimension = vocab size.</div></div>
+      <div class="take" style="border-color:var(--amber)"><div class="ti">🧠</div><div class="th" style="color:var(--amber)">Word2Vec = context</div><div class="tb">"Fill in the blank" forces similar words → similar weights → similar vectors.</div></div>
+      <div class="take" style="border-color:var(--purple)"><div class="ti">🌍</div><div class="th" style="color:var(--purple)">GloVe = global stats</div><div class="tb">Co-occurrence ratios across the whole corpus. Analogy arithmetic works.</div></div>
+      <div class="take" style="border-color:var(--red)"><div class="ti">🔍</div><div class="th" style="color:var(--red)">Sparse = exact match</div><div class="tb">BM25 excels on rare terms, codes, SKUs. Fails on paraphrase.</div></div>
+      <div class="take" style="border-color:var(--green)"><div class="ti">🎯</div><div class="th" style="color:var(--green)">Dense = semantic</div><div class="tb">Embedding models find meaning. Fail on exact rare tokens.</div></div>
+      <div class="take" style="border-color:#7EB8C9"><div class="ti">⚡</div><div class="th" style="color:#7EB8C9">BGE-M3 = all three</div><div class="tb">Dense + Sparse + ColBERT from one forward pass. The 2024 default.</div></div>
+    </div>
+    <div style="text-align:center;font-style:italic;color:#546E8A;font-size:11px">"Meaning is derived from loss." — Trask Ch.11 &nbsp;|&nbsp; "Hybrid retrieval consistently outperforms either approach alone." — 2025 benchmarks</div>
+  </div>
+</div>
+
+</div><!-- /stage -->
+<div id="controls">
+  <button class="btn-nav" id="btnPrev" onclick="go(-1)" disabled>← Prev</button>
+  <div id="progress-dots"></div>
+  <button class="btn-nav" id="btnNext" onclick="go(1)">Next →</button>
+</div>
+<div id="hint">Press ← → arrow keys or click dots to navigate · 15 slides</div>
+</div>
+
+<script>
+const N=15; let cur=1;
+const dots=document.getElementById('progress-dots');
+for(let i=1;i<=N;i++){const d=document.createElement('div');d.className='dot'+(i===1?' active':'');d.onclick=()=>goTo(i);dots.appendChild(d);}
+function goTo(n){
+  document.getElementById('s'+cur).classList.remove('active');
+  dots.children[cur-1].classList.remove('active');
+  cur=Math.max(1,Math.min(N,n));
+  document.getElementById('s'+cur).classList.add('active');
+  dots.children[cur-1].classList.add('active');
+  document.getElementById('sc').textContent='Slide '+cur+' / '+N;
+  document.getElementById('btnPrev').disabled=cur===1;
+  document.getElementById('btnNext').disabled=cur===N;
+}
+function go(d){goTo(cur+d);}
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key==='ArrowDown')go(1);
+  if(e.key==='ArrowLeft'||e.key==='ArrowUp')go(-1);
+  if(e.key==='Home')goTo(1); if(e.key==='End')goTo(N);
+});
+</script>
+</body>
+</html>

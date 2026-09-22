@@ -9,10 +9,14 @@ string.
 **Needs `OPENAI_API_KEY` in `.env`** (copy `.env.example`) — construction
 alone doesn't strictly require a *valid* key, but these examples make real
 calls to actually prove routing works, not just construct-and-discard.
+`03` additionally needs `langchain-litellm`/`langchain-aws` (already added
+to this project's dependencies) — see its section below for what is and
+isn't verified for real without AWS credentials.
 
 ```bash
 uv run examples/model_init/01_provider_agnostic_construction.py
 uv run examples/model_init/02_runtime_configurable_model.py
+uv run examples/model_init/03_litellm_and_bedrock.py
 ```
 
 ## `01_provider_agnostic_construction.py`
@@ -42,30 +46,37 @@ collapsed into ordinary `invoke()` config.
 | `init_chat_model("openai:gpt-4o-mini")` | the model is fixed for this node/graph |
 | `init_chat_model(configurable_fields=...)` | callers need to pick the model per-request (e.g. a "fast" vs "smart" mode, or a user-selectable model in a UI) |
 
-## Planned: `03_litellm_and_bedrock.py` (not yet built)
+## `03_litellm_and_bedrock.py`
 
-Two more provider strings `init_chat_model` already supports natively,
-confirmed by reading `langchain/chat_models/base.py`'s provider map directly
-(not assumed) -- neither needs new LangGraph code, only a different string
-passed to the same `init_chat_model` call `01`/`02` already use:
+Two more provider strings from `init_chat_model`'s same provider map --
+`"litellm:..."` (-> `langchain_litellm.ChatLiteLLM`) and
+`"bedrock_converse:..."` (-> `langchain_aws.ChatBedrockConverse`). No new
+LangGraph mechanism, just two more strings for the same `init_chat_model`
+call `01`/`02` already use.
 
-- **`"bedrock:..."` / `"bedrock_converse:..."`** -- routes to
-  `langchain_aws.ChatBedrockConverse`. Already installable today (`uv add
-  langchain-aws`); would need real AWS credentials to run for real. This is
-  the direct answer to "swap to a Bedrock model": with
-  `configurable_fields=("model", "model_provider")` from `02`, a caller
-  passes `{"model": "anthropic.claude-...", "model_provider":
-  "bedrock_converse"}` in `config["configurable"]` at invoke time -- no code
-  change, same mechanism `02` already demonstrates for OpenAI/Anthropic.
-- **`"litellm:..."`** -- routes to `langchain_litellm.ChatLiteLLM`. Needs
-  `uv add langchain-litellm` (not currently a dependency here). Worth
-  building when there's an actual need for litellm's wider provider
-  coverage or its proxy-level routing/fallback/cost-tracking -- otherwise
-  the native provider strings above do the same provider-agnostic job with
-  one fewer dependency.
+**What's actually verified vs. not**, and why -- this repo's environment has
+`OPENAI_API_KEY` but no AWS credentials (no `AWS_ACCESS_KEY_ID`, no AWS CLI
+configured):
 
-When this gets built: same shape as `02`, just adding `"bedrock_converse"`
-and `"litellm"` to the set of providers exercised at invoke time, plus a
-docstring explaining each requires its own installed integration package
-(`langchain-aws`, `langchain-litellm`) since `init_chat_model` only ships
-the provider *map*, not the provider packages themselves.
+- **litellm**: verified with a real call. `"litellm:gpt-4o-mini"` routes
+  straight to OpenAI under the hood using the existing key -- no new
+  credentials needed to prove this works.
+- **Bedrock**: construction succeeds without any AWS credentials (boto3
+  builds its client lazily), but the actual `.invoke()` call fails with
+  `NoCredentialsError: Unable to locate credentials` -- confirmed by
+  running it, not assumed. That failure is left in the script on purpose:
+  it shows exactly what's missing (AWS credentials) rather than silently
+  skipping the call.
+- **The `configurable_fields` swap** -- the direct answer to "swap to a
+  Bedrock model at runtime": one model object,
+  `configurable_fields=("model", "model_provider", "region_name")` (the
+  same mechanism `02` uses, with `region_name` added since Bedrock needs
+  it and OpenAI/litellm simply ignore it), routes to openai, litellm, or
+  bedrock_converse purely from `config["configurable"]` at invoke time --
+  same code, three different providers. The openai and litellm branches
+  return real answers; the bedrock_converse branch hits the same
+  `NoCredentialsError` as above.
+
+Add real AWS credentials to `.env` and the Bedrock calls in this file would
+work exactly as written -- nothing about the code changes, only whether
+credentials are present.

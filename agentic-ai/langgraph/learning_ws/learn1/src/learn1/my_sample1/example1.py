@@ -1,5 +1,6 @@
 from typing import TypedDict
 
+from langgraph.constants import START, END
 from langgraph.graph import StateGraph
 
 
@@ -15,4 +16,7 @@ def answer_node(state: GlobalState) -> dict:
 
 graph = StateGraph(GlobalState)
 graph.add_node("answer", answer_node)
-graph.add_edge("question", "answer")
+graph.add_edge(START, "answer")
+graph.add_edge("answer", END)
+app = graph.compile()
+print(app.invoke({"question": "what is the answer to life, the universe and everything"}))
