@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Chain Rule & Gradient Descent</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Lora:wght@600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#1E2D4E;--teal:#0E7C86;--amber:#D97706;--red:#DC2626;
+  --green:#16A34A;--purple:#7C3AED;--blue:#2563EB;--muted:#64748B;
+  --light:#E2E8F0;--bg:#fff;--bg2:#F4F6FA;--bg3:#E8EDF6;
+  --mint:#ECFDF5;--peach:#FFF7ED;--lavend:#F5F3FF;--rose:#FEF2F2;--ice:#E6F4F5;
+  --code:#1E1E2E;
+}
+html,body{height:100%;font-family:'Inter',sans-serif;background:#162340;overflow:hidden}
+#app{display:flex;flex-direction:column;height:100vh}
+#tb{display:flex;align-items:center;justify-content:space-between;padding:8px 18px;background:#0F1A2E;color:#7EB8C9;font-size:12px;flex-shrink:0;border-bottom:1px solid #253050}
+#tb strong{color:#fff;font-size:13px}
+#stage{flex:1;display:flex;align-items:center;justify-content:center;padding:14px;overflow:hidden}
+.slide{width:min(1100px,calc(100vw - 28px));aspect-ratio:16/9;background:var(--bg);border-radius:10px;overflow:hidden;position:relative;box-shadow:0 16px 50px rgba(0,0,0,.5);display:none}
+.slide.active{display:block;animation:fi .2s ease}
+.slide.dark{background:#1E2D4E}
+@keyframes fi{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+#ctrl{display:flex;align-items:center;justify-content:center;gap:10px;padding:10px;flex-shrink:0;background:#0F1A2E}
+.bn{background:#1E2D4E;border:1px solid #2A3D5E;color:#CADCFC;padding:7px 18px;border-radius:7px;cursor:pointer;font-size:13px;font-family:'Inter',sans-serif;transition:background .15s}
+.bn:hover{background:#253050}.bn:disabled{opacity:.35;cursor:default}
+#pd{display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:center;max-width:700px}
+.d{width:7px;height:7px;border-radius:50%;background:#2A3D5E;cursor:pointer;transition:all .2s;flex-shrink:0}
+.d.active{background:#7EB8C9;transform:scale(1.4)}.d:hover{background:#5a7a9a}
+#hint{color:#334;font-size:11px;text-align:center;padding:3px 0 6px;background:#0F1A2E}
+
+/* slide internals */
+.si{width:100%;height:100%;padding:3% 4%;display:flex;flex-direction:column}
+h1.tt{font-family:'Lora',serif;font-size:clamp(18px,3.2vw,32px);font-weight:700;color:var(--navy);line-height:1.15}
+h1.tt.lt{color:#fff}
+.sub{font-size:clamp(10px,1.2vw,12px);color:var(--muted);margin-top:2px;margin-bottom:10px}
+.c{background:var(--bg2);border-radius:9px;border:1px solid var(--light);padding:10px 13px}
+.c.mint{background:var(--mint);border-color:#86efac}.c.peach{background:var(--peach);border-color:#fcd34d}
+.c.lavend{background:var(--lavend);border-color:#c4b5fd}.c.rose{background:var(--rose);border-color:#fca5a5}
+.c.teal{background:var(--ice);border-color:#99e6e9}.c.dk{background:#162340;border-color:#2a3d5e}
+.ct{font-weight:600;font-size:clamp(11px,1.3vw,13px);margin-bottom:4px}
+.cb{font-size:clamp(10px,1.15vw,12px);color:var(--navy);line-height:1.55}
+pre.code{background:var(--code);border-radius:8px;padding:10px 14px;font-family:'JetBrains Mono',monospace;font-size:clamp(8px,.98vw,11px);line-height:1.6;color:#CDD6F4;overflow:auto}
+pre.code .kw{color:#4EC9B0}
+pre.code .cm{color:#6A9955}
+pre.code .st{color:#DCDCAA}
+pre.code .nu{color:#9CDCFE}
+pre.code .rr{color:#CE9178}
+.row{display:flex;gap:10px}.col{display:flex;flex-direction:column;gap:8px}.f1{flex:1}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.badge{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;font-size:11px;font-weight:700;color:#fff;flex-shrink:0}
+.pill{display:inline-block;padding:2px 10px;border-radius:16px;font-size:11px;font-weight:600;color:#fff}
+.d2{width:9px;height:9px;border-radius:50%;flex-shrink:0;margin-top:2px}
+.sr{display:flex;align-items:flex-start;gap:8px;padding:7px 10px;border-radius:7px;border:1px solid var(--light)}
+.tk{border-radius:9px;background:#162340;border:1px solid;padding:12px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px}
+.ti{font-size:24px}.th2{font-weight:700;font-size:clamp(9px,1.1vw,12px)}.tb{font-size:clamp(8px,1vw,10.5px);color:#8BA8BC;line-height:1.4}
+/* parabola canvas */
+#bowlCanvas{position:absolute;right:0;top:0;height:100%;width:48%;opacity:.9}
+/* line-row for annotated 5-line */
+.lr{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;border:1px solid var(--light);margin-bottom:5px}
+.space-badge{padding:3px 8px;border-radius:5px;font-size:9px;font-weight:700;color:#fff;min-width:80px;text-align:center;flex-shrink:0}
+.lr-code{font-family:'JetBrains Mono',monospace;font-size:clamp(9px,1.05vw,11.5px);font-weight:600;flex:1}
+.lr-ann{font-size:clamp(8px,.95vw,10.5px);color:var(--muted);font-style:italic}
+</style>
+</head>
+<body>
+<div id="app">
+<div id="tb"><div><strong>The Chain Rule &amp; Gradient Descent</strong> — Why error → delta → weight_delta works</div><div id="sc">Slide 1 / 15</div></div>
+<div id="stage">
+
+<!-- S1 Title -->
+<div class="slide dark active" id="s1">
+  <canvas id="bowlCanvas"></canvas>
+  <div class="si" style="justify-content:center;max-width:52%;position:relative;z-index:1">
+    <div style="margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap">
+      <span class="pill" style="background:#0E7C86">Derivative = slope</span>
+      <span class="pill" style="background:#D97706">Chain rule</span>
+      <span class="pill" style="background:#7C3AED">Backpropagation</span>
+      <span class="pill" style="background:#16A34A">3 Spaces</span>
+    </div>
+    <h1 class="tt lt" style="font-size:clamp(24px,4vw,42px);margin-bottom:6px">The Chain Rule<br><span style="color:#7EB8C9">&amp; Gradient Descent</span></h1>
+    <div class="sub lt" style="font-size:12px;margin-bottom:18px">Why error is computed · What delta carries · How weight_delta is the chain rule</div>
+    <div style="display:flex;flex-direction:column;gap:6px;font-size:12px">
+      <div style="color:#CADCFC">📈 Derivative = slope at a point on the curve</div>
+      <div style="color:#CADCFC">🪣 error = (pred−goal)² draws a U-shaped bowl</div>
+      <div style="color:#CADCFC">⚙️ Chain rule: dy/dx = dy/du × du/dx</div>
+      <div style="color:#CADCFC">🔗 weight_delta = delta × input IS the chain rule</div>
+    </div>
+  </div>
+</div>
+
+<!-- S2 What a derivative means -->
+<div class="slide" id="s2">
+  <div class="si">
+    <h1 class="tt">What a Derivative Actually Means</h1>
+    <div class="sub">Not calculus jargon — a physical question with a physical answer.</div>
+    <div class="row" style="flex:1">
+      <div class="col f1">
+        <div class="c teal" style="flex:1">
+          <div class="ct" style="color:var(--teal)">The simplest derivative — driving a car</div>
+          <div class="cb" style="margin-bottom:8px">You are driving a car:</div>
+          <pre class="code" style="margin-bottom:8px">position = f(time)
+speed    = d(position)/d(time)</pre>
+          <div class="cb">Speed answers: <strong>"if time ticks forward by 0.001 seconds, how much does position change?"</strong></div>
+          <div class="cb" style="margin-top:8px">That ratio — output change / input change — is the derivative. It is just the <strong>slope of the curve at one specific point</strong>.</div>
+          <div class="cb" style="margin-top:8px;color:var(--muted);font-style:italic">"In neural networks, x = weight, f = error. We want: if I nudge this weight, does error go up or down?"</div>
+        </div>
+      </div>
+      <div class="col f1">
+        <div class="c lavend" style="flex:none">
+          <div class="ct" style="color:var(--purple)">The formal definition</div>
+          <pre class="code" style="margin-top:4px">df/dx = lim(ε→0)  [f(x+ε) − f(x)] / ε</pre>
+        </div>
+        <div class="c" style="flex:1">
+          <div class="ct" style="color:var(--purple);margin-bottom:6px">In plain steps</div>
+          <div style="display:flex;flex-direction:column;gap:7px">
+            <div class="sr" style="background:var(--lavend)"><div class="badge" style="background:var(--purple)">1</div><div><strong style="font-size:11px">Nudge x forward</strong> by a tiny ε</div></div>
+            <div class="sr"><div class="badge" style="background:var(--purple)">2</div><div><strong style="font-size:11px">Measure how much f(x) changes</strong> — the rise</div></div>
+            <div class="sr" style="background:var(--lavend)"><div class="badge" style="background:var(--purple)">3</div><div><strong style="font-size:11px">Divide change by ε</strong> — rise/run = slope</div></div>
+            <div class="sr"><div class="badge" style="background:var(--purple)">4</div><div><strong style="font-size:11px">Shrink ε to zero</strong> → instantaneous slope at that point</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- S3 Error parabola -->
+<div class="slide" id="s3">
+  <div class="si">
+    <h1 class="tt">Error = (pred − goal)² Draws a Parabola</h1>
+    <div class="sub">The slope at every point tells which direction to move pred — and by how much.</div>
+    <div class="row" style="flex:1">
+      <div class="c f1" style="display:flex;flex-direction:column;gap:0">
+        <div class="ct" style="color:var(--navy);margin-bottom:6px">Computing the bowl (goal = 1.0)</div>
+        <table style="border-collapse:collapse;font-size:11px;width:100%">
+          <tr style="background:var(--navy);color:#fff">
+            <th style="padding:5px 8px">pred</th><th style="padding:5px 8px">error</th>
+            <th style="padding:5px 8px">position</th><th style="padding:5px 8px">slope = 2δ</th>
+          </tr>
+          <tr style="background:var(--bg2)"><td style="padding:5px 8px">0.0</td><td style="padding:5px 8px;color:var(--blue)">1.00</td><td style="padding:5px 8px;color:var(--red)">LEFT steeply</td><td style="padding:5px 8px;color:var(--red)">−2.0</td></tr>
+          <tr><td style="padding:5px 8px">0.5</td><td style="padding:5px 8px;color:var(--blue)">0.25</td><td style="padding:5px 8px;color:var(--red)">left</td><td style="padding:5px 8px;color:var(--red)">−1.0</td></tr>
+          <tr style="background:var(--bg2)"><td style="padding:5px 8px">0.85</td><td style="padding:5px 8px;color:var(--blue)">0.023</td><td style="padding:5px 8px;color:var(--amber)">left gently</td><td style="padding:5px 8px;color:var(--amber)">−0.30 ← we are here</td></tr>
+          <tr><td style="padding:5px 8px;font-weight:700">1.0</td><td style="padding:5px 8px;color:var(--green);font-weight:700">0.00</td><td style="padding:5px 8px;color:var(--green);font-weight:700">MINIMUM</td><td style="padding:5px 8px;color:var(--green);font-weight:700">0.0 ← flat</td></tr>
+          <tr style="background:var(--bg2)"><td style="padding:5px 8px">1.2</td><td style="padding:5px 8px;color:var(--blue)">0.04</td><td style="padding:5px 8px;color:var(--amber)">right gently</td><td style="padding:5px 8px;color:var(--amber)">+0.40</td></tr>
+          <tr><td style="padding:5px 8px">1.5</td><td style="padding:5px 8px;color:var(--blue)">0.25</td><td style="padding:5px 8px;color:var(--amber)">right</td><td style="padding:5px 8px;color:var(--amber)">+1.0</td></tr>
+          <tr style="background:var(--bg2)"><td style="padding:5px 8px">2.0</td><td style="padding:5px 8px;color:var(--blue)">1.00</td><td style="padding:5px 8px;color:var(--red)">RIGHT steeply</td><td style="padding:5px 8px;color:var(--red)">+2.0</td></tr>
+        </table>
+      </div>
+      <div class="col f1">
+        <div class="c" style="flex:1;position:relative">
+          <div class="ct" style="color:var(--navy)">The error bowl</div>
+          <canvas id="bowlCanvas2" style="width:100%;height:calc(100% - 24px)"></canvas>
+        </div>
+        <div class="c" style="background:var(--bg3)">
+          <div style="font-size:11px;color:var(--navy)"><strong>Key pattern:</strong> negative slope = left of minimum = pred too low = must increase weight. Magnitude of slope = how far from minimum.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- S4 Power rule -->
+<div class="slide" id="s4">
+  <div class="si">
+    <h1 class="tt">d(error)/d(pred) = 2 × delta — Step by Step</h1>
+    <div class="sub">The power rule applied to the squared error function. Four lines of algebra.</div>
+    <div class="g2" style="flex:1">
+      <div class="c teal" style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:center;gap:8px"><div class="badge" style="background:var(--teal)">1</div><div class="ct" style="color:var(--teal)">Write error as a function of pred</div></div>
+        <pre class="code">error = (pred − goal)²
+
+goal is a fixed constant.
+pred is the variable.
+We want: how does error
+change when pred changes?</pre>
+      </div>
+      <div class="c peach" style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:center;gap:8px"><div class="badge" style="background:var(--amber)">2</div><div class="ct" style="color:var(--amber)">Substitute u = pred − goal</div></div>
+        <pre class="code">Let  u = pred − goal
+Then error = u²
+
+This simplifies the expression.
+Note: d(u)/d(pred) = 1
+(shifting by constant doesn't
+change the rate)</pre>
+      </div>
+      <div class="c lavend" style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:center;gap:8px"><div class="badge" style="background:var(--purple)">3</div><div class="ct" style="color:var(--purple)">Apply Power Rule: d(uⁿ)/du = n·uⁿ⁻¹</div></div>
+        <pre class="code">d(error)/du = d(u²)/du
+            = 2 × u¹
+            = 2u
+
+The exponent (2) drops down
+and multiplies.
+New exponent = 2 − 1 = 1.</pre>
+      </div>
+      <div class="c mint" style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:center;gap:8px"><div class="badge" style="background:var(--green)">4</div><div class="ct" style="color:var(--green)">Substitute back: u = pred − goal</div></div>
+        <pre class="code">d(error)/d(pred)
+  = 2 × (pred − goal)
+  = 2 × delta
+
+With pred=0.85, goal=1.0:
+= 2 × (0.85−1.0)
+= 2 × (−0.15) = −0.30 ✓</pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- S5 Reading the derivative -->
+<div class="slide" id="s5">
+  <div class="si">
+    <h1 class="tt">Reading the Derivative — Direction and Magnitude</h1>
+    <div class="sub">d(error)/d(pred) = −0.30 makes three precise statements at once.</div>
+    <div class="c teal" style="margin-bottom:10px;text-align:center">
+      <div style="font-family:'Lora',serif;font-size:clamp(14px,1.8vw,18px);font-weight:700;color:var(--navy)">d(error)/d(pred) = 2×(pred−goal) = 2×delta = 2×(0.85−1.0) = <span style="color:var(--amber)">−0.30</span></div>
+    </div>
+    <div class="g3" style="flex:1">
+      <div class="c rose" style="display:flex;flex-direction:column;gap:6px">
+        <div style="font-size:24px;text-align:center">①</div>
+        <div class="ct" style="color:var(--red);text-align:center">Sign tells direction</div>
+        <pre class="code">slope = −0.30  (negative)
+
+→ Left of the bowl minimum
+→ pred is BELOW goal
+→ Must INCREASE pred
+
+Rule:
+negative slope → move right
+              → increase pred</pre>
+      </div>
+      <div class="c peach" style="display:flex;flex-direction:column;gap:6px">
+        <div style="font-size:24px;text-align:center">②</div>
+        <div class="ct" style="color:var(--amber);text-align:center">Magnitude tells distance</div>
+        <pre class="code">|slope| = 0.30  (moderate)
+
+pred=0.0: slope = −2.0  BIG
+pred=0.8: slope = −0.4  small
+pred=0.85: slope = −0.30 ←here
+pred=1.0: slope =  0.0  min!
+
+Bigger miss = steeper slope
+= larger weight update</pre>
+      </div>
+      <div class="c mint" style="display:flex;flex-direction:column;gap:6px">
+        <div style="font-size:24px;text-align:center">③</div>
+        <div class="ct" style="color:var(--green);text-align:center">Zero = minimum found</div>
+        <pre class="code">slope = 0  when pred = goal
+
+→ At the bowl bottom
+→ weight_delta = 0
+→ No update needed
+→ Training converged
+
+2 × (1.0 − 1.0) = 0  ✓
+Perfect prediction.</pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- S6 Chain rule gear analogy -->
+<div class="slide" id="s6">
+  <div class="si">
+    <h1 class="tt">The Chain Rule — Linked Rates of Change</h1>
+    <div class="sub">When output depends on a middle variable which depends on input, multiply the slopes.</div>
+    <div class="row" style="flex:1">
+      <div class="col f1">
+        <div class="c" style="flex:1">
+          <div class="ct" style="color:var(--navy);margin-bottom:8px">The gear analogy</div>
+          <div style="display:flex;align-items:center;justify-content:space-around;margin-bottom:12px;padding:10px 0">
+            <div style="text-align:center"><div style="width:55px;height:55px;border-radius:50%;background:var(--teal);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#fff;margin:0 auto">A</div><div style="font-size:10px;color:var(--muted);margin-top:4px">drive gear</div></div>
+            <div style="font-size:20px;color:var(--light)">→</div>
+            <div style="text-align:center"><div style="width:55px;height:55px;border-radius:50%;background:var(--amber);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#fff;margin:0 auto">B</div><div style="font-size:10px;color:var(--muted);margin-top:4px">3× faster</div></div>
+            <div style="font-size:20px;color:var(--light)">→</div>
+            <div style="text-align:center"><div style="width:55px;height:55px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#fff;margin:0 auto">C</div><div style="font-size:10px;color:var(--muted);margin-top:4px">2× faster</div></div>
+          </div>
+          <div style="font-size:12px;display:flex;flex-direction:column;gap:5px">
+            <div style="color:var(--teal)">A turns → B turns <strong>3× faster</strong></div>
+            <div style="color:var(--amber)">B turns → C turns <strong>2× faster</strong></div>
+            <div style="color:var(--green);font-weight:600">A → C turns <strong>3×2 = 6× faster</strong></div>
+            <div style="color:var(--muted);font-style:italic;margin-top:4px">Multiply the rates. That is the chain rule.</div>
+          </div>
+        </div>
+      </div>
+      <div class="col f1">
+        <div class="c lavend" style="flex:none">
+          <div class="ct" style="color:var(--purple);margin-bottom:4px">The formal chain rule</div>
+          <pre class="code">if  y = f(u)  and  u = g(x)
+
+then  dy/dx = dy/du × du/dx
+              ↑           ↑
+         rate y→u    rate u→x</pre>
+          <div style="font-size:10.5px;color:var(--muted);margin-top:6px">The du cancels like a fraction: dy/du × du/dx = dy/dx</div>
+        </div>
+        <div class="c" style="flex:1">
+          <div class="ct" style="color:var(--navy);margin-bottom:4px">Applied to neural networks</div>
+          <pre class="code">y = error,  u = pred,  x = weight
+
+d(error)/d(weight)
+  = d(error)/d(pred) × d(pred)/d(weight)
+  = 2 × delta         × input
+  = 2 × delta × input
+
+Drop 2 into alpha:
+  = delta × input
+  = weight_delta  ✓</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- S7 d(pred)/d(weight) = input -->
+<div class="slide" id="s7">
+  <div class="si">
+    <h1 class="tt">d(pred)/d(weight) = input — The Second Piece</h1>
+    <div class="sub">How much does pred change when we nudge weight? Exactly proportional to the input.</div>
+    <div class="row" style="flex:1">
+      <div class="col f1">
+        <div class="c teal">
+          <div class="ct" style="color:var(--teal)">The forward equation</div>
+          <pre class="code">pred = input × weight
+     = 8.5  × 0.1
+     = 0.85
+
+input is a FIXED constant per step.
+weight is the variable.
+
+d(pred)/d(weight) = input = 8.5</pre>
+        </div>
+        <div class="c" style="flex:1">
+          <div class="ct" style="color:var(--navy)">Concrete verification</div>
+          <pre class="code">weight = 0.100 → pred = 8.5 × 0.100 = 0.8500
+weight = 0.101 → pred = 8.5 × 0.101 = 0.8585
+
+change in pred   = 0.8585 − 0.8500 = 0.0085
+change in weight = 0.001
+
+rate = 0.0085 / 0.001 = 8.5 = input  ✓
+
+The rate of change is exactly the input value.</pre>
+        </div>
+      </div>
+      <div class="col f1">
+        <div class="c" style="flex:1">
+          <div class="ct" style="color:var(--amber);margin-bottom:8px">What this means physically</div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div class="sr" style="background:var(--ice)">
+              <div class="d2" style="background:var(--teal)"></div>
+              <div><strong style="color:var(--teal);font-size:12px">Large input (8.5)</strong><br><span style="font-size:11px">Weight has HIGH leverage. Small weight change → big pred change → large weight_delta.</span></div>
+            </div>
+            <div class="sr">
+              <div class="d2" style="background:var(--muted)"></div>
+              <div><strong style="color:var(--muted);font-size:12px">Zero input (0.0)</strong><br><span style="font-size:11px">Weight has NO leverage. Changing weight changes nothing. weight_delta = 0. No learning. This is the STOPPING property.</span></div>
+            </div>
+            <div class="sr" style="background:var(--rose)">
+              <div class="d2" style="background:var(--red)"></div>
+              <div><strong style="color:var(--red);font-size:12px">Negative input (−3.0)</strong><br><span style="font-size:11px">Weight has REVERSED leverage. Increasing weight decreases pred. weight_delta flips sign automatically. This is NEGATIVE REVERSAL.</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- S8 Full chain rule applied -->
+<div class="slide" id="s8">
+  <div class="si">
+    <h1 class="tt">The Chain Rule Applied — Complete Derivation</h1>
+    <div class="sub">Two pieces multiplied together give weight_delta. Every step accounted for.</div>
+    <div class="c lavend" style="margin-bottom:10px;text-align:center">
+      <div style="font-family:'Lora',serif;font-size:clamp(13px,1.7vw,17px);font-weight:700;color:var(--navy)">d(error)/d(weight) = d(error)/d(pred) × d(pred)/d(weight)</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:clamp(10px,1.2vw,13px);color:var(--purple);margin-top:4px">= 2×(pred−goal) × input = 2×delta×input → drop 2 into α → <strong>delta × input = weight_delta</strong></div>
+    </div>
+    <div class="g3" style="flex:1">
+      <div class="c teal" style="display:flex;flex-direction:column;gap:6px">
+        <div class="ct" style="color:var(--teal)">Piece 1: d(error)/d(pred)</div>
+        <pre class="code">= 2 × delta
+= 2 × (0.85 − 1.0)
+= 2 × (−0.15)
+= −0.30</pre>
+        <div style="font-size:11px;color:var(--muted);font-style:italic">How sensitive is error to a change in pred? The slope of the error bowl at the current prediction.</div>
+      </div>
+      <div class="c peach" style="display:flex;flex-direction:column;gap:6px">
+        <div class="ct" style="color:var(--amber)">× Piece 2: d(pred)/d(weight)</div>
+        <pre class="code">= input
+= 8.5</pre>
+        <div style="font-size:11px;color:var(--muted);font-style:italic">How sensitive is pred to a change in weight? Exactly the input value — the "lever arm" of the weight.</div>
+      </div>
+      <div class="c mint" style="display:flex;flex-direction:column;gap:6px">
+        <div class="ct" style="color:var(--green)">= Result: d(error)/d(weight)</div>
+        <pre class="code">= −0.30 × 8.5
+= −2.55
+
+Drop 2: weight_delta
+= delta × input
+= −0.15 × 8.5
+= −1.275</pre>
+        <div style="font-size:11px;color:var(--muted);font-style:italic">Negative → weight must increase. This is the complete gradient, translated from output space to weight space.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- S9 Why error is computed -->
+<div class="slide" id="s9">
+  <div class="si">
+    <h1 class="tt">Why Is Error Computed? It Never Feeds weight_delta</h1>
+    <div class="sub">Error is a dead end in the update chain — but it has three essential jobs outside it.</div>
+    <div style="display:flex;flex-direction:column;gap:8px;flex:1;justify-content:center">
+      <div class="c teal" style="display:flex;gap:12px;align-items:flex-start">
+        <div class="badge" style="background:var(--teal);flex-shrink:0;margin-top:2px">1</div>
+        <div class="f1">
+          <div class="ct" style="color:var(--teal)">Monitoring — you need to watch convergence</div>
+          <pre class="code" style="margin-top:4px"><span class="kw">for</span> i <span class="kw">in</span> range(1000):
+    pred  = input * weight
+    error = (pred - goal) ** 2    <span class="cm"># ← dead end in backprop</span>
+    delta = pred - goal
+    weight -= alpha * delta * input
+    <span class="kw">if</span> i % 100 == 0: <span class="kw">print</span>(f<span class="st">"step {i}  error={error:.4f}"</span>)
+<span class="cm"># Remove error line → weights converge identically. You just lose visibility.</span></pre>
+        </div>
+      </div>
+      <div class="c peach" style="display:flex;gap:12px;align-items:flex-start">
+        <div class="badge" style="background:var(--amber);flex-shrink:0;margin-top:2px">2</div>
+        <div class="f1">
+          <div class="ct" style="color:var(--amber)">Early stopping — deciding when training is done</div>
+          <pre class="code" style="margin-top:4px">    <span class="kw">if</span> error &lt; 0.001:    <span class="cm"># stopping criterion</span>
+        <span class="kw">print</span>(f<span class="st">"Converged at step {i}"</span>); <span class="kw">break</span>
+<span class="cm"># The weights don't need error. Your stopping condition does.</span></pre>
+        </div>
+      </div>
+      <div class="c lavend" style="display:flex;gap:12px;align-items:flex-start">
+        <div class="badge" style="background:var(--purple);flex-shrink:0;margin-top:2px">3</div>
+        <div class="f1">
+          <div class="ct" style="color:var(--purple)">Choosing what to learn — the loss function shapes the bowl</div>
+          <pre class="code" style="margin-top:4px"><span class="cm"># MSE:          error = (pred-goal)²      → d(error)/d(pred) = 2δ</span>
+<span class="cm"># MAE:          error = |pred-goal|       → d(error)/d(pred) = ±1</span>
+<span class="cm"># Cross-entropy: error = -log(pred)      → d(error)/d(pred) = -1/pred</span>
+<span class="cm"># Different error formula → different bowl shape → different gradient → network learns different things</span>
+<span class="cm"># Trask Ch.11: "Meaning is derived from loss."</span></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- S10 The 5-line chain annotated -->
+<div class="slide" id="s10">
+  <div class="si">
+    <h1 class="tt">The 5-Line Chain — Every Term Annotated</h1>
+    <div class="sub">Exactly where each quantity lives and what it carries across spaces.</div>
+    <div style="display:flex;flex-direction:column;gap:6px;flex:1;justify-content:center">
+      <div class="lr" style="background:var(--ice);border-color:#99e6e9">
+        <span class="space-badge" style="background:var(--teal)">Output Space</span>
+        <span class="lr-code" style="color:var(--teal)">pred &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; = input × weight</span>
+        <span class="lr-ann">FORWARD PASS — input space × weight space → output space. The network's current guess.</span>
+      </div>
+      <div class="lr" style="background:var(--peach);border-color:#fcd34d">
+        <span class="space-badge" style="background:var(--amber)">Output Space</span>
+        <span class="lr-code" style="color:var(--amber)">error &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; = (pred − goal)²</span>
+        <span class="lr-ann">MEASUREMENT ONLY — how far up the bowl. NOT used in weight update. Squaring = always positive + amplifies big misses.</span>
+      </div>
+      <div class="lr" style="background:var(--lavend);border-color:#c4b5fd">
+        <span class="space-badge" style="background:var(--purple)">Output Space</span>
+        <span class="lr-code" style="color:var(--purple)">delta &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; = pred − goal</span>
+        <span class="lr-ann">SLOPE OF BOWL — signed. Negative = left of min = must increase pred. IS d(error)/d(pred) ÷ 2.</span>
+      </div>
+      <div class="lr" style="background:var(--rose);border-color:#fca5a5">
+        <span class="space-badge" style="background:var(--red)">→ Weight Space</span>
+        <span class="lr-code" style="color:var(--red)">weight_delta &nbsp;= delta × input</span>
+        <span class="lr-ann">CHAIN RULE CROSSING — output-space error translated into weight-space correction. input = d(pred)/d(weight) = the bridge.</span>
+      </div>
+      <div class="lr" style="background:var(--mint);border-color:#86efac">
+        <span class="space-badge" style="background:var(--green)">Weight Space</span>
+        <span class="lr-code" style="color:var(--green)">weight &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -= alpha × weight_delta</span>
+        <span class="lr-ann">GRADIENT DESCENT — move through weight space. Subtract = opposite to slope = downhill. Alpha controls step size.</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- S11 Two-layer backprop -->
+<div class="slide" id="s11">
+  <div class="si">
+    <h1 class="tt">Two Layers — The Chain Gets Longer</h1>
+    <div class="sub">The chain rule extends backward through every layer. This IS backpropagation.</div>
+    <div class="c" style="margin-bottom:8px;padding:8px 12px">
+      <div style="display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11px;flex-wrap:wrap">
+        <span style="color:var(--red)">input</span><span>×</span><span style="color:var(--amber)">weight₁</span><span>=</span><span style="color:var(--purple)">hidden</span><span>×</span><span style="color:var(--amber)">weight₂</span><span>=</span><span style="color:var(--teal)">pred</span><span>→</span><span style="color:var(--blue)">(pred−goal)²</span><span>=</span><span style="color:var(--amber)">error</span>
+        <span style="color:var(--muted);margin-left:8px">← forward pass →</span>
+      </div>
+    </div>
+    <pre class="code" style="flex:1;overflow:auto"><span class="cm"># ── Forward pass ───────────────────────────────────────────────────────────</span>
+hidden = input * weight1           <span class="cm"># step 1</span>
+pred   = hidden * weight2          <span class="cm"># step 2</span>
+error  = (pred - goal) ** 2        <span class="cm"># step 3 — monitoring only</span>
+
+<span class="cm"># ── Backward pass — chain rule at each junction ────────────────────────────</span>
+
+<span class="cm"># STEP 1 — output delta (same as single-layer)</span>
+delta_output = pred - goal         <span class="kw"># d(error)/d(pred) at output node</span>
+
+<span class="cm"># STEP 2 — gradient for weight₂ (the output-side weight)</span>
+grad_w2 = delta_output * hidden    <span class="rr"># chain rule: delta × d(pred)/d(weight₂)</span>
+<span class="cm">#                                  # hidden is the INPUT to weight₂</span>
+
+<span class="cm"># STEP 3 — pass error BACKWARD through weight₂ to reach hidden layer</span>
+delta_hidden = delta_output * weight2  <span class="nu"># d(error)/d(hidden)</span>
+<span class="cm"># weight₂ IS d(pred)/d(hidden), because: pred = hidden × weight₂</span>
+<span class="cm"># This is the moment error crosses from output layer into the hidden layer</span>
+
+<span class="cm"># STEP 4 — gradient for weight₁ (the input-side weight)</span>
+grad_w1 = delta_hidden * input     <span class="st"># chain rule applied again</span>
+<span class="cm">#                                  # input is the INPUT to weight₁</span>
+
+<span class="cm"># ── Update both weights ─────────────────────────────────────────────────────</span>
+weight2 -= alpha * grad_w2         <span class="rr"># output-side weight</span>
+weight1 -= alpha * grad_w1         <span class="st"># input-side weight</span>
+
+<span class="cm"># The pattern: each weight's gradient = (incoming delta) × (local input)</span>
+<span class="cm"># Incoming delta = delta from the layer ahead, passed back through that layer's weight</span></pre>
+  </div>
+</div>
+
+<!-- S12 Why delta_hidden = delta_output × weight₂ -->
+<div class="slide" id="s12">
+  <div class="si">
+    <h1 class="tt">Why delta_hidden = delta_output × weight₂</h1>
+    <div class="sub">This single line IS backpropagation. It is the chain rule applied at the hidden layer junction.</div>
+    <div class="row" style="flex:1">
+      <div class="col f1">
+        <div class="c lavend">
+          <div class="ct" style="color:var(--purple)">The full chain for weight₁</div>
+          <pre class="code" style="margin-top:6px">d(error)/d(weight₁)
+
+= d(error)/d(pred)      ← 2×delta_output
+  × d(pred)/d(hidden)   ← weight₂
+  × d(hidden)/d(weight₁)← input
+
+= 2×delta_output × weight₂ × input
+
+= delta_hidden × input
+
+where:
+  delta_hidden = delta_output × weight₂</pre>
+        </div>
+        <div class="c" style="background:var(--bg3)">
+          <div class="ct" style="margin-bottom:4px">Why d(pred)/d(hidden) = weight₂?</div>
+          <pre class="code" style="font-size:10px">pred   = hidden × weight₂
+weight₂ is fixed, hidden varies
+d(pred)/d(hidden) = weight₂
+
+Same pattern as:
+pred   = input × weight
+d(pred)/d(weight) = input</pre>
+        </div>
+      </div>
+      <div class="col f1">
+        <div class="c peach" style="flex:1">
+          <div class="ct" style="color:var(--amber);margin-bottom:8px">The key insight — what backpropagation IS</div>
+          <div style="display:flex;flex-direction:column;gap:8px;font-size:12px">
+            <div class="sr" style="background:#fff">
+              <div class="d2" style="background:var(--teal)"></div>
+              <div><strong style="color:var(--teal)">Each layer multiplies incoming delta by its connecting weight</strong><br><span style="font-size:10.5px">delta_hidden = delta_output × weight₂. The weight is the local slope at that junction.</span></div>
+            </div>
+            <div class="sr" style="background:#fff">
+              <div class="d2" style="background:var(--purple)"></div>
+              <div><strong style="color:var(--purple)">Error travels backward, accumulating the chain product</strong><br><span style="font-size:10.5px">Output node → hidden node → input node. One multiplication per layer per step backward.</span></div>
+            </div>
+            <div class="sr" style="background:#fff">
+              <div class="d2" style="background:var(--green)"></div>
+              <div><strong style="color:var(--green)">Any weight's gradient = product of all slopes from that weight to output</strong><br><span style="font-size:10.5px">d(error)/d(weight₁) = 2δ × weight₂ × input. Three links, three slopes multiplied.</span></div>
+            </div>
+            <div class="sr" style="background:#fff">
+              <div class="d2" style="background:var(--amber)"></div>
+              <div><strong style="color:var(--amber)">Backpropagation is efficient because of sharing</strong><br><span style="font-size:10.5px">delta_hidden is computed once and shared to all weights in that layer. Never repeated.</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- S13 Three spaces -->
+<div class="slide" id="s13">
+  <div class="si">
+    <h1 class="tt">Input Space · Weight Space · Output Space</h1>
+    <div class="sub">Where each computation lives — and how the chain rule crosses between them.</div>
+    <div class="g3" style="flex:1">
+      <div class="c teal" style="display:flex;flex-direction:column;gap:8px">
+        <div class="ct" style="color:var(--teal);text-align:center">Input Space</div>
+        <div style="font-size:11px;color:var(--muted);text-align:center">Your training data. Fixed per step.</div>
+        <pre class="code" style="font-size:10px">input = [8.5, 0.65, 1.2]
+
+One point per observation.
+N dims = N features.
+Does NOT change
+during training.
+
+Role in chain rule:
+  d(pred)/d(weight) = input
+  Input is the lever arm.
+  Large input → big weight_delta.</pre>
+      </div>
+      <div class="c peach" style="display:flex;flex-direction:column;gap:8px">
+        <div class="ct" style="color:var(--amber);text-align:center">Output Space</div>
+        <div style="font-size:11px;color:var(--muted);text-align:center">Predictions and errors. Where loss lives.</div>
+        <pre class="code" style="font-size:10px">pred  = 0.85
+error = 0.023  (monitoring)
+delta = -0.15  (signed slope)
+
+Error and delta both
+computed here.
+
+Backprop STARTS here.
+
+d(error)/d(pred)
+  = 2 × delta = -0.30
+This is the seed gradient.</pre>
+      </div>
+      <div class="c lavend" style="display:flex;flex-direction:column;gap:8px">
+        <div class="ct" style="color:var(--purple);text-align:center">Weight Space</div>
+        <div style="font-size:11px;color:var(--muted);text-align:center">Learned parameters. Changes every step.</div>
+        <pre class="code" style="font-size:10px">weight = 0.1     (before)
+grad   = -1.275  (weight_delta)
+weight = 0.11275 (after)
+
+Gradient descent
+moves here.
+
+d(error)/d(weight)
+  = -0.30 × 8.5 = -2.55
+  = weight_delta × 2
+
+Each step = one move
+through weight space.</pre>
+      </div>
+    </div>
+    <div class="c" style="margin-top:8px;background:var(--bg3);text-align:center">
+      <div style="font-size:11.5px;color:var(--navy)">The chain rule <strong>crosses spaces</strong>: error measured in <span style="color:var(--amber)">output space</span> → delta × input → weight_delta in <span style="color:var(--purple)">weight space</span>. The input value is the bridge between them.</div>
+    </div>
+  </div>
+</div>
+
+<!-- S14 Full annotated code -->
+<div class="slide" id="s14">
+  <div class="si">
+    <h1 class="tt">Full Annotated Code — Every Line Explained</h1>
+    <div class="sub">Single-layer network: forward pass + complete chain rule backward pass with all three spaces labelled.</div>
+    <pre class="code" style="flex:1;overflow:auto"><span class="cm"># ── Setup — three spaces ────────────────────────────────────────────────────</span>
+input  = <span class="nu">8.5</span>    <span class="cm"># INPUT SPACE — fixed per step, the lever arm</span>
+goal   = <span class="nu">1.0</span>    <span class="cm"># OUTPUT SPACE — the target we are trying to reach</span>
+weight = <span class="nu">0.1</span>    <span class="cm"># WEIGHT SPACE — the learnable parameter</span>
+alpha  = <span class="nu">0.01</span>   <span class="cm"># step size in weight space</span>
+
+<span class="cm"># ── Forward Pass ─────────────────────────────────────────── INPUT×WEIGHT→OUTPUT</span>
+pred  = input * weight          <span class="cm"># = 8.5 × 0.1 = 0.85</span>
+
+<span class="cm"># ── Error ──────────────────────────────────── OUTPUT SPACE (monitoring only)</span>
+error = (pred - goal) ** <span class="nu">2</span>      <span class="cm"># = (0.85−1.0)² = 0.023  — how far up the bowl</span>
+                                <span class="cm"># DEAD END — not used in weight update</span>
+
+<span class="cm"># ── Backward Pass — chain rule ─────────────────────────────────────────────</span>
+
+<span class="kw">delta</span>        = pred - goal      <span class="cm"># = −0.15  | d(error)/d(pred) ÷ 2 | OUTPUT SPACE</span>
+                                <span class="cm"># sign:  negative → left of min → must increase pred</span>
+                                <span class="cm"># magn:  0.15 → moderate miss, moderate correction</span>
+
+<span class="rr">weight_delta</span> = delta * input   <span class="cm"># = −0.15 × 8.5 = −1.275  | CROSSING TO WEIGHT SPACE</span>
+                                <span class="cm"># delta     = d(error)/d(pred) — slope at output</span>
+                                <span class="cm"># input     = d(pred)/d(weight) — lever arm</span>
+                                <span class="cm"># product   = d(error)/d(weight) — full gradient ÷2</span>
+
+<span class="kw">weight</span>      -= alpha * weight_delta  <span class="cm"># = 0.1−(0.01×−1.275) = 0.11275 | WEIGHT SPACE</span>
+                                <span class="cm"># subtract: opposite to slope = downhill</span>
+                                <span class="cm"># alpha: controls step size each iteration</span>
+
+<span class="cm"># ── Verify improvement ──────────────────────────────────────────────────────</span>
+new_pred = input * weight       <span class="cm"># = 8.5 × 0.11275 = 0.9584</span>
+new_err  = (new_pred - goal)**<span class="nu">2</span> <span class="cm"># = (0.9584−1.0)² = 0.0017  ← much smaller than 0.023 ✓</span>
+<span class="cm"># One step of gradient descent reduced error by 93%. Direction was correct.</span></pre>
+  </div>
+</div>
+
+<!-- S15 Summary -->
+<div class="slide dark" id="s15">
+  <div class="si" style="justify-content:space-between">
+    <h1 class="tt lt" style="text-align:center;font-size:clamp(18px,2.8vw,28px)">The Chain Rule — Complete Summary</h1>
+    <div class="g3" style="flex:1;padding:8px 0">
+      <div class="tk" style="border-color:var(--teal)"><div class="ti">📈</div><div class="th2" style="color:var(--teal)">Derivative = slope</div><div class="tb">df/dx: if x nudges by ε, how much does f change? Instantaneous rate of change at one point.</div></div>
+      <div class="tk" style="border-color:var(--amber)"><div class="ti">🪣</div><div class="th2" style="color:var(--amber)">Error bowl</div><div class="tb">error = (pred−goal)² is a parabola. Slope = 2×delta. Negative = left of min = increase pred.</div></div>
+      <div class="tk" style="border-color:var(--purple)"><div class="ti">⚙️</div><div class="th2" style="color:var(--purple)">Chain rule</div><div class="tb">dy/dx = dy/du × du/dx. Multiply slopes at each link. The du cancels like a fraction.</div></div>
+      <div class="tk" style="border-color:var(--red)"><div class="ti">🎯</div><div class="th2" style="color:var(--red)">delta = slope at output</div><div class="tb">delta = pred−goal = d(error)/d(pred) ÷ 2. Carries sign (direction) and magnitude (distance).</div></div>
+      <div class="tk" style="border-color:var(--green)"><div class="ti">🔗</div><div class="th2" style="color:var(--green)">weight_delta = chain rule</div><div class="tb">delta × input = d(error)/d(weight). Input is d(pred)/d(weight). The bridge between spaces.</div></div>
+      <div class="tk" style="border-color:#7EB8C9"><div class="ti">👁</div><div class="th2" style="color:#7EB8C9">error is for watching</div><div class="tb">Never feeds the update. Monitors progress, enables early stopping, defines what the network learns.</div></div>
+    </div>
+    <div style="text-align:center;font-family:'JetBrains Mono',monospace;font-size:10px;color:#546E8A">
+      d(error)/d(weight) = d(error)/d(pred) × d(pred)/d(weight) = 2×delta × input → weight_delta = delta × input
+    </div>
+  </div>
+</div>
+
+</div><!-- /stage -->
+<div id="ctrl">
+  <button class="bn" id="bP" onclick="go(-1)" disabled>← Prev</button>
+  <div id="pd"></div>
+  <button class="bn" id="bN" onclick="go(1)">Next →</button>
+</div>
+<div id="hint">Arrow keys ← → · click dots · 15 slides</div>
+</div>
+
+<script>
+// Navigation
+const N=15; let cur=1;
+const pd=document.getElementById('pd');
+for(let i=1;i<=N;i++){const d=document.createElement('div');d.className='d'+(i===1?' active':'');d.onclick=()=>goTo(i);pd.appendChild(d);}
+function goTo(n){
+  document.getElementById('s'+cur).classList.remove('active');
+  pd.children[cur-1].classList.remove('active');
+  cur=Math.max(1,Math.min(N,n));
+  document.getElementById('s'+cur).classList.add('active');
+  pd.children[cur-1].classList.add('active');
+  document.getElementById('sc').textContent='Slide '+cur+' / '+N;
+  document.getElementById('bP').disabled=cur===1;
+  document.getElementById('bN').disabled=cur===N;
+  if(cur===1) drawTitle();
+  if(cur===3) drawBowl();
+}
+function go(d){goTo(cur+d);}
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key==='ArrowDown')go(1);
+  if(e.key==='ArrowLeft'||e.key==='ArrowUp')go(-1);
+  if(e.key==='Home')goTo(1);if(e.key==='End')goTo(N);
+});
+
+// Title slide bowl
+function drawTitle(){
+  const cv=document.getElementById('bowlCanvas');
+  if(!cv)return;
+  const w=cv.offsetWidth, h=cv.offsetHeight;
+  cv.width=w*2; cv.height=h*2;
+  const ctx=cv.getContext('2d');
+  ctx.scale(2,2);
+  // draw parabola
+  const cx=w*0.05, base=h*0.88, sx=w*0.42, sy=h*0.72;
+  ctx.strokeStyle='#0E7C86'; ctx.lineWidth=3; ctx.beginPath();
+  for(let i=0;i<=100;i++){
+    const t=(i/100)*2-1; // -1 to 1
+    const px=cx+sx*(t+1); const py=base-sy*t*t;
+    i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+  }
+  ctx.stroke();
+  // current position at t=-0.15 (pred=0.85)
+  const t=-0.15; const px=cx+sx*(t+1); const py=base-sy*t*t;
+  ctx.fillStyle='#D97706'; ctx.beginPath(); ctx.arc(px,py,8,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#D97706'; ctx.font='13px Inter';
+  ctx.fillText('slope here = 2δ',px+12,py-6);
+  // minimum
+  const mx=cx+sx; const my=base;
+  ctx.fillStyle='#16A34A'; ctx.beginPath(); ctx.arc(mx,my,8,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#16A34A'; ctx.fillText('minimum',mx+12,my+4);
+  // tangent line at current pos
+  const slope=-0.15*2; const tlen=60;
+  ctx.strokeStyle='#D97706'; ctx.lineWidth=1.5; ctx.setLineDash([4,3]);
+  ctx.beginPath(); ctx.moveTo(px-tlen/2,py+slope*(tlen/2)*sy/(sx));
+  ctx.lineTo(px+tlen/2,py-slope*(tlen/2)*sy/(sx)); ctx.stroke(); ctx.setLineDash([]);
+  // axes labels
+  ctx.fillStyle='#6A7F95'; ctx.font='11px Inter';
+  ctx.fillText('error',cx+5,h*0.08); ctx.fillText('pred →',cx+sx*1.85,base+16);
+}
+
+// Slide 3 bowl
+function drawBowl(){
+  const cv=document.getElementById('bowlCanvas2');
+  if(!cv)return;
+  const w=cv.offsetWidth, h=cv.offsetHeight;
+  cv.width=w*2; cv.height=h*2;
+  const ctx=cv.getContext('2d');
+  ctx.scale(2,2);
+  const margin=24; const plotW=w-margin*2; const plotH=h-margin*2;
+  // axes
+  ctx.strokeStyle='#CBD5E0'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(margin,margin); ctx.lineTo(margin,plotH+margin); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(margin,plotH+margin); ctx.lineTo(plotW+margin,plotH+margin); ctx.stroke();
+  ctx.fillStyle='#94A3B8'; ctx.font='10px Inter';
+  ctx.fillText('error',margin+2,margin+10); ctx.fillText('pred',plotW+margin-20,plotH+margin+12);
+  // goal line
+  const goalX=margin+plotW*0.5;
+  ctx.strokeStyle='#16A34A'; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+  ctx.beginPath(); ctx.moveTo(goalX,margin); ctx.lineTo(goalX,plotH+margin); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='#16A34A'; ctx.fillText('goal=1.0',goalX+2,margin+12);
+  // parabola
+  ctx.strokeStyle='#3B82F6'; ctx.lineWidth=2.5; ctx.beginPath();
+  for(let i=0;i<=80;i++){
+    const p=i/80*2; // pred 0 to 2
+    const e=Math.pow(p-1.0,2);
+    const px=margin+plotW*p/2; const py=margin+plotH*(1-e);
+    i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+  }
+  ctx.stroke();
+  // current position pred=0.85
+  const pred=0.85; const err=Math.pow(pred-1,2);
+  const dpx=margin+plotW*pred/2; const dpy=margin+plotH*(1-err);
+  ctx.fillStyle='#D97706'; ctx.beginPath(); ctx.arc(dpx,dpy,6,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#D97706'; ctx.font='10px JetBrains Mono';
+  ctx.fillText('pred=0.85',dpx+8,dpy-4); ctx.fillText('slope=−0.30',dpx+8,dpy+10);
+  // tangent
+  ctx.strokeStyle='#D97706'; ctx.lineWidth=1.5; ctx.setLineDash([3,2]);
+  const sl=-0.30*plotH/plotW*0.5;
+  ctx.beginPath(); ctx.moveTo(dpx-40,dpy+40*sl); ctx.lineTo(dpx+40,dpy-40*sl); ctx.stroke();
+  ctx.setLineDash([]);
+  // minimum
+  ctx.fillStyle='#16A34A'; ctx.beginPath(); ctx.arc(goalX,plotH+margin,6,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#16A34A'; ctx.fillText('slope=0',goalX+8,plotH+margin-4);
+}
+
+// draw on load
+setTimeout(()=>{drawTitle();},100);
+window.addEventListener('resize',()=>{if(cur===1)drawTitle();if(cur===3)drawBowl();});
+</script>
+</body>
+</html>
