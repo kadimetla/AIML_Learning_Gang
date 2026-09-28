@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Deriving the Gradient: Chain Rule on Squared Error</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Literata:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono:wght@400;500;700&family=Caveat:wght@500;600&display=swap');
+
+:root{
+  --bg:#FBFAF7;
+  --bg-deep:#FFFFFF;
+  --grid:#E3E0D8;
+  --blue:#2D6FE0;
+  --amber:#C9692F;
+  --teal:#1E8C7C;
+  --ink:#23262B;
+  --dim:#5B5F66;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{ width:100%; height:100%; overflow:hidden; background:var(--bg); font-family:'Literata', serif; color:var(--ink); }
+.deck{ position:relative; width:100vw; height:100vh; overflow:hidden; }
+.bp-grid{
+  position:absolute; inset:0;
+  background-image:linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size:40px 40px; opacity:0.5; pointer-events:none;
+}
+.navbar{
+  position:fixed; top:0; left:0; right:0; height:56px; display:flex; align-items:center; justify-content:space-between;
+  padding:0 28px; background:var(--bg-deep); border-bottom:1px solid var(--grid); z-index:100;
+  font-family:'JetBrains Mono', monospace; font-size:13px; color:var(--dim);
+}
+.navbar .title{ font-family:'Syne', sans-serif; font-weight:700; color:var(--ink); font-size:14px; }
+.progress{ display:flex; gap:6px; align-items:center; }
+.dot{ width:7px; height:7px; border-radius:50%; background:var(--grid); transition:.25s; }
+.dot.active{ background:var(--blue); transform:scale(1.4); }
+.counter{ min-width:54px; text-align:right; }
+.slide{ position:absolute; top:56px; left:0; right:0; bottom:0; display:none; padding:50px 80px 36px; flex-direction:column; justify-content:center; }
+.slide.active{ display:flex; }
+.eyebrow{ font-family:'JetBrains Mono', monospace; font-size:12px; letter-spacing:2px; text-transform:uppercase; color:var(--blue); margin-bottom:10px; }
+.eyebrow.amber{ color:var(--amber); }
+.eyebrow.teal{ color:var(--teal); }
+h1{ font-family:'Syne', sans-serif; font-weight:800; font-size:38px; line-height:1.15; max-width:920px; margin-bottom:14px; }
+p.lead{ font-size:17px; line-height:1.55; max-width:780px; color:var(--dim); }
+.annotation{ font-family:'Caveat', cursive; font-size:22px; color:var(--amber); line-height:1.2; }
+.annotation.blue{ color:var(--blue); }
+.annotation.teal{ color:var(--teal); }
+.row{ display:flex; gap:36px; align-items:stretch; flex:1; min-height:0; }
+.col{ flex:1; min-width:0; }
+.card{ background:#FFFFFF; border:1px solid var(--grid); border-radius:10px; padding:22px 26px; box-shadow:0 2px 10px rgba(35,38,43,0.05); }
+.mono{ font-family:'JetBrains Mono', monospace; }
+.math{ font-family:'JetBrains Mono', monospace; font-size:18px; line-height:2.2; }
+.math .big{ font-size:22px; }
+.step-num{
+  display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:50%;
+  background:var(--blue); color:#fff; font-family:'JetBrains Mono'; font-size:12px; font-weight:700; margin-right:10px;
+}
+.step-num.amber{ background:var(--amber); }
+.step-num.teal{ background:var(--teal); }
+.step{ display:flex; align-items:flex-start; margin-bottom:16px; }
+.step .stext{ flex:1; }
+.highlight{ background:rgba(45,111,224,0.08); border-left:3px solid var(--blue); padding:10px 14px; border-radius:0 6px 6px 0; }
+.highlight.amber{ background:rgba(201,105,47,0.08); border-left-color:var(--amber); }
+.highlight.teal{ background:rgba(30,140,124,0.08); border-left-color:var(--teal); }
+.slide-footer{ position:absolute; bottom:18px; right:80px; font-family:'JetBrains Mono'; font-size:11px; color:var(--dim); opacity:.5; }
+.term{ padding:2px 6px; border-radius:4px; }
+.term.w{ background:rgba(45,111,224,0.12); color:var(--blue); font-weight:700; }
+.term.e{ background:rgba(201,105,47,0.12); color:var(--amber); font-weight:700; }
+.compare{ display:flex; gap:30px; }
+.compare .col{ text-align:center; }
+.compare .col .math{ font-size:20px; margin-top:10px; }
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <div class="bp-grid"></div>
+  <div class="navbar">
+    <div class="title">DERIVING THE GRADIENT · CHAIN RULE ON SQUARED ERROR</div>
+    <div class="progress" id="dots"></div>
+    <div class="counter mono"><span id="cur">1</span> / <span id="tot">6</span></div>
+  </div>
+
+  <!-- 1 TITLE -->
+  <section class="slide active">
+    <div class="eyebrow">GRADIENT DESCENT · FROM SCRATCH</div>
+    <h1>Where Does <span class="mono">−2x·e</span><br>Actually Come From?</h1>
+    <p class="lead">Every gradient descent update has that factor of 2 and that lone <span class="mono">x</span> sitting in it.
+    Neither is arbitrary — both fall straight out of the chain rule applied to one squared term. Let's build it from nothing.</p>
+    <p class="annotation blue" style="margin-top:26px;">→ one function inside another. that's all the chain rule ever is.</p>
+    <div class="slide-footer">USE ← → TO NAVIGATE</div>
+  </section>
+
+  <!-- 2 SETUP -->
+  <section class="slide">
+    <div class="eyebrow">SET UP THE PROBLEM</div>
+    <h1>Name the Error Before You Square It</h1>
+    <div class="row">
+      <div class="col card">
+        <p class="lead" style="margin-bottom:14px;">Start from the per-point loss for linear regression:</p>
+        <div class="math">L = (y − wx − b)²</div>
+        <p class="lead" style="margin:14px 0;">Give the inside a name — this single move is what makes the chain rule visible instead of hidden:</p>
+        <div class="math big"><span class="term e">e = y − wx − b</span></div>
+        <div class="math" style="margin-top:6px;">so now &nbsp; L = e²</div>
+      </div>
+      <div class="col card">
+        <p class="annotation amber">why bother naming it?</p>
+        <p class="lead" style="margin-top:10px;">Because <span class="mono">L</span> doesn't touch <span class="mono term w">w</span> directly.
+        <span class="mono term w">w</span> can only affect <span class="mono">L</span> by first changing <span class="term e">e</span>, and only then does squaring react.</p>
+        <p class="lead" style="margin-top:14px;">That's a chain: <span class="mono">w → e → L</span>. We want <span class="mono">∂L/∂w</span>, and the chain rule is the tool that walks a derivative down a chain like this, link by link.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 chain rule statement -->
+  <section class="slide">
+    <div class="eyebrow teal">THE TOOL</div>
+    <h1>The Chain Rule: Multiply the Ripples</h1>
+    <div class="card" style="flex:1; display:flex; flex-direction:column; justify-content:center;">
+      <div class="math big" style="text-align:center; margin-bottom:18px;">
+        ∂L/∂w &nbsp;=&nbsp; <span class="highlight">∂L/∂e</span> &nbsp;·&nbsp; <span class="highlight amber">∂e/∂w</span>
+      </div>
+      <p class="lead" style="text-align:center; max-width:700px; margin:0 auto;">
+        Nudge <span class="mono term w">w</span> a tiny bit. That nudge ripples into <span class="term e">e</span> (Piece B), and that change in <span class="term e">e</span>
+        ripples into <span class="mono">L</span> because <span class="mono">L = e²</span> (Piece A). The total effect is those two ripples multiplied together.
+      </p>
+    </div>
+    <p class="annotation blue" style="margin-top:14px;">two separate, easy questions instead of one hard one</p>
+  </section>
+
+  <!-- 4 piece A and B -->
+  <section class="slide">
+    <div class="eyebrow">SOLVE EACH PIECE</div>
+    <h1>Piece A and Piece B, One at a Time</h1>
+    <div class="compare">
+      <div class="col card">
+        <div class="eyebrow">PIECE A</div>
+        <p class="lead">How does <span class="mono">L</span> react to <span class="term e">e</span>?</p>
+        <div class="math">L = e²</div>
+        <p class="lead" style="margin-top:10px;">Plain power rule: bring the exponent down, drop it by one.</p>
+        <div class="math big" style="color:var(--blue);">∂L/∂e = 2e</div>
+      </div>
+      <div class="col card">
+        <div class="eyebrow amber">PIECE B</div>
+        <p class="lead">How does <span class="term e">e</span> react to <span class="mono term w">w</span>?</p>
+        <div class="math">e = y − wx − b</div>
+        <p class="lead" style="margin-top:10px; font-size:14px;">
+          y → no w, derivative 0<br>
+          −wx → x is just a fixed multiplier on w, derivative −x<br>
+          −b → no w, derivative 0
+        </p>
+        <div class="math big" style="color:var(--amber);">∂e/∂w = −x</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 combine -->
+  <section class="slide">
+    <div class="eyebrow teal">COMBINE</div>
+    <h1>Multiply the Two Pieces Back Together</h1>
+    <div class="card" style="flex:1; display:flex; flex-direction:column; justify-content:center;">
+      <div class="step">
+        <span class="step-num">1</span>
+        <div class="stext math">∂L/∂w = (∂L/∂e) · (∂e/∂w) = (2e) · (−x)</div>
+      </div>
+      <div class="step">
+        <span class="step-num amber">2</span>
+        <div class="stext math">= −2x·e</div>
+      </div>
+      <div class="step">
+        <span class="step-num teal">3</span>
+        <div class="stext math">substitute e back in &nbsp;→&nbsp; <span style="color:var(--teal); font-weight:700;">∂L/∂w = −2x(y − wx − b)</span></div>
+      </div>
+      <p class="lead" style="margin-top:10px;">Same recipe for <span class="mono">b</span> — except <span class="mono">∂e/∂b = −1</span> (no <span class="mono">x</span> multiplying it), so
+      <span class="mono">∂L/∂b = −2e</span>. That's the entire reason <span class="mono term w">w</span>'s update scales with <span class="mono">x</span> and <span class="mono">b</span>'s doesn't.</p>
+    </div>
+  </section>
+
+  <!-- 6 intuition wrap -->
+  <section class="slide">
+    <div class="eyebrow">THE TAKEAWAY</div>
+    <h1>Two Amplifiers Stacked on Top of Each Other</h1>
+    <div class="row">
+      <div class="col card">
+        <p class="lead"><b style="color:var(--ink);">The 2</b> exists because squaring amplifies change proportional to the current value —
+        that's just what the power rule says about <span class="mono">e²</span>. It would appear no matter what was inside the parentheses.</p>
+      </div>
+      <div class="col card">
+        <p class="lead"><b style="color:var(--ink);">The x</b> exists because <span class="mono term w">w</span> doesn't act alone inside <span class="term e">e</span> — it's
+        scaled by <span class="mono">x</span> first (<span class="mono">−wx</span>). Whatever multiplies <span class="mono term w">w</span> on the way in is exactly what shows up in its gradient.</p>
+      </div>
+    </div>
+    <p class="annotation blue" style="margin-top:20px;">chain rule, in one sentence: multiply how much each link amplifies the one before it.</p>
+  </section>
+
+</div>
+
+<script>
+const slides = document.querySelectorAll('.slide');
+const dotsWrap = document.getElementById('dots');
+let idx = 0;
+slides.forEach((_,i)=>{
+  const d = document.createElement('div');
+  d.className = 'dot' + (i===0?' active':'');
+  d.onclick = ()=>goTo(i);
+  dotsWrap.appendChild(d);
+});
+document.getElementById('tot').textContent = slides.length;
+function goTo(i){
+  if(i<0||i>=slides.length) return;
+  slides[idx].classList.remove('active');
+  dotsWrap.children[idx].classList.remove('active');
+  idx = i;
+  slides[idx].classList.add('active');
+  dotsWrap.children[idx].classList.add('active');
+  document.getElementById('cur').textContent = idx+1;
+}
+window.addEventListener('keydown', e=>{
+  if(e.key==='ArrowRight') goTo(idx+1);
+  if(e.key==='ArrowLeft') goTo(idx-1);
+});
+</script>
+</body>
+</html>
