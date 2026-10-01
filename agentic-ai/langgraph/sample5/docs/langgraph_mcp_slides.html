@@ -210,7 +210,8 @@
             <h2>The graph does not change</h2>
             <p>Same ReAct loop as sample3. Only the source of <code>tools</code> moves from local <code>@tool</code> functions to the MCP server.</p>
           </div>
-<pre><code># common.py
+<pre><code># in each script (01_stdio.py, ...)
+tools = await client.get_tools()   # from MCP
 llm = init_chat_model(
     "litellm:gpt-4o-mini").bind_tools(tools)
 

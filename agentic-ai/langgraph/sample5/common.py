@@ -1,42 +1,23 @@
-"""Shared LangGraph wiring for the sample5 scripts.
+"""Tiny helper shared by the sample5 scripts: run one question and print the trace.
 
-This is exactly sample3's ReAct loop (agent node + ToolNode + tools_condition).
-The ONLY thing MCP changes is where `tools` comes from: instead of @tool
-functions defined in this file, they are discovered from an MCP server.
+The LangGraph wiring (agent node, ToolNode, edges) is deliberately NOT here --
+it is written out in each script so students can see it next to the MCP code.
 """
 
-from dotenv import load_dotenv
 
-load_dotenv()
+import sys
 
-from langchain.chat_models import init_chat_model
-from langgraph.graph import START, MessagesState, StateGraph
-from langgraph.prebuilt import ToolNode, tools_condition
+from llm_trace import LLMTrace
 
-
-def build_app(tools, system_prompt: str | None = None):
-    llm = init_chat_model("litellm:gpt-4o-mini", temperature=0).bind_tools(tools)
-
-    def agent_node(state: MessagesState) -> dict:
-        messages = state["messages"]
-        if system_prompt:
-            messages = [("system", system_prompt), *messages]
-        return {"messages": [llm.invoke(messages)]}
-
-    graph = StateGraph(MessagesState)
-    graph.add_node("agent", agent_node)
-    graph.add_node("tools", ToolNode(tools))
-    graph.add_edge(START, "agent")
-    graph.add_conditional_edges("agent", tools_condition)
-    graph.add_edge("tools", "agent")
-    return graph.compile()
+SHOW_LLM = "--show-llm" in sys.argv
 
 
 async def ask(app, question: str) -> None:
     print(f"\n>>> {question}\n")
+    config = {"recursion_limit": 12}
+    if SHOW_LLM:  # print every request/response exchanged with the LLM
+        config["callbacks"] = [LLMTrace()]
     # MCP tools are async-only, so use ainvoke (not invoke).
-    result = await app.ainvoke(
-        {"messages": [("user", question)]}, {"recursion_limit": 12}
-    )
+    result = await app.ainvoke({"messages": [("user", question)]}, config)
     for message in result["messages"]:
         message.pretty_print()

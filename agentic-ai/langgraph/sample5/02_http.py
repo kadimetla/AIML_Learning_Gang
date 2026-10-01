@@ -23,7 +23,15 @@ from pathlib import Path
 
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
-from common import ask, build_app
+from dotenv import load_dotenv
+
+load_dotenv()
+
+from langchain.chat_models import init_chat_model
+from langgraph.graph import START, MessagesState, StateGraph
+from langgraph.prebuilt import ToolNode, tools_condition
+
+from common import ask
 
 SERVERS = Path(__file__).parent / "servers"
 HOST, PORT = "127.0.0.1", 8765
@@ -64,7 +72,21 @@ async def main():
         tools = await client.get_tools()
         print("tools from both servers:", [t.name for t in tools])
 
-        app = build_app(tools)
+        # ---- LangGraph: identical to sample3; only `tools` came from MCP ----
+        llm = init_chat_model("litellm:gpt-4o-mini", temperature=0).bind_tools(tools)
+
+        def agent_node(state: MessagesState) -> dict:
+            return {"messages": [llm.invoke(state["messages"])]}
+
+        graph = StateGraph(MessagesState)
+        graph.add_node("agent", agent_node)        # LLM decides: answer or call a tool
+        graph.add_node("tools", ToolNode(tools))   # runs the MCP tool(s) the LLM asked for
+        graph.add_edge(START, "agent")
+        graph.add_conditional_edges("agent", tools_condition)  # tool calls? -> "tools", else END
+        graph.add_edge("tools", "agent")           # feed tool results back to the LLM
+        app = graph.compile()
+        # ---------------------------------------------------------------------
+
         await ask(app, "What's the weather in Austin, and what's 23 * 17?")
     finally:
         if proc:

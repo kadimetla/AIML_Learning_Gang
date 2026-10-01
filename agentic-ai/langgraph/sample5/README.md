@@ -1,7 +1,8 @@
 # sample5 — LangGraph + MCP (stdio, HTTP, skills)
 
-Same ReAct loop as `sample3` (agent node + `ToolNode` + `tools_condition`,
-in `common.py`). The only thing MCP changes is **where the tools come from**:
+Same ReAct loop as `sample3` (agent node + `ToolNode` + `tools_condition`),
+written out in full inside each script (`common.py` only holds the `ask()` runner).
+The only thing MCP changes is **where the tools come from**:
 they are discovered from an MCP server by `langchain-mcp-adapters` instead of
 being `@tool` functions in the file.
 
@@ -86,6 +87,22 @@ Launches `servers/skills_server.py` over stdio and asks two questions:
   pending manager approval" ($900 > $500).
 
 Orders `A100`-`A400` are fake data in `servers/skills_server.py`.
+
+### See what is sent to the LLM
+
+Add `--show-llm` to any script to print every LLM request and response
+(`llm_trace.py`, a LangChain callback):
+
+```bash
+uv run 01_stdio.py --show-llm
+```
+
+Each trip through the `agent` node prints the model, the **tools sent** (name,
+description, JSON schema -- this is how MCP tools reach the model), the **full
+message list sent**, and the response (`tool_call`s or final text, plus token
+counts). Watch the message list grow: user question -> AI `tool_calls` -> `tool`
+results -> final answer. In `03` the system prompt with the skill catalog is
+visible as the first `[system]` message.
 
 ### Troubleshooting
 

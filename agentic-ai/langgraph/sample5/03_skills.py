@@ -27,7 +27,15 @@ from langchain_core.tools import tool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.tools import load_mcp_tools
 
-from common import ask, build_app
+from dotenv import load_dotenv
+
+load_dotenv()
+
+from langchain.chat_models import init_chat_model
+from langgraph.graph import START, MessagesState, StateGraph
+from langgraph.prebuilt import ToolNode, tools_condition
+
+from common import ask
 
 SERVER = Path(__file__).parent / "servers" / "skills_server.py"
 
@@ -86,7 +94,22 @@ async def main():
             "load_skill BEFORE acting on a matching request; never guess the "
             "procedure):\n" + "\n".join(blurbs)
         )
-        app = build_app(tools, system)
+        # ---- LangGraph: identical to sample3; only `tools` came from MCP ----
+        llm = init_chat_model("litellm:gpt-4o-mini", temperature=0).bind_tools(tools)
+
+        def agent_node(state: MessagesState) -> dict:
+            messages = [("system", system), *state["messages"]]
+            return {"messages": [llm.invoke(messages)]}
+
+        graph = StateGraph(MessagesState)
+        graph.add_node("agent", agent_node)        # LLM decides: answer or call a tool
+        graph.add_node("tools", ToolNode(tools))   # runs the MCP tool(s) the LLM asked for
+        graph.add_edge(START, "agent")
+        graph.add_conditional_edges("agent", tools_condition)  # tool calls? -> "tools", else END
+        graph.add_edge("tools", "agent")           # feed tool results back to the LLM
+        app = graph.compile()
+        # ---------------------------------------------------------------------
+
         await ask(app, "Can I get a refund on order A200?")
         await ask(app, "Customer on order A300 wants their money back -- what do we tell them?")
 
