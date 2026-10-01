@@ -15,13 +15,86 @@ Slides for students: [`docs/langgraph_mcp_slides.html`](docs/langgraph_mcp_slide
 
 Needs `OPENAI_API_KEY` in `.env` (copy `.env.example`).
 
+## How to run
+
+### Setup (once)
+
 ```bash
+cd agentic-ai/langgraph/sample5
+cp .env.example .env       # then put your key in it: OPENAI_API_KEY=sk-...
 uv sync
+```
+
+Python 3.13+ and [uv](https://docs.astral.sh/uv/) are required. Run every
+command below from inside `sample5/`. Lines like
+`Processing request of type ...` on stderr are MCP server logs and are normal.
+
+### 1. stdio
+
+```bash
 uv run 01_stdio.py
-uv run 02_http.py          # starts the HTTP server for you; or run it yourself:
-uv run servers/weather_http_server.py   # (another terminal) then 02 reuses it
+```
+
+The script launches `servers/math_server.py` itself as a subprocess; there is
+nothing to start. Expected output:
+
+```
+MCP tools: ['add', 'multiply']
+MCP resources: ['math://constants']
+MCP prompts:   ['explain_step_by_step']
+math://constants -> pi = 3.14159265; e = 2.71828183; phi = 1.61803399
+>>> What is (23 * 17) + 5? Use the tools.
+... multiply(23, 17) -> 391.0, add(391, 5) -> 396.0 ...
+The result of (23 x 17) + 5 is 396.
+```
+
+### 2. Streamable HTTP (mixed with stdio)
+
+Simplest -- the script starts and stops the HTTP server for you:
+
+```bash
+uv run 02_http.py
+```
+
+To see the server as a real separate service, use two terminals:
+
+```bash
+# terminal A: the MCP service, stays running on 127.0.0.1:8765/mcp
+uv run servers/weather_http_server.py
+
+# terminal B: the agent (prints "reusing weather server already listening")
+uv run 02_http.py
+```
+
+Expected: tools from both servers
+(`['add', 'multiply', 'get_weather', 'list_cities']`), then one question
+triggers `get_weather` (HTTP server) and `multiply` (stdio server) in the same
+turn. If port 8765 is busy, stop whatever holds it.
+
+### 3. Skills over MCP
+
+```bash
 uv run 03_skills.py
 ```
+
+Launches `servers/skills_server.py` over stdio and asks two questions:
+
+- *"Can I get a refund on order A200?"* -- `lookup_order`, then "store credit
+  only" (45 days old). The model may skip `load_skill` here; skills are advisory.
+- *"Customer on order A300 wants their money back"* -- `load_skill` ->
+  `lookup_order` -> `read_skill_file(references/escalation.md)` -> "eligible,
+  pending manager approval" ($900 > $500).
+
+Orders `A100`-`A400` are fake data in `servers/skills_server.py`.
+
+### Troubleshooting
+
+| Symptom | Cause / fix |
+|---|---|
+| `AuthenticationError` / missing key | `OPENAI_API_KEY` not set in `sample5/.env` |
+| `ModuleNotFoundError` | run `uv sync`, and use `uv run`, not bare `python` |
+| 02: connection refused | server not up yet or port 8765 in use |
+| Garbled stdio output / handshake error | a `print()` in a stdio server -- stdout is the protocol channel |
 
 ## Talking points
 
