@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LangGraph + MCP: stdio, HTTP and Skills</title>
+  <style>
+    :root {
+      --bg: #f6f7f3;
+      --ink: #17201b;
+      --muted: #5a665f;
+      --panel: #ffffff;
+      --panel-soft: #edf6f2;
+      --line: #cbd7d1;
+      --accent: #0b7668;
+      --danger: #b42318;
+      --warn: #8a6100;
+      --code-bg: #111816;
+      --code-ink: #edf8f2;
+      --shadow: 0 18px 55px rgba(23, 32, 27, 0.15);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        linear-gradient(90deg, rgba(11, 118, 104, 0.055) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(11, 118, 104, 0.055) 1px, transparent 1px),
+        var(--bg);
+      background-size: 32px 32px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main { min-height: 100vh; display: grid; grid-template-rows: 1fr auto; }
+    .deck { min-height: calc(100vh - 76px); overflow: hidden; }
+    .slide { display: none; min-height: calc(100vh - 76px); padding: 48px clamp(20px, 5vw, 70px); align-items: center; }
+    .slide.active { display: grid; }
+    .frame { width: min(1180px, 100%); margin: 0 auto; }
+
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { font-size: clamp(42px, 7vw, 78px); line-height: 0.98; letter-spacing: 0; max-width: 12ch; margin-bottom: 24px; }
+    h2 { font-size: clamp(31px, 5vw, 56px); line-height: 1.04; letter-spacing: 0; max-width: 16ch; margin-bottom: 24px; }
+    h3 { font-size: 22px; margin-bottom: 12px; }
+    p, li { font-size: clamp(18px, 2vw, 23px); line-height: 1.45; }
+    ul { margin: 0; padding-left: 24px; }
+
+    .eyebrow { color: var(--accent); font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; font-size: 14px; margin-bottom: 14px; }
+    .lead { color: var(--muted); font-size: clamp(21px, 2.3vw, 30px); max-width: 780px; }
+    .title-grid, .columns, .grid-2, .grid-3 { display: grid; gap: 20px; }
+    .title-grid { grid-template-columns: 1.05fr 0.95fr; align-items: center; gap: 44px; }
+    .columns { grid-template-columns: minmax(0, 0.88fr) minmax(0, 1.12fr); align-items: start; gap: 30px; }
+    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 22px; box-shadow: 0 8px 22px rgba(23, 32, 27, 0.08); }
+    .card p, .card li { font-size: 18px; }
+    .soft { background: var(--panel-soft); border-color: rgba(11, 118, 104, 0.28); }
+    .danger { background: #fff4f2; border-color: rgba(180, 35, 24, 0.32); }
+    .danger strong { color: var(--danger); }
+    .warn { background: #fff8e3; border-color: rgba(138, 97, 0, 0.28); }
+    .warn strong { color: var(--warn); }
+    .tag { display: inline-block; padding: 5px 9px; border-radius: 6px; color: var(--accent); background: var(--panel-soft); border: 1px solid rgba(11, 118, 104, 0.25); font-weight: 900; font-size: 13px; margin-bottom: 10px; }
+
+    pre { margin: 0; padding: 18px; border-radius: 8px; background: var(--code-bg); color: var(--code-ink); overflow: auto; font-size: clamp(13px, 1.45vw, 16px); line-height: 1.45; box-shadow: var(--shadow); }
+    code { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+    :not(pre) > code { background: rgba(11, 118, 104, 0.11); border: 1px solid rgba(11, 118, 104, 0.2); border-radius: 5px; padding: 1px 5px; color: #0b6157; font-size: 0.9em; }
+
+    .flow { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; align-items: stretch; }
+    .step { min-height: 96px; display: grid; align-content: center; text-align: center; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; font-weight: 900; }
+    .step small { display: block; margin-top: 6px; color: var(--muted); font-size: 13px; line-height: 1.35; }
+
+    .sequence { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .sequence .wide { grid-column: 1 / -1; }
+    .quote { border-left: 5px solid var(--accent); padding-left: 18px; color: var(--muted); font-size: 26px; line-height: 1.35; }
+    .notes { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 15px; line-height: 1.5; }
+
+    .table { display: grid; overflow: hidden; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+    .row { display: grid; grid-template-columns: 0.85fr 1.15fr 1.15fr; border-top: 1px solid var(--line); }
+    .row:first-child { border-top: 0; background: var(--panel-soft); font-weight: 900; }
+    .cell { padding: 14px 16px; border-left: 1px solid var(--line); font-size: 17px; line-height: 1.4; }
+    .cell:first-child { border-left: 0; }
+
+    .footer { height: 76px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 18px; padding: 14px clamp(20px, 4vw, 42px); border-top: 1px solid var(--line); background: rgba(246, 247, 243, 0.92); backdrop-filter: blur(10px); }
+    .controls { display: flex; gap: 10px; }
+    button { min-width: 44px; min-height: 40px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); font-weight: 900; cursor: pointer; }
+    button:hover { border-color: var(--accent); }
+    .count { color: var(--muted); text-align: center; font-weight: 900; font-size: 14px; }
+    .progress { height: 7px; border-radius: 999px; overflow: hidden; background: rgba(11, 118, 104, 0.16); }
+    .progress span { display: block; height: 100%; width: 0; background: var(--accent); }
+    .hint { text-align: right; color: var(--muted); font-size: 13px; }
+
+    @media (max-width: 880px) {
+      .title-grid, .columns, .grid-2, .grid-3, .sequence, .flow { grid-template-columns: 1fr; }
+      .slide { padding: 30px 18px; }
+      .footer { grid-template-columns: auto auto; }
+      .hint { display: none; }
+      .row { grid-template-columns: 1fr; }
+      .cell, .cell:first-child { border-left: 0; border-top: 1px solid var(--line); }
+      .row:first-child .cell:first-child { border-top: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="deck" aria-live="polite">
+      <article class="slide active">
+        <div class="frame title-grid">
+          <div>
+            <div class="eyebrow">LangGraph + MCP</div>
+            <h1>Tools, Servers and Skills</h1>
+            <p class="lead">Plug a LangGraph agent into MCP servers over stdio and HTTP, then see how MCP now serves Agent Skills.</p>
+          </div>
+          <pre><code>sample5/
+  01_stdio.py
+  02_http.py
+  03_skills.py
+  servers/
+  skills/</code></pre>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Why MCP</div>
+          <h2>One protocol instead of N x M glue</h2>
+          <div class="grid-2">
+            <div class="card danger"><span class="tag">Before</span><p><strong>Every app wires every tool by hand.</strong> 5 agents x 8 services = 40 custom integrations, each with its own auth and schema code.</p></div>
+            <div class="card soft"><span class="tag">With MCP</span><p>A service ships <strong>one MCP server</strong>. Any MCP client (LangGraph, Claude, an IDE) can use it. 5 + 8 = 13 pieces.</p></div>
+          </div>
+          <p class="notes">Analogy: USB-C for AI tools. The model does not change; how it discovers capabilities does.</p>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Architecture</div>
+          <h2>Host, client, server</h2>
+          <div class="flow">
+            <div class="step">Host<small>your LangGraph app</small></div>
+            <div class="step">MCP client<small>MultiServerMCPClient</small></div>
+            <div class="step">Transport<small>stdio or HTTP</small></div>
+            <div class="step">MCP server<small>FastMCP</small></div>
+            <div class="step">Real thing<small>API, files, DB</small></div>
+          </div>
+          <p class="notes">One host can hold many clients, one per server. Messages are JSON-RPC 2.0 in both directions.</p>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">What a server offers</div>
+          <h2>Three primitives</h2>
+          <div class="grid-3">
+            <div class="card"><span class="tag">Tools</span><h3>Model-controlled</h3><p>Actions the LLM decides to call: <code>add</code>, <code>get_weather</code>, <code>lookup_order</code>.</p></div>
+            <div class="card"><span class="tag">Resources</span><h3>App-controlled</h3><p>Readable data addressed by URI: <code>math://constants</code>, and later <code>skill://...</code></p></div>
+            <div class="card"><span class="tag">Prompts</span><h3>User-controlled</h3><p>Reusable templates the user picks: <code>explain_step_by_step</code>.</p></div>
+          </div>
+          <p class="notes">Only tools become LangChain tools automatically. Resources and prompts are read through the session (sample 1 shows it).</p>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">On the wire</div>
+            <h2>The handshake</h2>
+            <p>The adapter hides this, but it is just three calls.</p>
+            <ul>
+              <li><code>initialize</code> agree on version and capabilities</li>
+              <li><code>tools/list</code> discover names, descriptions, JSON schemas</li>
+              <li><code>tools/call</code> run one tool</li>
+            </ul>
+          </div>
+<pre><code>--> {"method": "tools/list"}
+&lt;-- {"tools": [{
+      "name": "multiply",
+      "description": "Multiply two numbers.",
+      "inputSchema": {...a, b: number}
+    }]}
+
+--> {"method": "tools/call",
+     "params": {"name": "multiply",
+                "arguments": {"a": 23, "b": 17}}}
+&lt;-- {"content": [{"type":"text","text":"391.0"}]}</code></pre>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Transports</div>
+          <h2>stdio vs streamable HTTP</h2>
+          <div class="table">
+            <div class="row"><div class="cell">&nbsp;</div><div class="cell">stdio</div><div class="cell">Streamable HTTP</div></div>
+            <div class="row"><div class="cell">Who starts the server</div><div class="cell">The client, as a subprocess</div><div class="cell">You; it is already running</div></div>
+            <div class="row"><div class="cell">Clients</div><div class="cell">Exactly one</div><div class="cell">Many at once</div></div>
+            <div class="row"><div class="cell">Where</div><div class="cell">Same machine</div><div class="cell">Anywhere, behind auth / LB</div></div>
+            <div class="row"><div class="cell">Config</div><div class="cell"><code>command</code>, <code>args</code></div><div class="cell"><code>url</code></div></div>
+            <div class="row"><div class="cell">Gotcha</div><div class="cell">Never <code>print()</code>: stdout is the protocol</div><div class="cell">Needs a port and real auth</div></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">LangGraph side</div>
+            <h2>The graph does not change</h2>
+            <p>Same ReAct loop as sample3. Only the source of <code>tools</code> moves from local <code>@tool</code> functions to the MCP server.</p>
+          </div>
+<pre><code># common.py
+llm = init_chat_model(
+    "litellm:gpt-4o-mini").bind_tools(tools)
+
+graph.add_node("agent", agent_node)
+graph.add_node("tools", ToolNode(tools))
+graph.add_conditional_edges("agent",
+                            tools_condition)
+graph.add_edge("tools", "agent")
+
+# MCP tools are async-only:
+await app.ainvoke(...)</code></pre>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">Sample 1: server</div>
+            <h2>A stdio server in 15 lines</h2>
+            <p>FastMCP turns type hints and docstrings into the tool schema the model sees. The last line picks the transport.</p>
+          </div>
+<pre><code># servers/math_server.py
+mcp = FastMCP("math")
+
+@mcp.tool()
+def add(a: float, b: float) -> float:
+    """Add two numbers."""
+    return a + b
+
+@mcp.resource("math://constants")
+def constants() -> str: ...
+
+@mcp.prompt()
+def explain_step_by_step(expression: str): ...
+
+mcp.run(transport="stdio")</code></pre>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">Sample 1: client</div>
+            <h2>Launch, discover, wrap</h2>
+            <ul>
+              <li>Config says <em>how to launch</em> the server</li>
+              <li><code>get_tools()</code> spawns it, handshakes, wraps tools</li>
+              <li><code>client.session()</code> gives a live connection for resources and prompts</li>
+            </ul>
+          </div>
+<pre><code>client = MultiServerMCPClient({
+  "math": {
+    "transport": "stdio",
+    "command": sys.executable,
+    "args": [str(SERVER)],
+  }
+})
+tools = await client.get_tools()
+
+async with client.session("math") as s:
+    await s.list_resources()
+    await s.read_resource("math://constants")
+
+app = build_app(tools)</code></pre>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">Run it</div>
+            <h2>Sample 1 output</h2>
+            <p>The model calls <code>multiply</code>, sees <code>391.0</code>, then calls <code>add</code> again. Lines like <code>Processing request of type ...</code> are server logs on stderr and are normal.</p>
+            <p class="notes">Needs OPENAI_API_KEY in .env</p>
+          </div>
+<pre><code>$ uv sync
+$ uv run 01_stdio.py
+
+MCP tools: ['add', 'multiply']
+MCP resources: ['math://constants']
+MCP prompts: ['explain_step_by_step']
+&gt;&gt;&gt; What is (23 * 17) + 5?
+  multiply(a=23, b=17) -> 391.0
+  add(a=391, b=5)      -> 396.0
+The result is 396.</code></pre>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">Sample 2: HTTP</div>
+            <h2>Same server code, different transport</h2>
+            <p>The server is now a long-lived service at <code>127.0.0.1:8765/mcp</code>. The client config has a <code>url</code> and no <code>command</code>.</p>
+          </div>
+<pre><code># servers/weather_http_server.py
+mcp = FastMCP("weather",
+              host="127.0.0.1", port=8765)
+...
+mcp.run(transport="streamable-http")
+
+# 02_http.py  (one client, two transports)
+MultiServerMCPClient({
+  "math":    {"transport": "stdio", ...},
+  "weather": {"transport": "streamable_http",
+              "url": "http://127.0.0.1:8765/mcp"},
+})</code></pre>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Sample 2: run it</div>
+          <h2>Two terminals make it real</h2>
+          <div class="grid-2">
+<pre><code># Terminal A: the service
+uv run servers/weather_http_server.py
+
+# Terminal B: the agent
+uv run 02_http.py
+# reusing weather server on :8765</code></pre>
+            <div class="card soft"><h3>What to notice</h3><p>One question triggers <code>get_weather</code> (HTTP server) and <code>multiply</code> (stdio server) in the same turn. The agent sees one flat list of four tools and does not know which transport each uses.</p></div>
+          </div>
+          <p class="notes">Running 02 alone also works: it starts the HTTP server as a subprocess and stops it afterwards.</p>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Sample 3: skills</div>
+          <h2>Tools give capability. Skills give know-how.</h2>
+          <div class="grid-2">
+            <div class="card"><span class="tag">Tool</span><h3><code>lookup_order(id)</code></h3><p>Can fetch an order. Says nothing about whether it may be refunded.</p></div>
+            <div class="card soft"><span class="tag">Skill</span><h3><code>refund-policy</code></h3><p>A procedure: look up the order, apply the 30 / 60 day rules, escalate above $500.</p></div>
+          </div>
+          <p class="notes">A skill is a folder: SKILL.md (YAML frontmatter with name and description, then instructions) plus optional references/ and scripts/. It follows the open Agent Skills format.</p>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">Skills over MCP</div>
+            <h2>SEP-2640: skills are resources</h2>
+            <p>Final since 2026-09-13. No new primitive: every file in a skill is an ordinary MCP resource under <code>skill://</code>, read with <code>resources/read</code>.</p>
+            <ul>
+              <li><code>skills/list</code> and <code>skills/get</code> return frontmatter plus a sha256 digest per file</li>
+              <li>Server declares <code>io.modelcontextprotocol/skills</code></li>
+            </ul>
+          </div>
+<pre><code>skill://refund-policy/SKILL.md
+skill://refund-policy/references/
+        escalation.md
+skill://support-tone/SKILL.md
+
+# listing entry (spec)
+{ "uri": "skill://refund-policy/SKILL.md",
+  "frontmatter": {"name": "refund-policy",
+                  "description": "..."},
+  "resources": [{"uri": "...",
+                 "digest": "sha256:...",
+                 "size": 812}] }</code></pre>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Progressive disclosure</div>
+          <h2>Pay for context only when needed</h2>
+          <div class="flow">
+            <div class="step">1. Discover<small>list resources, keep SKILL.md, advertise name + description only</small></div>
+            <div class="step">2. Load<small>model calls load_skill, we read SKILL.md</small></div>
+            <div class="step">3. Drill<small>read_skill_file for references, only if told to</small></div>
+            <div class="step">4. Act<small>skill says which tool to call</small></div>
+            <div class="step">5. Answer<small>cite the rule that decided</small></div>
+          </div>
+          <p class="notes">With hundreds of skills, step 1 keeps the prompt small. That is the whole point of the pattern.</p>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">Sample 3: trace</div>
+            <h2>Order A300 ($900, 5 days old)</h2>
+            <p>The $500 rule lives in a reference file the model only opens because SKILL.md pointed to it.</p>
+          </div>
+<pre><code>load_skill(name="refund-policy")
+  -> SKILL.md text
+lookup_order(order_id="A300")
+  -> {delivered, total: 900, age: 5}
+read_skill_file(
+  "skill://refund-policy/references/
+   escalation.md")
+  -> "over $500 -> pending manager approval"
+
+Answer: eligible, pending manager
+approval, ticket prefix ESC-</code></pre>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Compare</div>
+          <h2>Tool, prompt, or skill?</h2>
+          <div class="table">
+            <div class="row"><div class="cell">&nbsp;</div><div class="cell">Who triggers it</div><div class="cell">Best for</div></div>
+            <div class="row"><div class="cell">Tool</div><div class="cell">The model</div><div class="cell">Doing something: call an API, run a query</div></div>
+            <div class="row"><div class="cell">Prompt</div><div class="cell">The user</div><div class="cell">A fixed template the user picks</div></div>
+            <div class="row"><div class="cell">Resource</div><div class="cell">The app</div><div class="cell">Reading data by URI</div></div>
+            <div class="row"><div class="cell">Skill</div><div class="cell">The model, after reading the catalog</div><div class="cell">Procedures and policies with supporting files</div></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Honest limits</div>
+          <h2>What sample 3 simplifies</h2>
+          <div class="grid-2">
+            <div class="card warn"><strong>Not implemented</strong><ul><li><code>skills/list</code> and <code>skills/get</code>: the Python SDK lacks them, so we use plain <code>resources/list</code></li><li>Digest verification</li><li>User approval before activating a skill</li><li>Running skill scripts (needs sandboxing)</li></ul></div>
+            <div class="card danger"><strong>Security reminder</strong><p>A skill is instructions from a server. Treat third-party skills like third-party code: it can steer the model. Digests prove consistency, not trust.</p></div>
+          </div>
+          <p class="notes">Adoption is early: at finalization no mainstream IDE or CLI harness supported the extension.</p>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Exercises</div>
+          <h2>Try it yourself</h2>
+          <div class="grid-3">
+            <div class="card"><h3>1. New tool</h3><p>Add <code>subtract</code> to the math server. Does the agent use it with no client change?</p></div>
+            <div class="card"><h3>2. New skill</h3><p>Add <code>skills/shipping-delay/SKILL.md</code>. Restart 03 and watch discovery pick it up.</p></div>
+            <div class="card"><h3>3. Break it</h3><p>Add a <code>print()</code> to the stdio server. What fails and why?</p></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Recap</div>
+          <h2>Remember this</h2>
+          <p class="quote">MCP moves tool discovery out of your code. stdio launches a local server; HTTP connects to a shared one. Skills are just resources the host reads on demand, so the agent learns how, not only what.</p>
+          <div class="grid-3">
+            <div class="card"><h3>Transport</h3><p>Config only. Server code is the same.</p></div>
+            <div class="card"><h3>Graph</h3><p>Unchanged ReAct loop, async calls.</p></div>
+            <div class="card"><h3>Skills</h3><p>Discover cheap, load on demand, verify.</p></div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <footer class="footer">
+      <div class="controls">
+        <button type="button" id="prev" aria-label="Previous slide">Prev</button>
+        <button type="button" id="next" aria-label="Next slide">Next</button>
+      </div>
+      <div>
+        <div class="count" id="count">1 / 20</div>
+        <div class="progress" aria-hidden="true"><span id="bar"></span></div>
+      </div>
+      <div class="hint">Use Left and Right arrow keys</div>
+    </footer>
+  </main>
+
+  <script>
+    const slides = Array.from(document.querySelectorAll(".slide"));
+    const count = document.getElementById("count");
+    const bar = document.getElementById("bar");
+    const prev = document.getElementById("prev");
+    const next = document.getElementById("next");
+    let index = 0;
+
+    function showSlide(nextIndex) {
+      index = Math.max(0, Math.min(slides.length - 1, nextIndex));
+      slides.forEach((slide, i) => slide.classList.toggle("active", i === index));
+      count.textContent = `${index + 1} / ${slides.length}`;
+      bar.style.width = `${((index + 1) / slides.length) * 100}%`;
+      prev.disabled = index === 0;
+      next.disabled = index === slides.length - 1;
+      window.location.hash = `slide-${index + 1}`;
+    }
+
+    prev.addEventListener("click", () => showSlide(index - 1));
+    next.addEventListener("click", () => showSlide(index + 1));
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowRight" || event.key === "PageDown") showSlide(index + 1);
+      if (event.key === "ArrowLeft" || event.key === "PageUp") showSlide(index - 1);
+      if (event.key === "Home") showSlide(0);
+      if (event.key === "End") showSlide(slides.length - 1);
+    });
+
+    const match = window.location.hash.match(/slide-(\d+)/);
+    showSlide(match ? Number(match[1]) - 1 : 0);
+  </script>
+</body>
+</html>
