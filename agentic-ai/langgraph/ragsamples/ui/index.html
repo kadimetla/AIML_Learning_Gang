@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RAG Chat</title>
+<style>
+:root{--bg:#fff;--fg:#1c1e21;--mut:#6b7280;--card:#f4f5f7;--acc:#2563eb;--line:#e2e5ea;--user:#dbeafe}
+@media(prefers-color-scheme:dark){:root{--bg:#14161a;--fg:#e6e8eb;--mut:#9aa3af;--card:#1e2127;--acc:#60a5fa;--line:#2c3038;--user:#1e3a5f}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,sans-serif;display:flex;height:100vh}
+aside{width:320px;border-right:1px solid var(--line);padding:16px;overflow:auto;background:var(--card)}
+main{flex:1;display:flex;flex-direction:column;min-width:0}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin:18px 0 8px}h2:first-child{margin-top:0}
+label{display:block;font-size:12px;color:var(--mut);margin-top:8px}
+input,select,button,textarea{font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 9px;width:100%}
+button{cursor:pointer;background:var(--acc);color:#fff;border:0;margin-top:10px}button:disabled{opacity:.5}
+.row{display:flex;gap:8px}.row>*{flex:1}
+.doc{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:5px 0;border-bottom:1px solid var(--line)}
+.doc button{width:auto;margin:0;padding:2px 8px;background:transparent;color:var(--mut);border:1px solid var(--line)}
+#log{flex:1;overflow:auto;padding:20px 8%}
+.msg{margin:0 0 14px;padding:10px 14px;border-radius:12px;max-width:85%;white-space:pre-wrap}
+.user{background:var(--user);margin-left:auto}.bot{background:var(--card)}
+details{margin-top:8px;font-size:12px;color:var(--mut)}details p{margin:4px 0;white-space:pre-wrap}
+form{display:flex;gap:8px;padding:12px 8%;border-top:1px solid var(--line)}form button{width:90px;margin:0}
+#status{font-size:12px;color:var(--mut);margin-top:6px}
+@media(max-width:700px){body{flex-direction:column}aside{width:100%;height:auto;max-height:40vh}#log,form{padding-left:12px;padding-right:12px}}
+</style></head><body>
+<aside>
+  <h2>Upload</h2>
+  <input type="file" id="file" accept=".pdf,.txt,.md,.html,.csv,.json,.py,.rst">
+  <label>Chunking strategy</label><select id="strategy"></select>
+  <div class="row"><div><label>Size</label><input id="size" type="number" value="800"></div>
+  <div><label>Overlap</label><input id="overlap" type="number" value="100"></div></div>
+  <button id="up">Ingest</button><div id="status"></div>
+  <h2>Documents</h2><div id="docs"></div>
+  <h2>Backend</h2><div id="cfg" style="font-size:13px;color:var(--mut)"></div>
+</aside>
+<main>
+  <div id="log"><div class="msg bot">Upload a document on the left, then ask questions about it.</div></div>
+  <form id="f"><input id="q" placeholder="Ask about your documents…" autocomplete="off"><button id="send">Send</button></form>
+</main>
+<script>
+const ING="http://127.0.0.1:8001", QRY="http://127.0.0.1:8002", $=s=>document.getElementById(s);
+let history=[];
+const esc=s=>String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+async function init(){
+  try{const c=await (await fetch(ING+"/config")).json();
+    $("strategy").innerHTML=Object.entries(c.strategies).map(([k,v])=>`<option value="${k}" title="${esc(v)}">${k}</option>`).join("");
+    $("cfg").textContent=`${c.backend} · collection “${c.collection}”`;}
+  catch{$("status").textContent="Ingestion API not reachable on :8001"}
+  refresh();
+}
+async function refresh(){
+  try{const d=await (await fetch(ING+"/documents")).json();
+    $("docs").innerHTML=d.length?d.map(x=>`<div class="doc"><span>${esc(x.source)} <small>(${x.chunks})</small></span><button data-s="${esc(x.source)}">✕</button></div>`).join(""):"<small>No documents yet</small>";
+    document.querySelectorAll(".doc button").forEach(b=>b.onclick=async()=>{await fetch(ING+"/documents?source="+encodeURIComponent(b.dataset.s),{method:"DELETE"});refresh()});
+  }catch{}
+}
+$("up").onclick=async()=>{
+  const f=$("file").files[0]; if(!f) return $("status").textContent="Choose a file first";
+  const fd=new FormData(); fd.append("file",f); fd.append("strategy",$("strategy").value); fd.append("size",$("size").value); fd.append("overlap",$("overlap").value);
+  $("up").disabled=true; $("status").textContent="Ingesting…";
+  try{const r=await fetch(ING+"/ingest",{method:"POST",body:fd}); const j=await r.json();
+    $("status").textContent=r.ok?`✓ ${j.chunks} chunks from ${j.pages} page(s)`:`Error: ${j.detail}`;}
+  catch(e){$("status").textContent="Failed: "+e}
+  $("up").disabled=false; refresh();
+};
+function add(cls,html){const d=document.createElement("div");d.className="msg "+cls;d.innerHTML=html;$("log").appendChild(d);$("log").scrollTop=1e9;return d}
+$("f").onsubmit=async e=>{
+  e.preventDefault(); const q=$("q").value.trim(); if(!q) return; $("q").value="";
+  add("user",esc(q)); const w=add("bot","…"); $("send").disabled=true;
+  try{const r=await fetch(QRY+"/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:q,history})});
+    const j=await r.json();
+    history.push({role:"user",content:q},{role:"assistant",content:j.answer});
+    const src=j.sources.map((s,i)=>`<p>[${i+1}] <b>${esc(s.source)}</b>${s.page?" p."+s.page:""}\n${esc(s.text)}</p>`).join("");
+    w.innerHTML=esc(j.answer)+(src?`<details><summary>${j.sources.length} source chunk(s)</summary>${src}</details>`:"")+
+      `<details><summary>Agent steps</summary>${j.steps.map(s=>`<p>· ${esc(s)}</p>`).join("")}</details>`;
+  }catch(err){w.textContent="Query API error: "+err}
+  $("send").disabled=false;
+};
+init();
+</script></body></html>
