@@ -33,3 +33,11 @@ and retry (max 2) → answer with [n] citations, or say it could not find it.
 chroma, qdrant (docker server) and pgvector (docker) all pass: ingest, query with citations,
 re-ingest without duplicates, list and delete. Environment variables override `.env`, e.g.
 `VECTOR_BACKEND=pgvector uv run ragask "..."`.
+
+## Compare chunking strategies
+```bash
+cd ragingestion && uv run python eval/compare_chunking.py            # bundled corpus + 15 questions
+uv run python eval/compare_chunking.py --docs my.md --questions my_questions.json --k 5
+```
+Retrieval-only (embeddings, no LLM): a chunk is a hit if it contains the question's `answer` string.
+Reports hit@1/3/k and MRR per strategy/size on throwaway chroma collections (deleted afterwards).
