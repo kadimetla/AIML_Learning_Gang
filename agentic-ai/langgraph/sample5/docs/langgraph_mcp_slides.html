@@ -189,6 +189,73 @@
       </article>
 
       <article class="slide">
+        <div class="frame columns">
+          <div>
+            <div class="eyebrow">Discovery</div>
+            <h2>Connect first, then ask what exists</h2>
+            <p>There is no registry or config file listing tools. The host asks the server over the open connection.</p>
+            <ul>
+              <li>The <code>initialize</code> reply declares <strong>capabilities</strong>: which menus the server has</li>
+              <li>The client only calls <code>tools/list</code> if <code>tools</code> was declared, and so on</li>
+              <li>Optional <code>instructions</code> text can point the model at things, such as skill URIs</li>
+            </ul>
+          </div>
+<pre><code>--&gt; initialize {protocolVersion, clientInfo}
+&lt;-- {serverInfo: {...},
+     instructions: "Read a skill before...",
+     capabilities: {
+       tools: {},
+       resources: {},
+       prompts: {},
+       extensions: {
+         "io.modelcontextprotocol/skills": {}
+       }}}
+--&gt; notifications/initialized</code></pre>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Discovery</div>
+          <h2>What a server has, and how the host finds it</h2>
+          <div class="table">
+            <div class="row"><div class="cell">Feature</div><div class="cell">Discover, then use</div><div class="cell">Who decides to use it</div></div>
+            <div class="row"><div class="cell">Tools</div><div class="cell"><code>tools/list</code>, then <code>tools/call</code></div><div class="cell">The model</div></div>
+            <div class="row"><div class="cell">Resources</div><div class="cell"><code>resources/list</code> (and URI templates), then <code>resources/read</code></div><div class="cell">The app / host</div></div>
+            <div class="row"><div class="cell">Prompts</div><div class="cell"><code>prompts/list</code>, then <code>prompts/get</code></div><div class="cell">The user</div></div>
+            <div class="row"><div class="cell">Skills</div><div class="cell"><code>skills/list</code> / <code>skills/get</code>, or <code>resources/list</code> filtered to <code>skill://</code>, then <code>resources/read</code></div><div class="cell">The model, via the host's skill loader</div></div>
+            <div class="row"><div class="cell">Instructions</div><div class="cell">Arrive inside the <code>initialize</code> reply</div><div class="cell">The host puts them in context</div></div>
+          </div>
+          <p class="notes">A tool entry is name + description + JSON inputSchema. That is exactly what the model receives; run any script with --show-llm to see it under "tools sent".</p>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Discovery in our code</div>
+          <h2>Where each one lands in LangGraph</h2>
+          <div class="grid-3">
+            <div class="card"><span class="tag">Tools</span><h3>Automatic</h3><p><code>client.get_tools()</code> runs initialize + <code>tools/list</code> and wraps each tool. <code>bind_tools</code> puts the schemas in the LLM request.</p></div>
+            <div class="card"><span class="tag">Resources, prompts</span><h3>Explicit</h3><p>Not auto-converted. Sample 1 calls <code>session.list_resources()</code> and <code>list_prompts()</code>; the host decides what to do with them.</p></div>
+            <div class="card soft"><span class="tag">Skills</span><h3>Host-built</h3><p>Sample 3 lists resources, keeps <code>skill://*/SKILL.md</code>, builds the catalog, and adds its own <code>load_skill</code> tool. The model never talks to MCP directly.</p></div>
+          </div>
+          <p class="notes">The host mediates everything. Listing happens once at startup in these samples.</p>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="frame">
+          <div class="eyebrow">Beyond listing</div>
+          <h2>MCP is two-way, and lists can change</h2>
+          <div class="grid-2">
+            <div class="card"><h3>Server can ask the client</h3><ul><li><strong>Sampling:</strong> use the host's LLM</li><li><strong>Roots:</strong> which directories it may use</li><li><strong>Elicitation:</strong> ask the user via a form</li></ul><p>Only if the client declared support in <code>initialize</code>.</p></div>
+            <div class="card warn"><h3>Lists can change mid-session</h3><p>A server sends <code>notifications/tools/list_changed</code> and the host re-runs <code>tools/list</code>.</p><p><strong>Our samples list once</strong>, so they would not notice. A server can also advertise hundreds of tools: real hosts filter or load on demand to save tokens.</p></div>
+          </div>
+          <p class="notes">Trust: names, descriptions and skill text all come from the server and can steer the model. Treat third-party servers like third-party code.</p>
+        </div>
+      </article>
+
+      <article class="slide">
         <div class="frame">
           <div class="eyebrow">Transports</div>
           <h2>stdio vs streamable HTTP</h2>
@@ -471,7 +538,7 @@ approval, ticket prefix ESC-</code></pre>
         <button type="button" id="next" aria-label="Next slide">Next</button>
       </div>
       <div>
-        <div class="count" id="count">1 / 20</div>
+        <div class="count" id="count">1 / 24</div>
         <div class="progress" aria-hidden="true"><span id="bar"></span></div>
       </div>
       <div class="hint">Use Left and Right arrow keys</div>

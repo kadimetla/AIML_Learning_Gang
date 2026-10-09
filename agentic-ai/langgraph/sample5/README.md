@@ -14,7 +14,8 @@ being `@tool` functions in the file.
 
 Slides for students: [`docs/langgraph_mcp_slides.html`](docs/langgraph_mcp_slides.html) (open in a browser, arrow keys to navigate).
 
-Needs `OPENAI_API_KEY` in `.env` (copy `.env.example`).
+Needs `OPENAI_API_KEY` in `.env` (copy `.env.example`). Worked solutions for the
+deck's three exercises: [`SOLUTIONS.md`](SOLUTIONS.md).
 
 ## How to run
 
