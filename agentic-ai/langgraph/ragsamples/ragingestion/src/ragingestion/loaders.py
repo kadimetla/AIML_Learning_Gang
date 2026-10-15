@@ -57,7 +57,7 @@ def _pymupdf4llm(path: Path, source: str) -> list[Document]:
 
     pages = pymupdf4llm.to_markdown(str(path), page_chunks=True)
     return [
-        Document(page_content=p["text"], metadata={"source": source, "page": p["metadata"]["page"] + 1})
+        Document(page_content=p["text"], metadata={"source": source, "page": p["metadata"]["page_number"]})
         for p in pages
         if p["text"].strip()
     ]
@@ -77,6 +77,46 @@ def _docx(path: Path, source: str) -> list[Document]:
     return [Document(page_content=text, metadata={"source": source})]
 
 
+IMAGE_EXT = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"}
+
+
+@register("ocr", IMAGE_EXT | {".pdf"})
+def _ocr(path: Path, source: str) -> list[Document]:
+    """Tesseract OCR for images and scanned PDFs (needs the `tesseract` binary; PDFs also need poppler)."""
+    import pytesseract
+    from PIL import Image
+
+    if path.suffix.lower() == ".pdf":
+        from pdf2image import convert_from_path
+
+        images = convert_from_path(str(path), dpi=300)
+    else:
+        images = [Image.open(path)]
+    docs = []
+    for i, img in enumerate(images, start=1):
+        text = pytesseract.image_to_string(img)
+        if text.strip():
+            meta = {"source": source, "ocr": True}
+            if path.suffix.lower() == ".pdf":
+                meta["page"] = i
+            docs.append(Document(page_content=text, metadata=meta))
+    return docs
+
+
+@register("docling", {".pdf", ".docx", ".pptx", ".html", ".htm", ".md"} | IMAGE_EXT)
+def _docling(path: Path, source: str) -> list[Document]:
+    """Docling: layout analysis + tables + built-in OCR -> Markdown, one Document per page when paged."""
+    from docling.document_converter import DocumentConverter
+
+    doc = DocumentConverter().convert(str(path)).document
+    pages = sorted(doc.pages) if doc.pages else []
+    if len(pages) > 1:
+        out = [(n, doc.export_to_markdown(page_no=n)) for n in pages]
+        return [Document(page_content=t, metadata={"source": source, "page": n}) for n, t in out if t.strip()]
+    text = doc.export_to_markdown()
+    return [Document(page_content=text, metadata={"source": source})] if text.strip() else []
+
+
 def load_file(path: Path, source_name: str | None = None, loader: str | None = None) -> list[Document]:
     source = source_name or path.name
     ext = path.suffix.lower()
@@ -89,4 +129,7 @@ def load_file(path: Path, source_name: str | None = None, loader: str | None = N
     fn, exts = _LOADERS[loader]
     if ext not in exts:
         raise ValueError(f"Loader {loader!r} does not handle {ext!r} (handles {sorted(exts)})")
-    return fn(path, source)
+    docs = fn(path, source)
+    if not docs and loader == _DEFAULTS.get(ext) and ext == ".pdf":
+        docs = _ocr(path, source)  # no text layer -> scanned PDF, fall back to OCR
+    return docs

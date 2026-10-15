@@ -1,0 +1,14 @@
+[
+  {"file": "oyo.pdf", "q": "What is the booking ID?", "answer": ["IBZY2087"]},
+  {"file": "oyo.pdf", "q": "What was the room charge per night?", "answer": ["Rs 1939"]},
+  {"file": "oyo.pdf", "q": "Which bank should payments be made to and what is the IFSC code?", "answer": ["HDFC0000003"]},
+  {"file": "oyo.pdf", "q": "What is the hotel's GSTIN?", "answer": ["06AABCO6063D1ZQ"]},
+  {"file": "QualityHosting.pdf", "q": "What is the invoice total in EUR?", "answer": ["34,73"]},
+  {"file": "QualityHosting.pdf", "q": "What is the invoice number?", "answer": ["30064443"]},
+  {"file": "QualityHosting.pdf", "q": "What is the IBAN of QualityHosting?", "answer": ["DE30507500940000048567"]},
+  {"file": "QualityHosting.pdf", "q": "What are the payment terms?", "answer": ["14 Tage netto"]},
+  {"file": "table.pdf", "q": "How many participants were in the Mobility category?", "answer": ["Mobility | 3", "Mobility 3"]},
+  {"file": "table.pdf", "q": "What was the accuracy for the Dexterity group?", "answer": ["98.3%, n=4"]},
+  {"file": "QualityHosting_scan.jpg", "q": "What is the customer number on the scanned invoice?", "answer": ["47774"]},
+  {"file": "QualityHosting_scanned.pdf", "q": "What is the due date (Zahlungsziel) on the scanned PDF invoice?", "answer": ["21.05.14"]}
+]
