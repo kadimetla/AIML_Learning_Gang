@@ -11,9 +11,9 @@ from .loaders import load_file
 
 def ingest_file(path: Path, *, source_name: str | None = None, collection: str | None = None,
                 backend: str | None = None, strategy: str = "recursive", size: int = 800,
-                overlap: int = 100) -> dict:
+                overlap: int = 100, loader: str | None = None) -> dict:
     source = source_name or path.name
-    docs = load_file(path, source)
+    docs = load_file(path, source, loader)
     chunks = chunk(docs, strategy, size, overlap)
     if not chunks:
         raise ValueError(f"No text extracted from {source} (scanned PDF?)")
