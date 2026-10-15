@@ -27,7 +27,7 @@ from ragingestion.chunking import chunk
 from ragingestion.loaders import _LOADERS, load_file
 
 HERE = Path(__file__).parent
-SAMPLES = HERE.parent.parent / "data" / "samples"
+SAMPLES = HERE / "samples"
 norm = lambda s: " ".join(s.lower().split())  # noqa: E731
 
 

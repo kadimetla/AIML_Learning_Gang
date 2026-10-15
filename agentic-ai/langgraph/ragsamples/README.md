@@ -41,3 +41,10 @@ uv run python eval/compare_chunking.py --docs my.md --questions my_questions.jso
 ```
 Retrieval-only (embeddings, no LLM): a chunk is a hit if it contains the question's `answer` string.
 Reports hit@1/3/k and MRR per strategy/size on throwaway chroma collections (deleted afterwards).
+
+## Compare document loaders
+```bash
+cd ragingestion && uv run python eval/compare_loaders.py     # pypdf, pymupdf4llm, ocr, docling
+```
+Uses the sample invoices/table/scans in `ragingestion/eval/samples/` and `eval/loader_questions.json`.
+Reports extraction recall and retrieval hit@1/k per loader. Needs `tesseract` + poppler for the `ocr` loader.
