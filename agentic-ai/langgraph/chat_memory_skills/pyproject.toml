@@ -1,0 +1,17 @@
+[project]
+name = "chat-memory-skills"
+version = "0.1.0"
+description = "End-to-end LangGraph chat: short-term + long-term memory, tools, local skills"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "langchain>=1.4.1",
+    "langchain-litellm>=0.7.2",
+    "langchain-openai>=1.6.2",
+    "langgraph>=1.2.11",
+    "langgraph-checkpoint-sqlite>=3.1.2",
+    "mcp>=1.20",  # litellm imports it at call time but does not declare it
+    "python-dotenv>=1.2.3",
+    "pyyaml>=6.0.3",
+    "sqlite-vec>=0.1.9",
+]
