@@ -69,14 +69,14 @@ def build_graph():
     return graph
 
 
+# embed the "fact" field so recall() can do semantic search
+STORE_INDEX = {"dims": 1536, "embed": "openai:text-embedding-3-small", "fields": ["fact"]}
+
+
 def open_stores():
     """Context managers for the checkpointer (short-term) and store (long-term)."""
     saver = SqliteSaver.from_conn_string(str(HERE / "checkpoints.db"))
-    store = SqliteStore.from_conn_string(
-        str(HERE / "memories.db"),
-        # embed the "fact" field so recall() can do semantic search
-        index={"dims": 1536, "embed": "openai:text-embedding-3-small", "fields": ["fact"]},
-    )
+    store = SqliteStore.from_conn_string(str(HERE / "memories.db"), index=STORE_INDEX)
     return saver, store
 
 

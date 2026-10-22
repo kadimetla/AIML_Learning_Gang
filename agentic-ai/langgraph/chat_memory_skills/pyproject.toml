@@ -5,6 +5,8 @@ description = "End-to-end LangGraph chat: short-term + long-term memory, tools, 
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "ag-ui-langgraph>=0.0.47",
+    "fastapi>=0.161.0",
     "langchain>=1.4.1",
     "langchain-litellm>=0.7.2",
     "langchain-openai>=1.6.2",
@@ -14,4 +16,5 @@ dependencies = [
     "python-dotenv>=1.2.3",
     "pyyaml>=6.0.3",
     "sqlite-vec>=0.1.9",
+    "uvicorn>=0.54.0",
 ]

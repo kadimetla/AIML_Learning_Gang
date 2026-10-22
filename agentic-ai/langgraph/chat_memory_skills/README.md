@@ -24,6 +24,7 @@ progressive disclosure.
 | `save_memory`, `forget_memory` | long-term memory write | [`memory.py`](memory.py) |
 
 The graph wiring and REPL are in [`chat.py`](chat.py).
+**Step-by-step walkthrough of one turn (for teaching): [`docs/FLOW.md`](docs/FLOW.md).**
 
 ## The two memory layers
 
@@ -92,6 +93,39 @@ uv run chat.py --thread 1a2b3c4d   # resume a thread (short-term memory)
 Things to try: "I'm vegetarian", then `/new` and ask for dinner ideas.
 "Actually I eat fish now" (→ `forget_memory` + `save_memory`).
 "Refund on A400?" (final sale). Delete `*.db` to reset everything.
+
+### Web UI: CopilotKit + AG-UI
+
+The same graph behind a browser chat. Three processes, in this order:
+
+```
+browser :3000  →  Next.js CopilotRuntime :3000/api/copilotkit  →  AG-UI  →  server.py :8000/agent
+```
+
+```bash
+# terminal 1: the agent, served over AG-UI
+uv run server.py
+
+# terminal 2: the web app (Node 20+), once: npm install
+cd web
+npm install
+npm run dev            # open http://localhost:3000
+```
+
+Pick a user, chat, and watch a card appear for each tool call. "New thread"
+clears the history but keeps the memories. The web app and `chat.py` share
+the same `.db` files, so memories carry between them. CopilotKit's runtime
+sends anonymous telemetry; set `COPILOTKIT_TELEMETRY_DISABLED=true` in
+`web/.env.local` to turn it off.
+
+| File | Role |
+|---|---|
+| [`server.py`](server.py) | FastAPI + `ag-ui-langgraph`: AG-UI `RunAgentInput` in, SSE events out. `threadId` → `thread_id`; `forwardedProps.user_id` → `user_id` (demo only, a real app takes it from auth) |
+| [`web/app/api/copilotkit/[[...slug]]/route.ts`](web/app/api/copilotkit/%5B%5B...slug%5D%5D/route.ts) | CopilotRuntime: forwards the browser's runs to `server.py` with an AG-UI `HttpAgent` |
+| [`web/app/page.tsx`](web/app/page.tsx) | user picker, thread id, `<CopilotChat>`, tool-call cards |
+
+How a web turn maps onto the graph, with the real AG-UI event stream:
+[`docs/FLOW.md` §6](docs/FLOW.md#6-the-web-version-copilotkit-ui--ag-ui--the-same-graph).
 
 ## Exercises
 
