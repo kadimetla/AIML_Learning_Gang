@@ -30,6 +30,7 @@ load_dotenv()
 
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage, ToolMessage
+from langchain.tools import ToolRuntime
 from langchain_core.tools import tool
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
@@ -129,6 +130,8 @@ The user's screen can render UI for you. This replaces "ask short questions" in 
   once, with a one-line question and every field prefilled with your best guess.
 - If the user asks to SEE, compare or summarise something (what exists, a cost breakdown),
   get the facts first (list_resources / list_catalog), then call generate_a2ui to show them.
+  Views show what exists and what the plan costs from the server itself, so don't repeat
+  numbers in the request; views are read-only (no buttons, no inputs).
 - Never use UI to ask for approval: after propose_plan the system shows its own approval card."""
 
 
@@ -139,8 +142,28 @@ def build_graph():
     # generate_a2ui (from ag-ui-langgraph): a sub-agent that writes A2UI for the client's catalog
     # (A2UI_MODEL: a stronger model just for designing views; its output is validated either way)
     ui_model = init_chat_model(os.environ["A2UI_MODEL"], temperature=0) if os.getenv("A2UI_MODEL") else model
-    generate_a2ui = get_a2ui_tools({"model": ui_model, "default_catalog_id": a2ui.CATALOG_ID,
-                                    "guidelines": {"composition_guide": a2ui.COMPOSITION_GUIDE}})
+    toolkit_view = get_a2ui_tools({"model": ui_model, "default_catalog_id": a2ui.CATALOG_ID,
+                                   "catalog": a2ui.VIEW_CATALOG,  # validate against OUR catalog, then retry
+                                   "guidelines": {"composition_guide": a2ui.COMPOSITION_GUIDE}})
+
+    # The same tool, plus one check the toolkit can't do: no money amounts typed into a view (they
+    # come from PlanCost). It has to happen inside the tool: its result streams to the browser as
+    # soon as the tool ends, so a later node would be too late to keep a wrong cost off the screen.
+    @tool(toolkit_view.name, description=toolkit_view.description)
+    async def generate_a2ui(runtime: ToolRuntime, intent: str = "create",
+                            target_surface_id: str | None = None, changes: str | None = None) -> str:
+        """Generate or edit an A2UI surface.
+
+        Args:
+            intent: "create" for a new surface, or "update" to modify one rendered earlier.
+            target_surface_id: Required when intent="update": the surface id to modify.
+            changes: Optional: what to change when intent="update".
+        """
+        result = await toolkit_view.coroutine(runtime=runtime, intent=intent,
+                                              target_surface_id=target_surface_id, changes=changes)
+        problems = a2ui.view_problems(result)
+        return a2ui.rejected(problems) if problems else result
+
     llm = model.bind_tools([*READ_TOOLS, propose_plan, propose_destroy])
     llm_ui = model.bind_tools([*READ_TOOLS, propose_plan, propose_destroy, ask_details, generate_a2ui])
 

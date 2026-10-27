@@ -92,23 +92,36 @@ cd web_shadcn && npm install && npm run dev       # http://localhost:5175 (same 
 [A2UI](https://a2ui.org) lets the agent describe UI as JSON (a flat list of components plus a data model). The
 client draws it with its **own** components. Here, the client's catalog (`src/a2ui/catalog.tsx`) maps each A2UI type
 to a shadcn component: `ChoicePicker` → `Select`, `TextField` → `Input`/`Textarea`, `Card` → `Card`, `Button` → `Button`, and so on.
+Each type also has a Zod schema: a node with bad props draws as "invalid" instead of breaking the chat.
 
 ```
 useAgUi (agui/)        AG-UI run loop; sends the catalog's schema in RunAgentInput.context on every run
 ChatView (chat/)       shadcn chat, presentational; a renderTool slot and a footer slot
-A2UISurface (a2ui/)    A2UI ops -> catalog[type] -> shadcn; unknown types render as "unsupported"
+A2UISurface (a2ui/)    A2UI ops -> catalog[type] -> Zod check -> shadcn; unknown types render as "unsupported"
 ```
 
 | A2UI in this app | made by | arrives as | the answer goes back as |
 |---|---|---|---|
 | `ask_details` form (env, region, budget, needs) | **code** (`a2ui.details_form`); the LLM only prefills it | `interrupt()` value, `reason: "a2ui:form"` | the button's A2UI action as the `resume[]` payload |
-| views ("show staging as cards") | an **LLM sub-agent** (`generate_a2ui` from `ag-ui-langgraph`), validated and retried by its toolkit | tool result `{"a2ui_operations": [...]}` | a button click becomes a user message |
+| views ("show staging as cards") | an **LLM sub-agent** (`generate_a2ui` from `ag-ui-langgraph`), validated against the server's catalog and retried | tool result `{"a2ui_operations": [...]}` | nothing: views are read-only |
 | approval card | **not A2UI**: hand-built from validated, priced state | `interrupt()` value, `reason: "plan:approval"` | `resume[]` with `{approved}` |
 
-The A2UI tools are offered only when the request carries an A2UI catalog. `web/`, `web_plain/`, `web_hybrid/` and
-`cli.py` don't send one, so they never see a form interrupt. A view made by an LLM can be wrong (in a test run, its
-cards showed rounded costs), which is why the thing a human approves is never LLM-made UI. If small models
-produce invalid views, set `A2UI_MODEL` to a stronger model just for designing them.
+The A2UI tools are offered only when the request carries our A2UI catalog. `web/`, `web_plain/`, `web_hybrid/` and
+`cli.py` don't send one, so they never see a form interrupt. If small models produce invalid views, set `A2UI_MODEL`
+to a stronger model just for designing them.
+
+A view made by an LLM can be wrong: in test runs its cards showed made-up costs ($20.23 for a $22.53 plan). So:
+
+- **The server decides what a view may contain** (`a2ui.VIEW_CATALOG`), not the browser: layout, text, badges, and
+  two domain components. `Button` and inputs are not in it, so a view can't collect input or send actions; the only
+  form is `ask_details`, built by code. The browser draws views with `viewCatalog` and the form with `formCatalog`.
+- **Facts come from the server, not the LLM.** `InventoryTable` draws `GET /inventory`, and `PlanCost` draws the graph's
+  priced plan from state; the agent only places them. `generate_a2ui` refuses a view that types a money amount
+  anywhere (`a2ui.view_problems`), and the agent retries with `PlanCost`. That check runs inside the tool: its result
+  streams to the browser as soon as the tool ends, so a later node would be too late.
+- Domain components show the *current* state, so an older view in the chat updates too.
+- The thing a human approves is still never LLM-made UI. The agent's chat *text* can still state wrong numbers; the
+  panels and these components are the source of truth.
 
 ### assistant-ui + A2UI client
 
@@ -118,7 +131,7 @@ cd web_assistant_ui && npm install && npm run dev # http://localhost:5176 (same 
 ```
 
 The same app as `web_shadcn`, but [assistant-ui](https://www.assistant-ui.com)'s AG-UI runtime replaces our
-`useAgUi` hook and `ChatView`. The A2UI renderer, catalog and panels are copies of `web_shadcn`'s, and the server is unchanged.
+`useAgUi` hook and `ChatView`. The A2UI renderer, catalog and panels are copies of `web_shadcn`'s (keep them identical), and the server is the same.
 
 ```
 ProvisionRuntime (agui/runtime.tsx)  HttpAgent + useAgUiRuntime; the A2UI catalog via getRunContext;
@@ -152,6 +165,8 @@ The browser is untrusted. These hold for every client:
   re-checked against the *current* inventory before anything is created.
 - **Form answers are typed.** `ask_details` values pass a Pydantic model (known env/region, budget bounds, no
   extra fields) before the LLM sees them.
+- **The catalog and context are the server's.** `RunAgentInput.context` reaches the A2UI sub-agent's prompt. The server
+  keeps only the A2UI catalog entry, only if it names our catalog id, and replaces its text with `a2ui.VIEW_CATALOG`.
 
 Not done yet: authentication, thread ownership (any caller who knows a thread id can use it), and who may approve.
 

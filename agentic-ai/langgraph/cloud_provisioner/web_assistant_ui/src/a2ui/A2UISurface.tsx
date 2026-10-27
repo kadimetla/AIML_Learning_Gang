@@ -1,17 +1,22 @@
-// Draws one A2UI surface with the catalog. The renderer knows the protocol (ids, children,
+// Draws one A2UI surface with a catalog. The renderer knows the protocol (ids, children,
 // data binding, actions); the catalog knows the look (shadcn). Neither knows about the agent.
 //
-//   node.component ──► catalog[type] ──► shadcn component       unknown type ──► <Unsupported/>
+//   node.component ──► catalog[type] ──► schema check ──► shadcn component
+//                      unknown type ──► <Unsupported/>      bad props ──► <Invalid/>
 //   { path: "/form/env" } ──► value() reads, set() writes the surface's local data model
 //   Button action ──► fire() resolves the context paths ──► onAction(UserAction)
+//
+// The caller picks the catalog: viewCatalog for LLM-made views, formCatalog for code-built forms.
 
 import { useState, type ReactNode } from "react";
-import { catalog, Unsupported, type RenderCtx } from "./catalog";
+import { Invalid, Unsupported, type Catalog, type RenderCtx } from "./catalog";
 import { absolute, getPath, setPath, type Dynamic, type Node, type Surface, type UserAction } from "./surface";
 
 const MAX_DEPTH = 24; // the component list comes from an LLM: never trust it to be a tree
 
-export function A2UISurface({ surface, onAction, disabled }: { surface: Surface; onAction: (a: UserAction) => void; disabled?: boolean }) {
+type Props = { surface: Surface; catalog: Catalog; onAction?: (a: UserAction) => void; disabled?: boolean };
+
+export function A2UISurface({ surface, catalog, onAction, disabled }: Props) {
   const [data, setData] = useState(surface.data); // inputs write here; the agent sees it only via an action
   // a new data model from the agent (updateDataModel on this surface) replaces local edits;
   // React's "adjust state when a prop changes" pattern, so there's no stale frame
@@ -24,8 +29,14 @@ export function A2UISurface({ surface, onAction, disabled }: { surface: Surface;
   function render(id: string, scope: string, depth: number): ReactNode {
     const node = surface.components[id];
     if (!node || depth > MAX_DEPTH) return null;
-    const Component = catalog[node.component];
-    if (!Component) return <Unsupported key={`${scope}:${id}`} type={node.component} />;
+    const key = `${scope}:${id}`;
+    const entry = Object.hasOwn(catalog, node.component) ? catalog[node.component] : undefined;
+    if (!entry) return <Unsupported key={key} type={String(node.component)} />;
+    const checked = entry.schema.safeParse(node);
+    if (!checked.success) {
+      const issue = checked.error.issues[0];
+      return <Invalid key={key} type={node.component} issue={`${issue.path.join(".") || "props"}: ${issue.message}`} />;
+    }
 
     const value = (v: unknown) =>
       v && typeof v === "object" && "path" in v ? getPath(data, absolute((v as { path: string }).path, scope)) : v;
@@ -53,7 +64,7 @@ export function A2UISurface({ surface, onAction, disabled }: { surface: Surface;
       },
       fire: (n: Node) => {
         const event = n.action?.event;
-        if (!event || disabled) return;
+        if (!event || disabled || !onAction) return;
         const context: Record<string, unknown> = {};
         for (const [k, v] of Object.entries(event.context ?? {})) context[k] = value(v as Dynamic);
         onAction({
@@ -62,7 +73,8 @@ export function A2UISurface({ surface, onAction, disabled }: { surface: Surface;
         });
       },
     };
-    return <Component key={`${scope}:${id}`} {...ctx} />;
+    const { Render } = entry;
+    return <Render key={key} {...ctx} props={checked.data as never} />;
   }
 
   return <div className="a2ui-surface">{render("root", "", 0)}</div>;

@@ -18,7 +18,7 @@ export type ProvisionState = {
   issues?: string[];
   actions?: Action[];
 };
-type Row = { name: string; kind: string; env: string; region: string; cloud_id: string };
+export type Row = { name: string; kind: string; env: string; region: string; cloud_id: string };
 
 const ICON: Record<string, string> = { ready: "✓", deleted: "✓", retrying: "↻", failed: "✗", pending: "·" };
 const PHASE: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -106,14 +106,21 @@ export function PlanPanel({ state, running }: { state: ProvisionState; running: 
   );
 }
 
-export function Inventory({ refreshKey }: { refreshKey: number }) {
-  const [data, setData] = useState<{ provider: string; resources: Row[] } | null>(null);
+export type InventoryData = { provider: string; resources: Row[] };
+
+/** GET /inventory (the server's record of what exists), again whenever refreshKey changes. */
+export function useInventory(refreshKey: number): InventoryData | null {
+  const [data, setData] = useState<InventoryData | null>(null);
   useEffect(() => {
     fetch("/inventory")
       .then((r) => r.json())
       .then(setData)
       .catch(() => setData(null));
   }, [refreshKey]);
+  return data;
+}
+
+export function Inventory({ data }: { data: InventoryData | null }) {
   return (
     <Card className="gap-3">
       <CardHeader className="flex flex-row items-center justify-between">

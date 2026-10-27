@@ -18,14 +18,16 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
-from ag_ui.core.types import RunAgentInput
+from ag_ui.core.types import Context, RunAgentInput
 from ag_ui.encoder import EventEncoder
+from ag_ui_a2ui_toolkit import A2UI_SCHEMA_CONTEXT_DESCRIPTION
 from ag_ui_langgraph import LangGraphAgent
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
+import a2ui
 from graph import build_graph, inventory, provider
 
 HERE = Path(__file__).parent
@@ -72,7 +74,19 @@ async def trusted(input_data: RunAgentInput) -> RunAgentInput:
         raise HTTPException(409, f"not an open interrupt on this thread: {stale}; reload the thread")
     state = {k: v for k, v in (saved.values or {}).items() if k not in ("messages", "ag-ui")}
     props = {k: v for k, v in (input_data.forwarded_props or {}).items() if k not in UNTRUSTED_PROPS}
-    return input_data.model_copy(update={"state": state, "forwarded_props": props})
+    return input_data.model_copy(update={"state": state, "forwarded_props": props,
+                                         "context": trusted_context(input_data.context)})
+
+
+def trusted_context(context: list[Context]) -> list[Context]:
+    """RunAgentInput.context is text the adapter hands to the A2UI sub-agent's prompt. Keep only
+    the A2UI catalog entry, and only as the server's own catalog (a2ui.VIEW_CATALOG): the browser
+    says WHICH catalog it renders, the server says what an LLM may put in it."""
+    kept = []
+    for c in context or []:
+        if c.description == A2UI_SCHEMA_CONTEXT_DESCRIPTION and (ours := a2ui.server_catalog(c.value)):
+            kept.append(c.model_copy(update={"value": ours}))
+    return kept
 
 
 @app.post("/agent")

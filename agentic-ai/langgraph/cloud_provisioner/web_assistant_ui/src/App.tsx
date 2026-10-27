@@ -9,18 +9,19 @@
 //
 // Where A2UI shows up (as in web_shadcn):
 //   interrupt reason "a2ui:form"      the ask_details form, under the messages; its action resumes the graph
-//   generate_a2ui tool result         an agent-designed view, inline; its actions become messages
+//   generate_a2ui tool result         an agent-designed view, inline; read-only (viewCatalog)
 //   interrupt reason "plan:approval"  NOT A2UI: ApprovalCard, drawn from validated state
 
 import { useMemo, useState } from "react";
-import { useAui, useAuiState, type ToolCallMessagePartProps } from "@assistant-ui/react";
+import { useAuiState, type ToolCallMessagePartProps } from "@assistant-ui/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { A2UISurface } from "@/a2ui/A2UISurface";
-import { applyOps, opsFrom, type Surface, type UserAction } from "@/a2ui/surface";
+import { DomainData, formCatalog, viewCatalog } from "@/a2ui/catalog";
+import { applyOps, opsFrom, type Surface } from "@/a2ui/surface";
 import { interruptValue, ProvisionRuntime, usePendingInterrupt, useProvisionState, useRunCount } from "@/agui/runtime";
 import { Thread } from "@/components/chat/Thread";
-import { ApprovalCard, Inventory, PlanPanel } from "@/components/ProvisionPanels";
+import { ApprovalCard, Inventory, PlanPanel, useInventory } from "@/components/ProvisionPanels";
 
 const AGENT_URL = "/agent";
 const newThreadId = () => crypto.randomUUID().slice(0, 8);
@@ -34,6 +35,15 @@ export default function App() {
   );
 }
 
+/** graph.py refuses a view that typed money amounts (costs come from PlanCost); a2ui.rejected() */
+function viewRefused(value: unknown): boolean {
+  try {
+    return typeof value === "string" && JSON.parse(value)?.error === "view_rejected";
+  } catch {
+    return false;
+  }
+}
+
 /** All surfaces in an a2ui_operations envelope (one per envelope in practice). */
 function surfacesOf(value: unknown): Surface[] {
   const ops = opsFrom(value);
@@ -44,17 +54,11 @@ const asText = (r: unknown) => (r == null ? undefined : typeof r === "string" ? 
 
 /** generate_a2ui: an agent-designed view. Parsed once per result: surfaces must keep their identity. */
 function GenerateA2UI({ result, status }: ToolCallMessagePartProps) {
-  const aui = useAui();
-  const running = useAuiState((s) => s.thread.isRunning);
-  const { pending } = usePendingInterrupt();
   const text = asText(result);
   const surfaces = useMemo(() => surfacesOf(text), [text]);
   if (status.type === "running") return <p className="animate-pulse text-xs text-muted-foreground">designing a view…</p>;
-  if (!surfaces.length) return <Badge variant="destructive">could not build that view</Badge>;
-  // a button in the view: tell the agent in a message (the runtime refuses a new run while one is open)
-  const onAction = ({ action }: UserAction) =>
-    aui.thread().append(`[clicked "${action.name}" in ${action.surfaceId}] ${JSON.stringify(action.context)}`);
-  return surfaces.map((s) => <A2UISurface key={s.id} surface={s} onAction={onAction} disabled={running || !!pending} />);
+  if (!surfaces.length) return <Badge variant="destructive">{viewRefused(text) ? "view refused by the server: it typed costs" : "could not build that view"}</Badge>;
+  return surfaces.map((s) => <A2UISurface key={s.id} surface={s} catalog={viewCatalog} />);
 }
 
 /** Every other tool: a collapsible line with its result. */
@@ -84,6 +88,7 @@ const TOOLS = {
 function Workspace({ thread, onNewThread }: { thread: string; onNewThread: () => void }) {
   const state = useProvisionState();
   const runs = useRunCount();
+  const inventory = useInventory(runs);
   const running = useAuiState((s) => s.thread.isRunning);
   const { pending, error, resolve } = usePendingInterrupt();
 
@@ -92,43 +97,45 @@ function Workspace({ thread, onNewThread }: { thread: string; onNewThread: () =>
   const approval = pending && pending.reason !== "a2ui:form" ? pending : null;
 
   return (
-    <div className="flex h-dvh flex-col bg-background text-foreground">
-      <header className="flex flex-wrap items-center gap-3 border-b px-4 py-2.5">
-        <b className="text-sm">Cloud provisioner</b>
-        <Badge variant="outline">assistant-ui + A2UI</Badge>
-        <span className="text-xs text-muted-foreground">
-          thread <code>{thread}</code>
-        </span>
-        <Button size="sm" variant="outline" onClick={onNewThread} disabled={running}>
-          New thread
-        </Button>
-        <span className="ml-auto hidden text-xs text-muted-foreground md:inline">@assistant-ui/react-ag-ui · no runtime server · /agent via proxy → FastAPI</span>
-      </header>
-      <main className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[minmax(0,1fr)_380px]">
-        <Thread
-          tools={TOOLS}
-          Fallback={ToolLine}
-          disabled={!!pending}
-          placeholder={pending ? "Answer the form or the approval first" : undefined}
-          footer={form.map((s) => (
-            // the graph is paused in details(); the form's action IS the resume payload
-            <A2UISurface key={`${pending!.id}:${s.id}`} surface={s} onAction={(a) => resolve(a)} />
-          ))}
-        />
-        <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto border-t bg-muted/30 p-3 md:border-t-0 md:border-l">
-          {error && <p className="rounded-md bg-destructive/10 p-2 text-xs text-destructive">{error}</p>}
-          {approval && (
-            <ApprovalCard
-              message={approval.message ?? "Approve this plan?"}
-              expiresAt={approval.expiresAt}
-              destroy={!!state.plan?.destroy}
-              onDecide={(approved, reason) => resolve(approved ? { approved: true } : { approved: false, reason })}
-            />
-          )}
-          <PlanPanel state={state} running={running} />
-          <Inventory refreshKey={runs} />
-        </aside>
-      </main>
-    </div>
+    <DomainData.Provider value={{ state, inventory }}>
+      <div className="flex h-dvh flex-col bg-background text-foreground">
+        <header className="flex flex-wrap items-center gap-3 border-b px-4 py-2.5">
+          <b className="text-sm">Cloud provisioner</b>
+          <Badge variant="outline">assistant-ui + A2UI</Badge>
+          <span className="text-xs text-muted-foreground">
+            thread <code>{thread}</code>
+          </span>
+          <Button size="sm" variant="outline" onClick={onNewThread} disabled={running}>
+            New thread
+          </Button>
+          <span className="ml-auto hidden text-xs text-muted-foreground md:inline">@assistant-ui/react-ag-ui · no runtime server · /agent via proxy → FastAPI</span>
+        </header>
+        <main className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[minmax(0,1fr)_380px]">
+          <Thread
+            tools={TOOLS}
+            Fallback={ToolLine}
+            disabled={!!pending}
+            placeholder={pending ? "Answer the form or the approval first" : undefined}
+            footer={form.map((s) => (
+              // the graph is paused in details(); the form's action IS the resume payload
+              <A2UISurface key={`${pending!.id}:${s.id}`} surface={s} catalog={formCatalog} onAction={(a) => resolve(a)} />
+            ))}
+          />
+          <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto border-t bg-muted/30 p-3 md:border-t-0 md:border-l">
+            {error && <p className="rounded-md bg-destructive/10 p-2 text-xs text-destructive">{error}</p>}
+            {approval && (
+              <ApprovalCard
+                message={approval.message ?? "Approve this plan?"}
+                expiresAt={approval.expiresAt}
+                destroy={!!state.plan?.destroy}
+                onDecide={(approved, reason) => resolve(approved ? { approved: true } : { approved: false, reason })}
+              />
+            )}
+            <PlanPanel state={state} running={running} />
+            <Inventory data={inventory} />
+          </aside>
+        </main>
+      </div>
+    </DomainData.Provider>
   );
 }
