@@ -34,6 +34,9 @@ START → agent ⇄ tools                     list_catalog, list_resources
 | `server.py` | AG-UI endpoint (`ag-ui-langgraph`) + `GET /inventory` |
 | `web/` | Next.js + CopilotKit: chat, plan panel (`useAgent`), approve card (`useInterrupt`), inventory |
 | `web_plain/index.html` | the same UI in one file with no libraries: `fetch` + SSE straight to the AG-UI server, plus a raw event log |
+| `web_hybrid/` | Vite + React: `@ag-ui/client` runs the agent, CopilotKit's `CopilotChatView` draws the chat; no runtime |
+| `a2ui.py` | A2UI on the server: the code-built `ask_details` form, the switch (did the client send a catalog?) |
+| `web_shadcn/` | Vite + shadcn/ui, no CopilotKit: a headless AG-UI hook, a shadcn chat, and an A2UI renderer whose catalog maps A2UI types to shadcn components |
 
 ## Run (fake cloud)
 
@@ -61,15 +64,65 @@ python3 -m http.server 5173 -d web_plain          # http://localhost:5173
 ```
 
 One HTML file speaks AG-UI directly: it POSTs a `RunAgentInput` to `:8001/agent` and reads the SSE events.
-The right-hand panel logs every event, so you can watch the protocol as it happens. `server.py` allows CORS from
-`localhost:5173` for this. Both clients drive the same server: AG-UI is the contract, and the UI is up to you.
+The right-hand panel logs every event, so you can watch the protocol as it happens.
 
-| | `web/` (CopilotKit) | `web_plain/` |
-|---|---|---|
-| path | browser → Next.js runtime → AG-UI → FastAPI | browser → AG-UI → FastAPI |
-| chat, streaming, tool cards | CopilotKit components | about 300 lines of plain JS |
-| approval | `useInterrupt` → `resolve()` | `RUN_FINISHED.outcome` → button → POST with `resume[]` |
-| a server in front of the agent (auth, secrets) | the Next.js runtime | none: the agent must be reachable from the browser |
+### Hybrid client (CopilotKit components, your own AG-UI loop, no runtime)
+
+```bash
+uv run server.py                                  # same agent server
+cd web_hybrid && npm install && npm run dev       # http://localhost:5174
+```
+
+`@ag-ui/client`'s `HttpAgent` sends the runs (including `resume[]` for approvals) and keeps the messages and
+state. `CopilotChatView` only draws them. The page calls `/agent` and `/inventory` on its **own origin**, and a
+proxy routes them to FastAPI: Vite's dev server (`vite.config.ts`) in development, nginx in production
+(`web_hybrid/deploy/nginx.conf`, an untested example with SSE settings: `proxy_buffering off`, long read timeout).
+So there's no CORS, and FastAPI never has to face the internet. `CopilotKitProvider` is still needed, because the message view reads
+its tool renderers from it. The agent is passed in as a local agent (`agents__unsafe_dev_only`), so the
+provider never looks for a runtime.
+
+### shadcn + A2UI client (no CopilotKit)
+
+```bash
+uv run server.py                                  # same agent server
+cd web_shadcn && npm install && npm run dev       # http://localhost:5175 (same proxy setup as web_hybrid)
+```
+
+[A2UI](https://a2ui.org) lets the agent describe UI as JSON (a flat list of components plus a data model). The
+client draws it with its **own** components. Here, the client's catalog (`src/a2ui/catalog.tsx`) maps each A2UI type
+to a shadcn component: `ChoicePicker` → `Select`, `TextField` → `Input`/`Textarea`, `Card` → `Card`, `Button` → `Button`, and so on.
+
+```
+useAgUi (agui/)        AG-UI run loop; sends the catalog's schema in RunAgentInput.context on every run
+ChatView (chat/)       shadcn chat, presentational; a renderTool slot and a footer slot
+A2UISurface (a2ui/)    A2UI ops -> catalog[type] -> shadcn; unknown types render as "unsupported"
+```
+
+| A2UI in this app | made by | arrives as | the answer goes back as |
+|---|---|---|---|
+| `ask_details` form (env, region, budget, needs) | **code** (`a2ui.details_form`); the LLM only prefills it | `interrupt()` value, `reason: "a2ui:form"` | the button's A2UI action as the `resume[]` payload |
+| views ("show staging as cards") | an **LLM sub-agent** (`generate_a2ui` from `ag-ui-langgraph`), validated and retried by its toolkit | tool result `{"a2ui_operations": [...]}` | a button click becomes a user message |
+| approval card | **not A2UI**: hand-built from validated, priced state | `interrupt()` value, `reason: "plan:approval"` | `resume[]` with `{approved}` |
+
+The A2UI tools are offered only when the request carries an A2UI catalog. `web/`, `web_plain/`, `web_hybrid/` and
+`cli.py` don't send one, so they never see a form interrupt. A view made by an LLM can be wrong (in a test run, its
+cards showed rounded costs), which is why the thing a human approves is never LLM-made UI. If small models
+produce invalid views, set `A2UI_MODEL` to a stronger model just for designing them.
+
+### Four clients, one agent server
+
+`server.py` allows CORS only from `localhost:5173`, for `web_plain`, which calls it directly from the browser. All four drive the same server: AG-UI is the contract, and the UI is up to you.
+
+| | `web/` | `web_hybrid/` | `web_shadcn/` | `web_plain/` |
+|---|---|---|---|---|
+| path | browser → Next.js runtime → AG-UI → FastAPI | browser → proxy → AG-UI → FastAPI | same as hybrid | browser → AG-UI → FastAPI |
+| runs the agent | CopilotKit (through the runtime) | `@ag-ui/client` `HttpAgent` | `HttpAgent` inside `useAgUi` | your own `fetch` + SSE loop |
+| draws the chat | `CopilotChat` | `CopilotChatView` (display only) | your shadcn `ChatView` | about 300 lines of plain JS |
+| approval | `useInterrupt` → `resolve()` | `RUN_FINISHED.outcome` → card → `runAgent({ resume })` | same as hybrid | same, by hand |
+| generative UI | — | — | A2UI → shadcn catalog | — |
+| build step | Next.js | Vite | Vite + Tailwind | none |
+| server in front of the agent (auth, secrets) | yes, the runtime | the proxy (Vite dev / nginx) | the proxy | none |
+| supported by CopilotKit | yes | uses a dev-only prop; pin the version | doesn't use CopilotKit | doesn't use CopilotKit |
 
 ## Real AWS
 

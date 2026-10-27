@@ -1,7 +1,9 @@
-"""AG-UI server: the SAME graph as cli.py, served over HTTP for two web clients.
+"""AG-UI server: the SAME graph as cli.py, served over HTTP for the web clients.
 
     web/        browser --> Next.js /api/copilotkit (CopilotRuntime) --> POST :8001/agent --> graph.py
     web_plain/  browser ------------------- fetch + SSE ---------------> POST :8001/agent --> graph.py
+    web_hybrid/, web_shadcn/  browser --> same-origin proxy (Vite / nginx) --> POST :8001/agent --> graph.py
+                (web_shadcn also sends an A2UI catalog in context, which turns on the A2UI tools; see a2ui.py)
 
 What the web UI gets from AG-UI that cli.py printed by hand:
   STATE_SNAPSHOT        phase / plan / cost / issues / actions  -> the plan panel (useAgent)
@@ -42,7 +44,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# web_plain/ calls this server straight from the browser (no CopilotKit runtime in
+# web_plain/ (:5173) calls this server straight from the browser (no runtime or proxy in
 # between), from another origin, so the browser needs CORS permission.
 app.add_middleware(
     CORSMiddleware,

@@ -14,9 +14,14 @@
   result of its propose_* tool call, so it can fix the plan or explain.
 
   State is shared with the web UI over AG-UI: phase, plan, cost, issues, actions.
+
+  A2UI (only when the client sends an A2UI catalog, i.e. web_shadcn/; see a2ui.py):
+    agent -> details   ask_details: a form built by code, shown via interrupt(), answered by resume
+    agent -> tools     generate_a2ui: an LLM-designed read-only view, returned as a tool result
 """
 
 import os
+from typing_extensions import TypedDict  # the same TypedDict MessagesState uses
 
 from dotenv import load_dotenv
 
@@ -28,7 +33,10 @@ from langchain_core.tools import tool
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
 from langgraph.types import interrupt
+from ag_ui_langgraph import get_a2ui_tools
 from pydantic import ValidationError
+
+import a2ui
 
 from catalog import KIND_ORDER, Plan, Resource, catalog_text, estimate, ordered
 from cloud import Inventory, TransientError, get_provider
@@ -39,13 +47,23 @@ inventory = Inventory()
 provider = get_provider()
 
 
-class State(MessagesState):
+class PublicState(MessagesState):
     phase: str                # idle | policy_failed | over_budget | awaiting_approval | rejected | applying | done | failed
     plan: dict | None         # the proposed Plan (+ "destroy": True for teardown)
     cost: dict | None         # estimate(): per-resource and total USD/month
     issues: list[str]         # policy / budget problems of the last proposal
     actions: list[dict]       # apply queue: {op, name, kind, status, attempts, cloud_id, error}
     call_id: str | None       # the propose_* tool call this workflow will answer
+
+
+# ag-ui-langgraph writes the client's tools/context (incl. the A2UI catalog) to state["ag-ui"].
+# It has to be a declared key to reach the nodes; it is left out of PublicState, the output
+# schema, so it is not echoed back to the browser in every STATE_SNAPSHOT.
+AgUi = TypedDict("AgUi", {"ag-ui": dict}, total=False)
+
+
+class State(PublicState, AgUi):
+    pass
 
 
 # ---- tools the LLM can call ------------------------------------------------
@@ -76,6 +94,14 @@ def propose_destroy(env: str) -> str:
     return "handled by the plan node"
 
 
+@tool
+def ask_details(question: str, env: str | None = None, region: str | None = None,
+                budget_usd: float | None = None, needs: str | None = None) -> str:
+    """Show the user ONE short form for the details you still need (env, region, budget, what
+    the app needs). Prefill every field with your best guess. Use it instead of asking in text."""
+    return "handled by the details node"
+
+
 READ_TOOLS = [list_catalog, list_resources]
 PROPOSE = {"propose_plan", "propose_destroy"}
 
@@ -94,21 +120,52 @@ Cloud provider in use: {provider.name}.
 Catalog:
 {catalog_text()}"""
 
+SYSTEM_A2UI = """
+The user's screen can render UI for you. This replaces "ask short questions" in step 1:
+- If ANY of env, region or what the app needs is unknown, do NOT ask in text. Call ask_details
+  once, with a one-line question and every field prefilled with your best guess.
+- If the user asks to SEE, compare or summarise something (what exists, a cost breakdown),
+  get the facts first (list_resources / list_catalog), then call generate_a2ui to show them.
+- Never use UI to ask for approval: after propose_plan the system shows its own approval card."""
+
 
 # ---- nodes -----------------------------------------------------------------
 
 def build_graph():
-    llm = init_chat_model(os.getenv("MODEL", "litellm:gpt-4o-mini"), temperature=0)
-    llm = llm.bind_tools([*READ_TOOLS, propose_plan, propose_destroy])
+    model = init_chat_model(os.getenv("MODEL", "litellm:gpt-4o-mini"), temperature=0)
+    # generate_a2ui (from ag-ui-langgraph): a sub-agent that writes A2UI for the client's catalog
+    # (A2UI_MODEL: a stronger model just for designing views; its output is validated either way)
+    ui_model = init_chat_model(os.environ["A2UI_MODEL"], temperature=0) if os.getenv("A2UI_MODEL") else model
+    generate_a2ui = get_a2ui_tools({"model": ui_model, "default_catalog_id": a2ui.CATALOG_ID,
+                                    "guidelines": {"composition_guide": a2ui.COMPOSITION_GUIDE}})
+    llm = model.bind_tools([*READ_TOOLS, propose_plan, propose_destroy])
+    llm_ui = model.bind_tools([*READ_TOOLS, propose_plan, propose_destroy, ask_details, generate_a2ui])
 
     def agent(state: State) -> dict:
+        if a2ui.enabled(state):  # this client sent an A2UI catalog: it can render forms and views
+            return {"messages": [llm_ui.invoke([("system", SYSTEM + SYSTEM_A2UI), *state["messages"]])]}
         return {"messages": [llm.invoke([("system", SYSTEM), *state["messages"]])]}
 
     def route_agent(state: State) -> str:
         calls = state["messages"][-1].tool_calls
         if not calls:
             return END
-        return "plan" if any(c["name"] in PROPOSE for c in calls) else "tools"
+        if any(c["name"] in PROPOSE for c in calls):
+            return "plan"
+        return "details" if any(c["name"] == "ask_details" for c in calls) else "tools"
+
+    def details(state: State) -> dict:
+        """Pause on a code-built A2UI form; the user's answer comes back as the tool result."""
+        last: AIMessage = state["messages"][-1]
+        call = next(c for c in last.tool_calls if c["name"] == "ask_details")
+        skipped = [ToolMessage("not run: ask_details goes alone, in its own step", tool_call_id=c["id"])
+                   for c in last.tool_calls if c is not call]
+        decision = interrupt({
+            "reason": "a2ui:form",  # AG-UI Interrupt.reason: tells the client this is a form, not an approval
+            "message": call["args"].get("question") or "A few details",
+            "a2ui_operations": a2ui.details_form(call["args"], a2ui.catalog_id(state)),
+        })
+        return {"messages": [*skipped, ToolMessage(a2ui.form_answer(decision), tool_call_id=call["id"])]}
 
     def answer(state: State, text: str) -> ToolMessage:
         """The result of the propose_* call: how the workflow reports back to the LLM."""
@@ -169,6 +226,7 @@ def build_graph():
         verb = "DELETE" if p["destroy"] else "Create"
         money = f"saves about ${cost['total']}/month" if p["destroy"] else f"about ${cost['total']}/month"
         decision = interrupt({
+            "reason": "plan:approval",
             "message": f"{verb} {len(state['actions'])} resources in {p['env']} ({p['region']}), {money}?",
             "env": p["env"], "destroy": p["destroy"], "total": cost["total"],
         })
@@ -223,9 +281,10 @@ def build_graph():
         """validate/estimate/approve: continue, or back to the agent if they answered the call."""
         return lambda state: "agent" if state["phase"] in ("policy_failed", "over_budget", "rejected") else next_node
 
-    g = StateGraph(State)
+    g = StateGraph(State, output_schema=PublicState)
     g.add_node("agent", agent)
-    g.add_node("tools", ToolNode(READ_TOOLS))
+    g.add_node("tools", ToolNode([*READ_TOOLS, generate_a2ui]))
+    g.add_node("details", details)
     g.add_node("plan", plan)
     g.add_node("validate", validate)
     g.add_node("estimate", estimate_cost)
@@ -234,8 +293,9 @@ def build_graph():
     g.add_node("report", report)
 
     g.add_edge(START, "agent")
-    g.add_conditional_edges("agent", route_agent, ["tools", "plan", END])
+    g.add_conditional_edges("agent", route_agent, ["tools", "plan", "details", END])
     g.add_edge("tools", "agent")
+    g.add_edge("details", "agent")
     g.add_edge("plan", "validate")
     g.add_conditional_edges("validate", after("estimate"), ["estimate", "agent"])
     g.add_conditional_edges("estimate", after("approve"), ["approve", "agent"])
