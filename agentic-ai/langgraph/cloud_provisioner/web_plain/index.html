@@ -1,0 +1,332 @@
+<!doctype html>
+<!--
+  Plain AG-UI client: no CopilotKit, no Next.js, no build step, no libraries.
+  The browser talks AG-UI straight to the Python server:
+
+      this page  ── POST /agent (RunAgentInput JSON) ─►  server.py :8001
+                 ◄─ SSE: one JSON event per "data:" line ─
+
+  Everything AG-UI is in the <script> below, in four parts:
+    1. runAgent()   POST + read the SSE stream          (the whole protocol, ~25 lines)
+    2. onEvent()    one switch over event types         (what each event changes on screen)
+    3. send() / decide()   start a run / resume after an interrupt
+    4. render*()    draw transcript, plan panel, inventory, event log
+
+      uv run server.py                               # agent on :8001 (allows CORS from :5173)
+      python3 -m http.server 5173 -d web_plain       # then open http://localhost:5173
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plain AG-UI client</title>
+<style>
+  :root { --fg:#172033; --muted:#6b7280; --line:#e2e2e2; --bg:#fff; --soft:#f6f6f6; --blue:#2f5fd0; --red:#c62828; --green:#1a7f37; --orange:#b4531a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px system-ui, sans-serif; color: var(--fg); background: var(--bg); }
+  .page { display: flex; flex-direction: column; height: 100vh; max-width: 1320px; margin: 0 auto; padding: 0 16px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .bar code { background: var(--soft); padding: 2px 6px; border-radius: 4px; }
+  button { font: inherit; padding: 5px 12px; border-radius: 6px; border: 1px solid #aaa; background: #fff; cursor: pointer; }
+  button.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+  button:disabled { opacity: .5; cursor: default; }
+  .main { flex: 1; min-height: 0; display: flex; gap: 16px; padding-top: 8px; }
+  .chat { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  #transcript { flex: 1; overflow-y: auto; padding-right: 4px; }
+  .side { width: 460px; flex-shrink: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding-bottom: 16px; }
+  @media (max-width: 900px) { .main { flex-direction: column; } .side { width: auto; max-height: 45vh; } }
+
+  .msg { margin: 10px 0; white-space: pre-wrap; line-height: 1.45; }
+  .msg.user { background: #eef2fb; padding: 8px 12px; border-radius: 10px; margin-left: 15%; }
+  .tool { font: 12px ui-monospace, monospace; background: var(--soft); border-left: 3px solid var(--blue); padding: 6px 8px; margin: 6px 0; border-radius: 4px; overflow-wrap: anywhere; white-space: pre-wrap; }
+  .tool .result { color: var(--muted); margin-top: 3px; }
+  .live { color: var(--muted); font-style: italic; margin: 6px 0; }
+  .approve { border: 2px solid var(--blue); border-radius: 8px; padding: 12px; margin: 10px 0; background: #f5f8ff; }
+  .approve.danger { border-color: var(--red); background: #fff5f5; }
+  .approve input { width: 100%; padding: 6px; margin: 8px 0; font: inherit; }
+  .approve .buttons { display: flex; gap: 8px; }
+  form { display: flex; gap: 8px; padding: 10px 0 14px; }
+  form input { flex: 1; padding: 9px 12px; font: inherit; border: 1px solid #ccc; border-radius: 8px; }
+
+  .panel { border: 1px solid var(--line); border-radius: 8px; padding: 12px; font-size: 13px; }
+  .panel h3 { margin: 0 0 8px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
+  .panel table { width: 100%; border-collapse: collapse; }
+  .panel td { padding: 3px 4px; border-top: 1px solid #eee; vertical-align: top; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); }
+  .ok { color: var(--green); } .warn { color: var(--orange); } .bad { color: var(--red); }
+  .issues { color: var(--red); margin: 0 0 8px; padding-left: 18px; }
+  .phase { font-size: 11px; font-weight: normal; padding: 2px 8px; border-radius: 10px; background: #eee; }
+  #events { font: 11px/1.5 ui-monospace, monospace; max-height: 260px; overflow-y: auto; }
+  #events .step { color: var(--blue); }
+  #events .tool-ev { color: var(--orange); }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="bar">
+    <b>Plain AG-UI client</b>
+    <span>thread <code id="thread"></code></span>
+    <button id="new-thread">New thread</button>
+    <span class="muted">no CopilotKit · fetch + SSE straight to <code>:8001/agent</code></span>
+  </div>
+  <div class="main">
+    <div class="chat">
+      <div id="transcript"></div>
+      <form id="form">
+        <input id="input" autocomplete="off" placeholder="e.g. staging web app in us-east-1, 2 servers + postgres, under $60/month">
+        <button class="primary" id="send">Send</button>
+      </form>
+    </div>
+    <div class="side">
+      <section class="panel" id="plan"></section>
+      <section class="panel"><h3>Inventory <span class="muted" id="provider"></span></h3><table id="inventory"></table></section>
+      <section class="panel"><h3>AG-UI events <span class="muted">this run</span></h3><div id="events"></div></section>
+    </div>
+  </div>
+</div>
+
+<script>
+const AGENT_URL = "http://localhost:8001/agent";
+const INVENTORY_URL = "http://localhost:8001/inventory";
+
+// ---- client state ----------------------------------------------------------
+let threadId = newId();
+let messages = [];       // the conversation, as AG-UI messages (replaced by MESSAGES_SNAPSHOT)
+let agentState = {};     // the graph's state (replaced by STATE_SNAPSHOT): phase, plan, cost, issues, actions
+let live = null;         // what is streaming in the current run, before the final snapshot
+let pending = null;      // an open interrupt: { id, message }
+let running = false;
+
+function newId() { return crypto.randomUUID().slice(0, 8); }
+
+// ---- 1. the whole AG-UI transport: POST a RunAgentInput, read SSE events ---
+async function runAgent(extra = {}) {
+  // state: send back the last STATE_SNAPSHOT, like CopilotKit does. The adapter builds the
+  // first snapshot of a resumed run from it; with {} the plan panel would go blank.
+  const body = { threadId, runId: crypto.randomUUID(), messages, state: agentState,
+                 tools: [], context: [], forwardedProps: {}, ...extra };
+  const res = await fetch(AGENT_URL, {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "text/event-stream" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`agent returned HTTP ${res.status}`);
+  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buf = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += value;
+    let end;
+    while ((end = buf.indexOf("\n\n")) >= 0) {       // an SSE event ends with a blank line
+      const chunk = buf.slice(0, end);
+      buf = buf.slice(end + 2);
+      const data = chunk.split("\n").filter(l => l.startsWith("data:")).map(l => l.slice(5)).join("\n");
+      if (data) onEvent(JSON.parse(data));
+    }
+  }
+}
+
+// ---- 2. what each AG-UI event does to the screen ----------------------------
+function onEvent(e) {
+  logEvent(e);
+  switch (e.type) {
+    case "STEP_STARTED":            // a graph node started
+      live.step = e.stepName; break;
+    case "TEXT_MESSAGE_START":
+      live.text = ""; break;
+    case "TEXT_MESSAGE_CONTENT":    // the answer, a few tokens at a time
+      live.text += e.delta; break;
+    case "TOOL_CALL_START":
+      live.tools.push({ id: e.toolCallId, name: e.toolCallName, args: "" }); break;
+    case "TOOL_CALL_ARGS":          // tool arguments stream as JSON text
+      live.tools.find(t => t.id === e.toolCallId).args += e.delta; break;
+    case "STATE_SNAPSHOT":          // the graph's state after a node step
+      agentState = e.snapshot; renderPlan(); break;
+    case "MESSAGES_SNAPSHOT":       // the authoritative conversation: replaces what we streamed
+      messages = e.messages; live.text = null; live.tools = []; break;
+    case "RUN_FINISHED":            // ends every run; outcome "interrupt" = the graph is paused
+      if (e.outcome?.type === "interrupt") {
+        const i = e.outcome.interrupts[0];
+        pending = { id: i.id, message: i.message };
+      }
+      break;
+    case "RUN_ERROR":
+      live.error = e.message; break;
+  }
+  renderTranscript();
+}
+
+// ---- 3. starting and resuming runs -----------------------------------------
+async function send(text) {
+  messages = [...messages, { id: crypto.randomUUID(), role: "user", content: text }];
+  await run({});
+}
+
+async function decide(approved, reason) {
+  const interruptId = pending.id;
+  pending = null;
+  // same thread, plus resume[]: the adapter turns it into Command(resume=payload)
+  await run({ resume: [{ interruptId, status: "resolved", payload: approved ? { approved: true } : { approved: false, reason } }] });
+}
+
+async function run(extra) {
+  running = true;
+  live = { step: null, text: null, tools: [], error: null };
+  document.getElementById("events").replaceChildren();
+  renderTranscript();
+  try {
+    await runAgent(extra);
+  } catch (err) {
+    live.error = String(err);
+  }
+  running = false;
+  if (!live.error) live = null;
+  renderTranscript();
+  loadInventory();
+}
+
+// ---- 4. rendering (textContent only: model output is never parsed as HTML) --
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = text;
+  return n;
+}
+
+function toolCard(name, args, result) {
+  const card = el("div", "tool");
+  let shown = args;
+  try {
+    const parsed = JSON.parse(args);
+    shown = name === "propose_plan" ? `${parsed.env} / ${parsed.region}, ${parsed.resources.length} resources` : JSON.stringify(parsed);
+  } catch { /* still streaming: show the raw JSON so far */ }
+  card.append(el("b", null, `${result == null ? "…" : "✓"} ${name}`), ` (${shown})`);
+  if (result != null) card.append(el("div", "result", String(result).slice(0, 400)));
+  return card;
+}
+
+function renderTranscript() {
+  const box = document.getElementById("transcript");
+  box.replaceChildren();
+  const results = Object.fromEntries(messages.filter(m => m.role === "tool").map(m => [m.toolCallId, m.content]));
+  for (const m of messages) {
+    if (m.role === "user") box.append(el("div", "msg user", m.content));
+    if (m.role === "assistant") {
+      if (m.content) box.append(el("div", "msg", m.content));
+      for (const c of m.toolCalls ?? []) box.append(toolCard(c.function.name, c.function.arguments, results[c.id] ?? null));
+    }
+  }
+  if (live) {
+    for (const t of live.tools) box.append(toolCard(t.name, t.args, null));
+    if (live.text) box.append(el("div", "msg", live.text));
+    if (running) box.append(el("div", "live", `running${live.step ? ": " + live.step : ""}…`));
+    if (live.error) box.append(el("div", "msg bad", live.error));
+  }
+  if (pending) box.append(approveCard());
+  document.getElementById("send").disabled = running || !!pending;
+  document.getElementById("input").placeholder = pending ? "approve or reject the plan first" : "e.g. staging web app in us-east-1, 2 servers + postgres, under $60/month";
+  box.scrollTop = box.scrollHeight;
+}
+
+function approveCard() {
+  const card = el("div", "approve" + (agentState.plan?.destroy ? " danger" : ""));
+  const reason = el("input");
+  reason.placeholder = "reason (if rejecting)";
+  const yes = el("button", "primary", "Approve");
+  const no = el("button", null, "Reject");
+  yes.onclick = () => decide(true);
+  no.onclick = () => decide(false, reason.value);
+  const buttons = el("div", "buttons");
+  buttons.append(yes, no);
+  card.append(el("b", null, "⏸ Approval needed"), el("p", null, pending.message),
+              el("p", "muted", "The graph is paused in approve(). Nothing changes until you decide."), reason, buttons);
+  return card;
+}
+
+const ICON = { ready: "✓", deleted: "✓", retrying: "↻", failed: "✗", pending: "·" };
+const ICON_CLASS = { ready: "ok", deleted: "ok", retrying: "warn", failed: "bad" };
+
+function renderPlan() {
+  const box = document.getElementById("plan");
+  const { plan, cost, issues = [], actions = [], phase } = agentState;
+  box.replaceChildren();
+  if (!plan && !issues.length) { box.append(el("span", "muted", "No plan yet. Describe what you need in the chat.")); return; }
+  const h = el("h3", null, `${plan?.destroy ? "Destroy" : "Plan"}${plan ? ` · ${plan.env} · ${plan.region}` : ""}`);
+  h.append(el("span", "phase", phase));
+  box.append(h);
+  if (issues.length) {
+    const ul = el("ul", "issues");
+    issues.forEach(i => ul.append(el("li", null, i)));
+    box.append(ul);
+  }
+  const table = el("table");
+  for (const a of actions) {
+    const tr = el("tr");
+    const name = el("td", null, a.name);
+    if (a.error) name.append(el("div", "warn", a.error.slice(0, 80)));
+    tr.append(el("td", ICON_CLASS[a.status], ICON[a.status] ?? "·"), el("td", null, a.op), el("td", null, a.kind), name,
+              el("td", "num", cost ? `$${(cost.lines[a.name] ?? 0).toFixed(2)}` : ""));
+    table.append(tr);
+  }
+  box.append(table);
+  if (cost) box.append(el("div", "num", `${plan?.destroy ? "saves" : "total"} $${cost.total.toFixed(2)}/month` +
+                                         (plan?.budget_usd ? ` · budget $${plan.budget_usd}` : "")));
+}
+
+async function loadInventory() {
+  const table = document.getElementById("inventory");
+  try {
+    const data = await (await fetch(INVENTORY_URL)).json();
+    document.getElementById("provider").textContent = `${data.provider} cloud`;
+    table.replaceChildren(...data.resources.map(r => {
+      const tr = el("tr");
+      tr.append(el("td", null, r.env), el("td", null, r.kind), el("td", null, r.name), el("td", "muted", r.cloud_id));
+      return tr;
+    }));
+    if (!data.resources.length) table.append(el("tr", "muted", "nothing provisioned"));
+  } catch {
+    document.getElementById("provider").textContent = "server offline";
+  }
+}
+
+// one line per event; streaming chunks (ARGS, CONTENT) are counted, not listed
+function logEvent(e) {
+  const box = document.getElementById("events");
+  const last = box.lastElementChild;
+  if (last && last.dataset.type === e.type && /_ARGS|_CONTENT/.test(e.type)) {
+    last.dataset.n = +last.dataset.n + 1;
+    last.textContent = `${e.type} ×${last.dataset.n}`;
+    return;
+  }
+  const detail = e.stepName ?? e.toolCallName ?? (e.outcome ? `outcome: ${e.outcome.type}` : "");
+  const line = el("div", e.type.startsWith("STEP") ? "step" : e.type.startsWith("TOOL") ? "tool-ev" : null,
+                  `${e.type}${detail ? " " + detail : ""}`);
+  line.dataset.type = e.type;
+  line.dataset.n = 1;
+  box.append(line);
+  box.scrollTop = box.scrollHeight;
+}
+
+// ---- wiring ----------------------------------------------------------------
+document.getElementById("form").onsubmit = (ev) => {
+  ev.preventDefault();
+  const input = document.getElementById("input");
+  const text = input.value.trim();
+  if (!text || running || pending) return;
+  input.value = "";
+  send(text);
+};
+document.getElementById("new-thread").onclick = () => {
+  if (running) return;
+  threadId = newId(); messages = []; agentState = {}; pending = null; live = null;
+  document.getElementById("thread").textContent = threadId;
+  document.getElementById("events").replaceChildren();
+  renderTranscript(); renderPlan();
+};
+document.getElementById("thread").textContent = threadId;
+renderTranscript(); renderPlan(); loadInventory();
+</script>
+</body>
+</html>

@@ -11,7 +11,7 @@ does the provider touch the cloud. By default that cloud is a **fake** one: no
 credentials and no cost. A real **AWS** provider (boto3) uses the same interface
 for when you test for real.
 
-Step-by-step walkthrough for students: **[docs/FLOW.md](docs/FLOW.md)**
+Step-by-step walkthrough for students: **[docs/FLOW.md](docs/FLOW.md)** (the graph) and **[docs/ORCHESTRATION.md](docs/ORCHESTRATION.md)** (the request across all services)
 
 ```
 START → agent ⇄ tools                     list_catalog, list_resources
@@ -33,6 +33,7 @@ START → agent ⇄ tools                     list_catalog, list_resources
 | `demo.py` | scripted run: policy fix → reject → approve + retry → destroy |
 | `server.py` | AG-UI endpoint (`ag-ui-langgraph`) + `GET /inventory` |
 | `web/` | Next.js + CopilotKit: chat, plan panel (`useAgent`), approve card (`useInterrupt`), inventory |
+| `web_plain/index.html` | the same UI in one file with no libraries: `fetch` + SSE straight to the AG-UI server, plus a raw event log |
 
 ## Run (fake cloud)
 
@@ -51,6 +52,24 @@ cd web && npm install && npm run dev      # http://localhost:3001
 ```
 
 Ports 8001 and 3001 let this run next to `chat_memory_skills` (8000 / 3000).
+
+### Plain AG-UI client (no CopilotKit, no Next.js)
+
+```bash
+uv run server.py                                  # same agent server
+python3 -m http.server 5173 -d web_plain          # http://localhost:5173
+```
+
+One HTML file speaks AG-UI directly: it POSTs a `RunAgentInput` to `:8001/agent` and reads the SSE events.
+The right-hand panel logs every event, so you can watch the protocol as it happens. `server.py` allows CORS from
+`localhost:5173` for this. Both clients drive the same server: AG-UI is the contract, and the UI is up to you.
+
+| | `web/` (CopilotKit) | `web_plain/` |
+|---|---|---|
+| path | browser → Next.js runtime → AG-UI → FastAPI | browser → AG-UI → FastAPI |
+| chat, streaming, tool cards | CopilotKit components | about 300 lines of plain JS |
+| approval | `useInterrupt` → `resolve()` | `RUN_FINISHED.outcome` → button → POST with `resume[]` |
+| a server in front of the agent (auth, secrets) | the Next.js runtime | none: the agent must be reachable from the browser |
 
 ## Real AWS
 
