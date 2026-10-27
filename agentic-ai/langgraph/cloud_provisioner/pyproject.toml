@@ -1,0 +1,20 @@
+[project]
+name = "cloud-provisioner"
+version = "0.1.0"
+description = "LangGraph cloud provisioning: plan, policy, cost, human approval, apply -- served over AG-UI to CopilotKit"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "ag-ui-langgraph>=0.0.47",
+    "fastapi>=0.161.0",
+    "langchain>=1.4.1",
+    "langchain-litellm>=0.7.2",
+    "langgraph>=1.2.11",
+    "langgraph-checkpoint-sqlite>=3.1.2",
+    "mcp>=1.20",  # litellm imports it at call time but does not declare it
+    "python-dotenv>=1.2.3",
+    "uvicorn>=0.54.0",
+]
+
+[project.optional-dependencies]
+aws = ["boto3>=1.40"]  # only for CLOUD_PROVIDER=aws

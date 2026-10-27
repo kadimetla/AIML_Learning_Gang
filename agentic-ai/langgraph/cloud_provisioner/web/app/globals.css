@@ -1,0 +1,41 @@
+html, body { height: 100%; margin: 0; font-family: system-ui, sans-serif; color: #172033; }
+.page { display: flex; flex-direction: column; height: 100vh; max-width: 1280px; margin: 0 auto; padding: 0 16px; box-sizing: border-box; }
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid #ddd; font-size: 14px; }
+.bar code { background: #f2f2f2; padding: 2px 6px; border-radius: 4px; }
+.bar button { font: inherit; padding: 4px 10px; }
+.hint { color: #666; }
+.workspace { flex: 1; min-height: 0; display: flex; gap: 16px; padding-top: 8px; }
+.chat { flex: 1; min-width: 0; min-height: 0; }
+.side { width: 460px; flex-shrink: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding-bottom: 16px; }
+@media (max-width: 900px) { .workspace { flex-direction: column; } .side { width: auto; max-height: 40vh; } }
+
+.tool { font: 12px ui-monospace, monospace; background: #f6f6f6; border-left: 3px solid #2f5fd0; padding: 6px 8px; margin: 4px 0; border-radius: 4px; overflow-wrap: anywhere; }
+.tool-result { color: #666; margin-top: 2px; white-space: pre-wrap; }
+
+.panel { border: 1px solid #ddd; border-radius: 8px; padding: 12px; font-size: 13px; }
+.panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.panel table { width: 100%; border-collapse: collapse; }
+.panel td { padding: 3px 4px; border-top: 1px solid #eee; vertical-align: top; }
+.panel .num { text-align: right; font-variant-numeric: tabular-nums; }
+.panel tr.ready td:first-child, .panel tr.deleted td:first-child { color: #1a7f37; }
+.panel tr.retrying td:first-child { color: #b4531a; }
+.panel tr.failed td { color: #c62828; }
+.err { font-size: 11px; color: #b4531a; }
+.total { text-align: right; margin-top: 8px; }
+.muted { color: #777; }
+.issues { margin: 0 0 8px; padding-left: 18px; color: #c62828; }
+.phase { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: #eee; }
+.phase.awaiting_approval { background: #fff3cd; }
+.phase.applying { background: #e3ebfb; }
+.phase.done { background: #dff3e4; }
+.phase.failed, .phase.policy_failed, .phase.over_budget, .phase.rejected { background: #fde2e2; }
+
+.approve { border: 2px solid #2f5fd0; border-radius: 8px; padding: 12px; margin: 8px 0; background: #f5f8ff; font-size: 14px; }
+.approve.danger { border-color: #c62828; background: #fff5f5; }
+.approve.done { border-width: 1px; background: #f6f6f6; color: #555; }
+.approve-title { font-weight: 600; }
+.approve p { margin: 6px 0; }
+.approve input { width: 100%; box-sizing: border-box; padding: 6px; margin: 6px 0; font: inherit; }
+.approve-buttons { display: flex; gap: 8px; }
+.approve button { font: inherit; padding: 6px 14px; border-radius: 6px; border: 1px solid #aaa; background: white; cursor: pointer; }
+.approve button.yes { background: #2f5fd0; border-color: #2f5fd0; color: white; }
