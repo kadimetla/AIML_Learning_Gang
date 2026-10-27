@@ -21,7 +21,7 @@ import uvicorn
 from ag_ui.core.types import RunAgentInput
 from ag_ui.encoder import EventEncoder
 from ag_ui_langgraph import LangGraphAgent
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
@@ -54,10 +54,32 @@ app.add_middleware(
 )
 
 
+# forwardedProps the adapter treats as orders: nodeName writes the request's `state` into the
+# checkpoint AS that node and continues from there (nodeName="approve" -> straight to apply),
+# command.resume is the legacy resume. The browser may not steer the graph.
+UNTRUSTED_PROPS = {"nodeName", "node_name", "command"}
+
+
+async def trusted(input_data: RunAgentInput) -> RunAgentInput:
+    """The browser's `state` is a copy for display only. Replace it with the thread's own
+    checkpoint, so a client can't hand the graph a plan that never passed policy and approval."""
+    saved = await graph.aget_state({"configurable": {"thread_id": input_data.thread_id}})
+    # ag-ui-langgraph resumes whatever is paused, whatever interruptId the client sends. Each pause
+    # has its own id, so an answer to an old card (stale tab, replay) must not land on a newer plan.
+    open_ids = {i.id for i in saved.interrupts}
+    stale = [r.interrupt_id for r in input_data.resume or [] if r.interrupt_id not in open_ids]
+    if stale:
+        raise HTTPException(409, f"not an open interrupt on this thread: {stale}; reload the thread")
+    state ={k: v for k, v in (saved.values or {}).items() if k not in ("messages", "ag-ui")}
+    props = {k: v for k, v in (input_data.forwarded_props or {}).items() if k not in UNTRUSTED_PROPS}
+    return input_data.model_copy(update={"state": state, "forwarded_props": props})
+
+
 @app.post("/agent")
 async def agent_endpoint(input_data: RunAgentInput, request: Request):
     # In a real deployment: authenticate here, and decide who may approve
     # (e.g. only an ops role may approve prod) before the graph ever runs.
+    input_data = await trusted(input_data)
     agent = LangGraphAgent(
         name="default",
         description="Cloud provisioning assistant",
