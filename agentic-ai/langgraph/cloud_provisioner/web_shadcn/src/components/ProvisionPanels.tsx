@@ -30,14 +30,19 @@ const PHASE: Record<string, "default" | "secondary" | "destructive" | "outline">
   over_budget: "destructive",
 };
 
-export function ApprovalCard({ message, destroy, onDecide }: { message: string; destroy: boolean; onDecide: (approved: boolean, reason: string) => void }) {
+export function ApprovalCard({ message, destroy, expiresAt, onDecide }: { message: string; destroy: boolean; expiresAt?: string; onDecide: (approved: boolean, reason: string) => void }) {
   const [reason, setReason] = useState("");
+  // the server enforces the deadline (approve() refuses a late "yes"); this only tells the human
+  const until = expiresAt ? new Date(expiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : null;
   return (
     <Alert variant={destroy ? "destructive" : "default"} className="border-2">
       <AlertTitle>⏸ Approval needed</AlertTitle>
       <AlertDescription className="flex flex-col gap-3">
         <p className="text-foreground">{message}</p>
-        <p>The graph is paused in approve(). Nothing changes until you decide.</p>
+        <p>
+          The graph is paused in approve(). Nothing changes until you decide.
+          {until && ` Valid until ${until}; policy is checked again when you approve.`}
+        </p>
         <Input placeholder="reason (if rejecting)" value={reason} onChange={(e) => setReason(e.target.value)} />
         <div className="flex justify-end gap-2">
           <Button variant="outline" size="sm" onClick={() => onDecide(false, reason)}>

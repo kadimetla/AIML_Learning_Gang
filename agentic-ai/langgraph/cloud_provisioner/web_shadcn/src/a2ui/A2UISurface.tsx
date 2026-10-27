@@ -13,6 +13,13 @@ const MAX_DEPTH = 24; // the component list comes from an LLM: never trust it to
 
 export function A2UISurface({ surface, onAction, disabled }: { surface: Surface; onAction: (a: UserAction) => void; disabled?: boolean }) {
   const [data, setData] = useState(surface.data); // inputs write here; the agent sees it only via an action
+  // a new data model from the agent (updateDataModel on this surface) replaces local edits;
+  // React's "adjust state when a prop changes" pattern, so there's no stale frame
+  const [seen, setSeen] = useState(surface.data);
+  if (seen !== surface.data) {
+    setSeen(surface.data);
+    setData(surface.data);
+  }
 
   function render(id: string, scope: string, depth: number): ReactNode {
     const node = surface.components[id];

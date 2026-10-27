@@ -21,6 +21,7 @@
 """
 
 import os
+from datetime import UTC, datetime, timedelta
 from typing_extensions import TypedDict  # the same TypedDict MessagesState uses
 
 from dotenv import load_dotenv
@@ -43,6 +44,7 @@ from cloud import Inventory, TransientError, get_provider
 from policy import check_budget, check_create, check_destroy
 
 MAX_ATTEMPTS = 3
+APPROVAL_TTL = timedelta(minutes=float(os.getenv("APPROVAL_TTL_MIN", "30")))
 inventory = Inventory()
 provider = get_provider()
 
@@ -54,6 +56,7 @@ class PublicState(MessagesState):
     issues: list[str]         # policy / budget problems of the last proposal
     actions: list[dict]       # apply queue: {op, name, kind, status, attempts, cloud_id, error}
     call_id: str | None       # the propose_* tool call this workflow will answer
+    expires_at: str | None    # approval deadline (ISO, UTC); a later "yes" is refused
 
 
 # ag-ui-langgraph writes the client's tools/context (incl. the A2UI catalog) to state["ag-ui"].
@@ -198,14 +201,15 @@ def build_graph():
             a.update(status="pending", attempts=0, cloud_id=None, error=None)
         return {**base, "plan": p, "actions": actions, "phase": "checking"}
 
+    def policy_issues(p: dict) -> list[str]:
+        """Policy against the CURRENT inventory (quota, duplicates and deps depend on it)."""
+        if p["destroy"]:
+            return check_destroy(p["env"], inventory.all())
+        return check_create(Plan.model_validate(p), inventory.all())
+
     def validate(state: State) -> dict:
         p = state["plan"]
-        if p is None:  # the tool call did not even parse
-            issues = state["issues"]
-        elif p["destroy"]:
-            issues = check_destroy(p["env"], inventory.all())
-        else:
-            issues = check_create(Plan.model_validate(p), inventory.all())
+        issues = state["issues"] if p is None else policy_issues(p)  # None: the tool call did not even parse
         if issues:
             return {"issues": issues, "phase": "policy_failed",
                     "messages": [answer(state, "Policy check failed, nothing was changed:\n- " + "\n- ".join(issues))]}
@@ -218,7 +222,9 @@ def build_graph():
         if not p["destroy"] and (issues := check_budget(parsed, cost)):
             return {"cost": cost, "issues": issues, "phase": "over_budget",
                     "messages": [answer(state, "Over budget, nothing was changed:\n- " + "\n- ".join(issues))]}
-        return {"cost": cost, "phase": "awaiting_approval"}
+        # the deadline is set here, not in approve(): approve() reruns from the top on resume
+        return {"cost": cost, "phase": "awaiting_approval",
+                "expires_at": (datetime.now(UTC) + APPROVAL_TTL).isoformat(timespec="seconds")}
 
     def approve(state: State) -> dict:
         """Pause the graph. The checkpointer saves everything; a human resumes it."""
@@ -229,13 +235,26 @@ def build_graph():
             "reason": "plan:approval",
             "message": f"{verb} {len(state['actions'])} resources in {p['env']} ({p['region']}), {money}?",
             "env": p["env"], "destroy": p["destroy"], "total": cost["total"],
+            "expires_at": state.get("expires_at"),  # AG-UI Interrupt.expiresAt
         })
         # resolve({"approved": true}) from the UI / CLI; anything else (cancel, reject) is a no
-        if isinstance(decision, dict) and decision.get("approved") is True:
-            return {"phase": "applying"}
-        reason = (decision or {}).get("reason") if isinstance(decision, dict) else None
-        return {"phase": "rejected",
-                "messages": [answer(state, f"The user rejected the plan{': ' + reason if reason else ''}. Nothing was changed.")]}
+        if not (isinstance(decision, dict) and decision.get("approved") is True):
+            reason = (decision or {}).get("reason") if isinstance(decision, dict) else None
+            return {"phase": "rejected",
+                    "messages": [answer(state, f"The user rejected the plan{': ' + reason if reason else ''}. Nothing was changed.")]}
+
+        # A "yes" approves this plan as checked THEN. Before touching the cloud, check it is still
+        # timely and still passes policy: the inventory may have changed while it waited.
+        expires = state.get("expires_at")
+        if expires and datetime.now(UTC) > datetime.fromisoformat(expires):
+            return {"phase": "rejected",
+                    "messages": [answer(state, f"The approval arrived after it expired ({expires}). Nothing was changed; "
+                                               "propose the plan again for a fresh check.")]}
+        if issues := policy_issues(p):
+            return {"issues": issues, "phase": "policy_failed",
+                    "messages": [answer(state, "Approved, but the plan no longer passes policy (something changed "
+                                               "while it waited). Nothing was changed:\n- " + "\n- ".join(issues))]}
+        return {"phase": "applying"}
 
     def apply(state: State) -> dict:
         """Do ONE action per step, so the UI sees progress after each and a crash resumes here."""

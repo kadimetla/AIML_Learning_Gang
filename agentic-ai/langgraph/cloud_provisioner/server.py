@@ -70,7 +70,7 @@ async def trusted(input_data: RunAgentInput) -> RunAgentInput:
     stale = [r.interrupt_id for r in input_data.resume or [] if r.interrupt_id not in open_ids]
     if stale:
         raise HTTPException(409, f"not an open interrupt on this thread: {stale}; reload the thread")
-    state ={k: v for k, v in (saved.values or {}).items() if k not in ("messages", "ag-ui")}
+    state = {k: v for k, v in (saved.values or {}).items() if k not in ("messages", "ag-ui")}
     props = {k: v for k, v in (input_data.forwarded_props or {}).items() if k not in UNTRUSTED_PROPS}
     return input_data.model_copy(update={"state": state, "forwarded_props": props})
 

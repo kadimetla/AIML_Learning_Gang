@@ -31,7 +31,12 @@ export function useAgUi<S extends object>(url: string, threadId: string, context
       },
       onRunFailed: ({ error }) => setError(error.message),
     });
-    return () => sub.unsubscribe();
+    return () => {
+      sub.unsubscribe();
+      // leaving this thread (new thread, unmount): close its stream. The server stops at its next
+      // write; a step already running finishes, and the checkpointer keeps that consistent.
+      agent.abortRun();
+    };
   }, [agent]);
 
   async function run(params: Parameters<HttpAgent["runAgent"]>[0] = {}) {

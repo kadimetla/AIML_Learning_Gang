@@ -109,6 +109,22 @@ The A2UI tools are offered only when the request carries an A2UI catalog. `web/`
 cards showed rounded costs), which is why the thing a human approves is never LLM-made UI. If small models
 produce invalid views, set `A2UI_MODEL` to a stronger model just for designing them.
 
+### What the server does not take from the browser
+
+The browser is untrusted. These hold for every client:
+
+- **Graph state comes from the checkpoint.** The `state` a client sends is replaced with the thread's own, and
+  `forwardedProps.nodeName` / `command` are dropped. Without this, one request could write a plan "as `approve`"
+  and go straight to `apply`, skipping policy, pricing and the human.
+- **An answer must match the open pause.** A `resume` whose `interruptId` isn't open on the thread gets HTTP 409,
+  so a stale or replayed Approve can't approve a newer plan.
+- **An approval is checked again.** It expires (`APPROVAL_TTL_MIN`, default 30), and after the "yes" the plan is
+  re-checked against the *current* inventory before anything is created.
+- **Form answers are typed.** `ask_details` values pass a Pydantic model (known env/region, budget bounds, no
+  extra fields) before the LLM sees them.
+
+Not done yet: authentication, thread ownership (any caller who knows a thread id can use it), and who may approve.
+
 ### Four clients, one agent server
 
 `server.py` allows CORS only from `localhost:5173`, for `web_plain`, which calls it directly from the browser. All four drive the same server: AG-UI is the contract, and the UI is up to you.

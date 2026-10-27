@@ -18,9 +18,8 @@ Two uses, on purpose different:
                   thing a human signs off on is never LLM-made UI.
 """
 
-import json
-
 from ag_ui_a2ui_toolkit import assemble_ops, resolve_a2ui_catalog
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from catalog import ENVS, REGIONS
 
@@ -92,12 +91,35 @@ def details_form(args: dict, catalog: str) -> list[dict]:
                         components=components, data=data)
 
 
+class DetailsForm(BaseModel):
+    """What the ask_details form may send back. Anything else is refused before the LLM sees it."""
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    env: str | None = None
+    region: str | None = None
+    budget_usd: float | None = Field(default=None, ge=0, le=100_000)
+    needs: str | None = Field(default=None, max_length=500)
+
+    @field_validator("env", "region")
+    @classmethod
+    def known(cls, v: str | None, info) -> str | None:
+        allowed = ENVS if info.field_name == "env" else REGIONS
+        if v is not None and v not in allowed:
+            raise ValueError(f"must be one of {allowed}")
+        return v
+
+
 def form_answer(decision) -> str:
     """The resume payload (an A2UI action) -> the text the LLM gets as the tool result.
-    The values are user input: they only go back to the LLM, and its next plan still goes
-    through policy, pricing and approval."""
+    The values are user input: validated here, then only passed to the LLM; its next plan
+    still goes through policy, pricing and approval."""
     action = decision.get("action") if isinstance(decision, dict) else None
     if not isinstance(action, dict) or action.get("name") != SUBMIT:
         return "The user closed the form without answering. Ask in chat, or pick sensible defaults."
-    values = {k: v for k, v in (action.get("context") or {}).items() if v not in (None, "")}
-    return "The user filled in the form: " + json.dumps(values)
+    context = action.get("context")
+    filled = {k: v for k, v in (context if isinstance(context, dict) else {}).items() if v not in (None, "")}
+    try:
+        values = DetailsForm.model_validate(filled)
+    except ValidationError as e:
+        problems = "; ".join(f"{'.'.join(map(str, err['loc'])) or 'form'}: {err['msg']}" for err in e.errors())
+        return f"The form came back with invalid values ({problems}). Call ask_details again."
+    return "The user filled in the form: " + values.model_dump_json(exclude_none=True)

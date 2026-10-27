@@ -36,6 +36,13 @@ function surfacesOf(value: unknown): Surface[] {
   return ops ? Object.values(applyOps({}, ops)) : [];
 }
 
+/** A generate_a2ui result. Parsed once per result: surfaces must keep their identity across renders. */
+function ResultView({ result, onAction, disabled }: { result?: string; onAction: (a: UserAction) => void; disabled: boolean }) {
+  const surfaces = useMemo(() => surfacesOf(result), [result]);
+  if (!surfaces.length) return <Badge variant="destructive">could not build that view</Badge>;
+  return surfaces.map((s) => <A2UISurface key={s.id} surface={s} onAction={onAction} disabled={disabled} />);
+}
+
 function Workspace({ thread, onNewThread }: { thread: string; onNewThread: () => void }) {
   const chat = useAgUi<ProvisionState>(AGENT_URL, thread, CONTEXT);
   const { pending, state } = chat;
@@ -52,9 +59,7 @@ function Workspace({ thread, onNewThread }: { thread: string; onNewThread: () =>
     if (name === "render_a2ui") return null; // the sub-agent's inner call; its outer generate_a2ui shows the result
     if (name === "generate_a2ui") {
       if (!done) return <p className="animate-pulse text-xs text-muted-foreground">designing a view…</p>;
-      const surfaces = surfacesOf(result);
-      if (!surfaces.length) return <Badge variant="destructive">could not build that view</Badge>;
-      return surfaces.map((s) => <A2UISurface key={s.id} surface={s} onAction={onViewAction} disabled={chat.running} />);
+      return <ResultView result={result} onAction={onViewAction} disabled={chat.running} />;
     }
     const label =
       name === "propose_plan" ? `propose_plan · ${(args.resources as unknown[] | undefined)?.length ?? "…"} resources`
@@ -103,6 +108,7 @@ function Workspace({ thread, onNewThread }: { thread: string; onNewThread: () =>
           {approval && (
             <ApprovalCard
               message={approval.message ?? "Approve this plan?"}
+              expiresAt={approval.expiresAt}
               destroy={!!state.plan?.destroy}
               onDecide={(approved, reason) => chat.resolve(approved ? { approved: true } : { approved: false, reason })}
             />

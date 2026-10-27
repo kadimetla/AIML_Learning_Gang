@@ -46,7 +46,9 @@ export function applyOps(surfaces: Record<string, Surface>, ops: Op[]): Record<s
     } else if (op.updateDataModel) {
       const s = next[op.updateDataModel.surfaceId];
       if (!s) continue;
-      next[s.id] = { ...s, data: setPath(s.data, op.updateDataModel.path ?? "/", op.updateDataModel.value) };
+      // A2UI (and ag-ui's toolkit) use path "/" for the whole model; in RFC 6901 "/" would be the key ""
+      const path = op.updateDataModel.path ?? "/";
+      next[s.id] = { ...s, data: setPath(s.data, path === "/" ? "" : path, op.updateDataModel.value) };
     } else if (op.deleteSurface) {
       delete next[op.deleteSurface.surfaceId];
     }
@@ -68,22 +70,58 @@ export function opsFrom(value: unknown): Op[] | null {
   return Array.isArray(ops) ? (ops as Op[]) : null;
 }
 
-const parts = (path: string) => path.split("/").filter(Boolean);
+// JSON Pointers (RFC 6901), as A2UI v0.9 specifies. Paths come from an LLM, so nothing here throws:
+// a bad pointer reads as undefined and a bad write is dropped (a throw inside render would take
+// the whole chat down).
+
+const INDEX = /^(0|[1-9][0-9]*)$/;
+
+/** "" is the whole document; "/a/b" -> ["a", "b"]; "~1" is "/" and "~0" is "~" inside a token. */
+function tokens(pointer: string): string[] | null {
+  if (pointer === "") return [];
+  if (!pointer.startsWith("/")) return null;
+  return pointer.slice(1).split("/").map((t) => t.replace(/~1/g, "/").replace(/~0/g, "~"));
+}
 
 /** "/form/env" against the data model; relative paths ("name") resolve against `scope` (a List item). */
 export function absolute(path: string, scope = ""): string {
-  return path.startsWith("/") ? path : `${scope}/${path}`;
+  return path.startsWith("/") || path === "" ? path || scope : `${scope}/${path}`;
 }
 
-export function getPath(data: unknown, path: string): unknown {
-  return parts(path).reduce<unknown>((v, k) => (v == null ? undefined : (v as Record<string, unknown>)[k]), data);
+export function getPath(data: unknown, pointer: string): unknown {
+  const ts = tokens(pointer);
+  if (!ts) return undefined;
+  let cur: unknown = data;
+  for (const t of ts) {
+    if (cur === null || typeof cur !== "object") return undefined;
+    if (Array.isArray(cur)) {
+      if (!INDEX.test(t)) return undefined; // the spec: a non-numeric index on an array is an error
+      cur = cur[Number(t)];
+    } else {
+      cur = (cur as Record<string, unknown>)[t];
+    }
+  }
+  return cur;
 }
 
-export function setPath(data: unknown, path: string, value: unknown): unknown {
-  const [head, ...rest] = parts(path);
-  if (head === undefined) return value;
-  const base = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
-  const copy: Record<string, unknown> = Array.isArray(base) ? ([...base] as unknown as Record<string, unknown>) : { ...base };
-  copy[head] = setPath(base[head], "/" + rest.join("/"), value);
-  return copy;
+export function setPath(data: unknown, pointer: string, value: unknown): unknown {
+  const ts = tokens(pointer);
+  if (!ts) return data;
+  const write = (node: unknown, i: number): unknown => {
+    if (i === ts.length) return value;
+    const t = ts[i];
+    if (Array.isArray(node)) {
+      if (!INDEX.test(t)) throw new RangeError(t); // caught below: the whole write is dropped
+      const copy = [...node];
+      copy[Number(t)] = write(node[Number(t)], i + 1);
+      return copy;
+    }
+    const base = node && typeof node === "object" ? (node as Record<string, unknown>) : {};
+    return { ...base, [t]: write(base[t], i + 1) };
+  };
+  try {
+    return write(data, 0);
+  } catch {
+    return data;
+  }
 }
