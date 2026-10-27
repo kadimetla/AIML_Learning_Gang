@@ -37,6 +37,7 @@ START → agent ⇄ tools                     list_catalog, list_resources
 | `web_hybrid/` | Vite + React: `@ag-ui/client` runs the agent, CopilotKit's `CopilotChatView` draws the chat; no runtime |
 | `a2ui.py` | A2UI on the server: the code-built `ask_details` form, the switch (did the client send a catalog?) |
 | `web_shadcn/` | Vite + shadcn/ui, no CopilotKit: a headless AG-UI hook, a shadcn chat, and an A2UI renderer whose catalog maps A2UI types to shadcn components |
+| `web_assistant_ui/` | the same, with assistant-ui's AG-UI runtime and chat primitives in place of the hook and chat |
 
 ## Run (fake cloud)
 
@@ -109,6 +110,35 @@ The A2UI tools are offered only when the request carries an A2UI catalog. `web/`
 cards showed rounded costs), which is why the thing a human approves is never LLM-made UI. If small models
 produce invalid views, set `A2UI_MODEL` to a stronger model just for designing them.
 
+### assistant-ui + A2UI client
+
+```bash
+uv run server.py                                  # same agent server
+cd web_assistant_ui && npm install && npm run dev # http://localhost:5176 (same proxy setup)
+```
+
+The same app as `web_shadcn`, but [assistant-ui](https://www.assistant-ui.com)'s AG-UI runtime replaces our
+`useAgUi` hook and `ChatView`. The A2UI renderer, catalog and panels are copies of `web_shadcn`'s, and the server is unchanged.
+
+```
+ProvisionRuntime (agui/runtime.tsx)  HttpAgent + useAgUiRuntime; the A2UI catalog via getRunContext;
+                                     the only file that imports @assistant-ui/react-ag-ui
+Thread (chat/)                       assistant-ui primitives with a shadcn look; tool parts drawn by name
+A2UISurface (a2ui/)                  unchanged: A2UI ops -> catalog -> shadcn
+```
+
+- **Pauses:** `useAgUiInterrupts` / `useAgUiSubmitInterruptResponses`, wrapped in `usePendingInterrupt()`, which refuses
+  to answer half of several open interrupts (the runtime requires an answer for each).
+- **`joinStrategy: "concat-content"` is required.** One graph run is several LLM turns, so the run's closing
+  `MESSAGES_SNAPSHOT` has several assistant messages. Without joining, the last one shows the open `propose_plan`
+  call as a pending *browser* tool, the interrupt isn't seen as pending, and no approval card appears.
+- **assistant-ui's own A2UI support is not used.** It expects surfaces as `ACTIVITY_SNAPSHOT` events and sends clicks as
+  `forwardedProps.a2uiAction`; `ag-ui-langgraph` and our graph use tool results and `interrupt()` instead.
+- **No retry / edit buttons yet.** Both send a shorter transcript, and `ag-ui-langgraph` then forks the thread from an
+  earlier checkpoint. Test that around a pause before adding them.
+- `@assistant-ui/react-ag-ui` 0.1.0 and `@ag-ui/client` 1.0.3 were under two weeks old when pinned (0.1.0 is the first
+  version on `@ag-ui/client` 1.x). The interrupt hooks are new; expect API changes, and keep them inside `runtime.tsx`.
+
 ### What the server does not take from the browser
 
 The browser is untrusted. These hold for every client:
@@ -125,20 +155,20 @@ The browser is untrusted. These hold for every client:
 
 Not done yet: authentication, thread ownership (any caller who knows a thread id can use it), and who may approve.
 
-### Four clients, one agent server
+### Five clients, one agent server
 
-`server.py` allows CORS only from `localhost:5173`, for `web_plain`, which calls it directly from the browser. All four drive the same server: AG-UI is the contract, and the UI is up to you.
+`server.py` allows CORS only from `localhost:5173`, for `web_plain`, which calls it directly from the browser. All five drive the same server: AG-UI is the contract, and the UI is up to you.
 
-| | `web/` | `web_hybrid/` | `web_shadcn/` | `web_plain/` |
-|---|---|---|---|---|
-| path | browser → Next.js runtime → AG-UI → FastAPI | browser → proxy → AG-UI → FastAPI | same as hybrid | browser → AG-UI → FastAPI |
-| runs the agent | CopilotKit (through the runtime) | `@ag-ui/client` `HttpAgent` | `HttpAgent` inside `useAgUi` | your own `fetch` + SSE loop |
-| draws the chat | `CopilotChat` | `CopilotChatView` (display only) | your shadcn `ChatView` | about 300 lines of plain JS |
-| approval | `useInterrupt` → `resolve()` | `RUN_FINISHED.outcome` → card → `runAgent({ resume })` | same as hybrid | same, by hand |
-| generative UI | — | — | A2UI → shadcn catalog | — |
-| build step | Next.js | Vite | Vite + Tailwind | none |
-| server in front of the agent (auth, secrets) | yes, the runtime | the proxy (Vite dev / nginx) | the proxy | none |
-| supported by CopilotKit | yes | uses a dev-only prop; pin the version | doesn't use CopilotKit | doesn't use CopilotKit |
+| | `web/` | `web_hybrid/` | `web_shadcn/` | `web_assistant_ui/` | `web_plain/` |
+|---|---|---|---|---|---|
+| path | browser → Next.js runtime → AG-UI → FastAPI | browser → proxy → AG-UI → FastAPI | same as hybrid | same as hybrid | browser → AG-UI → FastAPI |
+| runs the agent | CopilotKit (through the runtime) | `@ag-ui/client` `HttpAgent` | `HttpAgent` inside `useAgUi` | `HttpAgent` inside `useAgUiRuntime` | your own `fetch` + SSE loop |
+| draws the chat | `CopilotChat` | `CopilotChatView` (display only) | your shadcn `ChatView` | assistant-ui primitives, shadcn look | about 300 lines of plain JS |
+| approval | `useInterrupt` → `resolve()` | `RUN_FINISHED.outcome` → card → `runAgent({ resume })` | same as hybrid | `useAgUiInterrupts` → card → `useAgUiSubmitInterruptResponses` | same, by hand |
+| generative UI | — | — | A2UI → shadcn catalog | same renderer as web_shadcn | — |
+| build step | Next.js | Vite | Vite + Tailwind | Vite + Tailwind | none |
+| server in front of the agent (auth, secrets) | yes, the runtime | the proxy (Vite dev / nginx) | the proxy | the proxy | none |
+| supported by CopilotKit | yes | uses a dev-only prop; pin the version | doesn't use CopilotKit | doesn't use CopilotKit | doesn't use CopilotKit |
 
 ## Real AWS
 

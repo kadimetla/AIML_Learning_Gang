@@ -2,8 +2,8 @@
 
     web/        browser --> Next.js /api/copilotkit (CopilotRuntime) --> POST :8001/agent --> graph.py
     web_plain/  browser ------------------- fetch + SSE ---------------> POST :8001/agent --> graph.py
-    web_hybrid/, web_shadcn/  browser --> same-origin proxy (Vite / nginx) --> POST :8001/agent --> graph.py
-                (web_shadcn also sends an A2UI catalog in context, which turns on the A2UI tools; see a2ui.py)
+    web_hybrid/, web_shadcn/, web_assistant_ui/  browser --> same-origin proxy (Vite / nginx) --> POST :8001/agent --> graph.py
+                (web_shadcn and web_assistant_ui also send an A2UI catalog in context, which turns on the A2UI tools; see a2ui.py)
 
 What the web UI gets from AG-UI that cli.py printed by hand:
   STATE_SNAPSHOT        phase / plan / cost / issues / actions  -> the plan panel (useAgent)
