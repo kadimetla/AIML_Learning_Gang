@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LangGraph Chat: Memory, Tools, Skills</title>
+<!-- Exported from the Slides artifact https://claude.ai/artifact/QRSqVB1KWDNhPWbqTwHEbt.
+     One file, no build: open it in a browser. Keys: ← → (or click), Home/End, N = speaker notes, P = print view. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  :root { --bg: #0b0f19; --ink: #e6e9f0; --muted: #8c97ae; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
+               font-family: 'IBM Plex Sans', Arial, sans-serif; overflow: hidden; }
+  #stage { position: fixed; inset: 0 0 44px 0; overflow: hidden; }
+  #deck { width: 1920px; height: 1080px; position: absolute; left: 50%; top: 50%; }
+  #deck > section { position: absolute; inset: 0; box-sizing: border-box; overflow: hidden;
+                    opacity: 0; visibility: hidden; transition: opacity .25s; }
+  #deck > section.on { opacity: 1; visibility: visible; }
+  section * { margin: 0; box-sizing: border-box; }
+  section aside { display: none; }
+  section table { width: 100%; border-collapse: collapse; }
+  section th, section td { text-align: left; padding: 14px 24px; vertical-align: top; }
+  section th { font-weight: 600; }
+  section tr { border-bottom: 1px solid #DAD7CC; }
+  section ol { padding-left: 1.4em; display: flex; flex-direction: column; gap: 12px; }
+  section x-connector, section x-shape, section x-icon { display: block; }
+  section x-icon svg { width: 100%; height: 100%; }
+  #bar { position: fixed; left: 0; right: 0; bottom: 0; height: 44px; display: flex; align-items: center;
+         gap: 16px; padding: 0 16px; font-size: 14px; color: var(--muted); background: #111726; }
+  #bar button { background: none; border: 1px solid #2c3a57; color: var(--ink); border-radius: 6px;
+                padding: 4px 10px; font: inherit; cursor: pointer; }
+  #bar .grow { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  #notes { position: fixed; left: 0; right: 0; bottom: 44px; max-height: 30vh; overflow: auto; display: none;
+           padding: 16px 24px; font-size: 16px; line-height: 1.5; background: #111726ee; border-top: 1px solid #2c3a57; }
+  body.notes #notes { display: block; }
+  /* print / P: every slide, one per page */
+  body.all, body.all html { overflow: auto; height: auto; }
+  body.all #stage { position: static; display: block; }
+  body.all #deck { position: static; width: auto; height: auto; transform: none !important; }
+  body.all #deck > section { position: relative; width: 1920px; height: 1080px; opacity: 1; visibility: visible;
+                             margin: 0 auto 24px; zoom: var(--zoom, .5); }
+  body.all #bar, body.all #notes { display: none; }
+  @media print {
+    @page { size: 1920px 1080px; margin: 0; }
+    html, body { overflow: visible; height: auto; background: #fff; }
+    #bar, #notes { display: none !important; }
+    #stage { position: static; display: block; }
+    #deck { position: static; width: 1920px; height: auto; transform: none !important; }
+    #deck > section { position: relative; opacity: 1; visibility: visible; height: 1080px;
+                      break-after: page; zoom: 1; margin: 0; }
+  }
+</style>
+</head>
+<body>
+<div id="stage"><div id="deck">
+<section id="cover" data-transition="fade" style="background:#172033;color:#F7F6F1;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;justify-content:center;gap:40px">
+<p style="font-size:28px;font-weight:600;letter-spacing:3px;text-transform:uppercase;color:#F2A65A">AIML Learning Gang · LangGraph</p>
+<h1 style="font-size:112px;font-weight:700;line-height:1.05;color:#F7F6F1">One chat turn,<br>end to end</h1>
+<p style="font-size:40px;line-height:1.35;color:#B8C2D6;max-width:1400px">A LangGraph chat with memory, tools and skills — from the terminal to a CopilotKit web UI</p>
+<p style="position:absolute;left:128px;bottom:96px;width:1400px;font-family:'JetBrains Mono', 'Courier New', monospace;font-size:26px;color:#8C97AE">agentic-ai/langgraph/chat_memory_skills</p>
+<aside>Today we follow one message from the moment a user presses Enter until the answer comes back. Everything runs in one small project, chat_memory_skills, so students can open each file as we go. First the terminal version, then the same graph behind a web UI.</aside>
+</section>
+<section id="layers" data-transition="fade" style="background:#F7F6F1;color:#172033;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<p style="font-size:24px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:#B4531A">What we build</p>
+<h2 style="font-size:64px;font-weight:600;line-height:1.1">Five parts of one chat agent</h2>
+<table style="font-size:28px;color:#172033">
+<tr style="background:#172033"><th style="width:22%;color:#F7F6F1">Part</th><th style="width:36%;color:#F7F6F1">What it is</th><th style="width:28%;color:#F7F6F1">LangGraph piece</th><th style="width:14%;color:#F7F6F1">Scope</th></tr>
+<tr><td>Chat loop</td><td>sends each user turn into the graph</td><td>app.stream(input, config)</td><td>process</td></tr>
+<tr style="background:#EDEBE3"><td><b>Short-term memory</b></td><td>this conversation’s messages</td><td>checkpointer · thread_id</td><td>one thread</td></tr>
+<tr><td><b>Long-term memory</b></td><td>durable facts about the user</td><td>store · user_id</td><td>all threads</td></tr>
+<tr style="background:#EDEBE3"><td>Tools</td><td>capabilities: lookup_order, calculator</td><td>@tool + ToolNode</td><td>—</td></tr>
+<tr><td>Skills</td><td>know-how in SKILL.md, loaded on demand</td><td>load_skill tool</td><td>—</td></tr>
+</table>
+<p style="font-size:32px;color:#4A5568"><b style="color:#172033">Tool</b> = capability · <b style="color:#172033">Skill</b> = know-how · <b style="color:#172033">Memory</b> = what we know about the user</p>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#6B7280">chat_memory_skills · 02</p>
+<aside>Five parts. The chat loop just feeds turns in. Two kinds of memory, keyed differently: thread_id for this conversation, user_id for facts that carry across conversations. Tools are things the model can do; skills are instructions the model reads when it needs them. Keep the one-liner at the bottom on the board for the whole session.</aside>
+</section>
+<section id="graph" data-transition="fade" style="background:#F7F6F1;color:#172033;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<p style="font-size:24px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:#B4531A">The graph</p>
+<h2 style="font-size:64px;font-weight:600;line-height:1.1">Three nodes and one loop</h2>
+<div style="position:absolute;left:128px;top:400px;width:200px;height:120px;background:#172033;border-radius:60px;display:flex;align-items:center;justify-content:center"><p style="font-size:30px;font-weight:600;color:#F7F6F1">START</p></div>
+<div style="position:absolute;left:440px;top:380px;width:320px;height:160px;background:#FFFEFB;border:2px solid #2F5FD0;border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px"><h3 style="font-size:40px;font-weight:600">recall</h3><p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;color:#4A5568">store.search()</p></div>
+<div style="position:absolute;left:880px;top:380px;width:320px;height:160px;background:#FFFEFB;border:2px solid #172033;border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px"><h3 style="font-size:40px;font-weight:600">agent</h3><p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;color:#4A5568">LLM call</p></div>
+<div style="position:absolute;left:1400px;top:380px;width:320px;height:160px;background:#FFFEFB;border:2px solid #B4531A;border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px"><h3 style="font-size:40px;font-weight:600">tools</h3><p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;color:#4A5568">ToolNode</p></div>
+<div style="position:absolute;left:880px;top:700px;width:320px;height:100px;background:#172033;border-radius:50px;display:flex;align-items:center;justify-content:center"><p style="font-size:30px;font-weight:600;color:#F7F6F1">END</p></div>
+<x-connector x1="328" y1="460" x2="440" y2="460" head="end" style="color:#172033;border-width:3px"></x-connector>
+<x-connector x1="760" y1="460" x2="880" y2="460" head="end" style="color:#172033;border-width:3px"></x-connector>
+<x-connector x1="1200" y1="425" x2="1400" y2="425" head="end" style="color:#172033;border-width:3px"></x-connector>
+<x-connector x1="1400" y1="495" x2="1200" y2="495" head="end" style="color:#172033;border-width:3px"></x-connector>
+<x-connector x1="1040" y1="540" x2="1040" y2="700" head="end" style="color:#172033;border-width:3px"></x-connector>
+<p style="position:absolute;left:1210px;top:350px;width:180px;font-size:24px;text-align:center;color:#4A5568">tool calls</p>
+<p style="position:absolute;left:1210px;top:508px;width:180px;font-size:24px;text-align:center;color:#4A5568">results</p>
+<p style="position:absolute;left:1060px;top:600px;width:300px;font-size:24px;color:#4A5568">no tool calls</p>
+<p style="position:absolute;left:128px;top:640px;width:640px;font-size:28px;line-height:1.4;color:#4A5568">The route out of <b style="color:#172033">agent</b> is <span style="color:#172033">tools_condition</span>: tool calls go to <b style="color:#172033">tools</b>, a plain answer goes to <b style="color:#172033">END</b>.</p>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#6B7280">chat_memory_skills · 03 · chat.py build_graph()</p>
+<aside>This is the whole graph, built in chat.py build_graph(). recall always runs first and reads long-term memory. agent calls the model. If the model asked for tools, tools_condition sends us to the tools node, and the edge from tools goes straight back to agent. That loop repeats until the model answers in plain text, which goes to END. Point out that the loop is only two lines of code: add_conditional_edges and add_edge("tools", "agent").</aside>
+</section>
+<section id="roles" data-transition="fade" style="background:#F7F6F1;color:#172033;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<p style="font-size:24px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:#B4531A">Inside the tools node</p>
+<h2 style="font-size:64px;font-weight:600;line-height:1.1">Six tools, three different jobs</h2>
+<div style="display:flex;gap:32px">
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#FFFEFB;border:1px solid #DAD7CC;border-top:8px solid #172033;border-radius:16px;padding:40px">
+<h3 style="font-size:40px;font-weight:600">Capabilities</h3>
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;color:#172033">lookup_order<br>calculator</p>
+<p style="font-size:28px;line-height:1.4;color:#4A5568">Do something and return data. Ordinary @tool functions.</p>
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;color:#6B7280">tools.py</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#FFFEFB;border:1px solid #DAD7CC;border-top:8px solid #2F5FD0;border-radius:16px;padding:40px">
+<h3 style="font-size:40px;font-weight:600">Skills</h3>
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;color:#172033">load_skill<br>read_skill_file</p>
+<p style="font-size:28px;line-height:1.4;color:#4A5568">Return instructions: how to handle a kind of request.</p>
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;color:#6B7280">skills.py · skills/</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#FFFEFB;border:1px solid #DAD7CC;border-top:8px solid #B4531A;border-radius:16px;padding:40px">
+<h3 style="font-size:40px;font-weight:600">Memory writes</h3>
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;color:#172033">save_memory<br>forget_memory</p>
+<p style="font-size:28px;line-height:1.4;color:#4A5568">Store or delete a fact about the user. The model decides.</p>
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;color:#6B7280">memory.py</p>
+</div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#6B7280">chat_memory_skills · 04</p>
+<aside>To LangGraph these are all just tools in one ToolNode. The difference is what they are for. Capabilities fetch or compute. Skill tools return text that tells the model what procedure to follow. Memory tools write to the long-term store. The model picks all of them the same way: from their names and docstrings.</aside>
+</section>
+<section id="memory" data-transition="fade" style="background:#F7F6F1;color:#172033;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<p style="font-size:24px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:#B4531A">Two memory layers</p>
+<h2 style="font-size:64px;font-weight:600;line-height:1.1">Same app, two keys, two files</h2>
+<table style="font-size:28px;color:#172033">
+<tr style="background:#172033"><th style="width:22%;color:#F7F6F1"></th><th style="width:39%;color:#A9C1F5">Short-term</th><th style="width:39%;color:#F2A65A">Long-term</th></tr>
+<tr><td><b>Holds</b></td><td>this conversation’s messages</td><td>durable facts about the user</td></tr>
+<tr style="background:#EDEBE3"><td><b>Object</b></td><td>checkpointer (SqliteSaver)</td><td>store (SqliteStore + embeddings)</td></tr>
+<tr><td><b>Keyed by</b></td><td>thread_id</td><td>("memories", user_id)</td></tr>
+<tr style="background:#EDEBE3"><td><b>File</b></td><td>checkpoints.db</td><td>memories.db</td></tr>
+<tr><td><b>Written by</b></td><td>LangGraph, after every step</td><td>the model, via save_memory</td></tr>
+<tr style="background:#EDEBE3"><td><b>Read by</b></td><td>LangGraph, at the start of a run</td><td>the recall node (semantic search)</td></tr>
+<tr><td><b>New thread</b></td><td>starts empty</td><td>still there</td></tr>
+</table>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#6B7280">chat_memory_skills · 05 · memory.py, chat.py open_stores()</p>
+<aside>This table is the heart of the lesson. Short-term memory needs zero code from us: pass a checkpointer to compile and LangGraph saves and reloads the message list per thread_id. Long-term memory is ours: the model writes facts with save_memory, and the recall node reads them back by meaning, not by exact words. The last row is the test: start a new thread and see what survives.</aside>
+</section>
+<section id="startup" data-transition="fade" style="background:#F7F6F1;color:#172033;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<p style="font-size:24px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:#B4531A">Startup · once per process</p>
+<h2 style="font-size:64px;font-weight:600;line-height:1.1">Before the first message</h2>
+<div style="display:flex;flex-direction:column;gap:20px">
+<div style="display:flex;gap:32px;align-items:center;background:#FFFEFB;border:1px solid #DAD7CC;border-radius:12px;padding:20px 32px"><p style="width:56px;font-size:40px;font-weight:700;color:#B4531A">1</p><p style="width:420px;font-size:32px;font-weight:600">Discover skills</p><p style="flex:1;font-size:28px;color:#4A5568">scan skills/*/SKILL.md, keep only name + description</p></div>
+<div style="display:flex;gap:32px;align-items:center;background:#FFFEFB;border:1px solid #DAD7CC;border-radius:12px;padding:20px 32px"><p style="width:56px;font-size:40px;font-weight:700;color:#B4531A">2</p><p style="width:420px;font-size:32px;font-weight:600">Open both stores</p><p style="flex:1;font-size:28px;color:#4A5568">SqliteSaver → checkpoints.db · SqliteStore → memories.db</p></div>
+<div style="display:flex;gap:32px;align-items:center;background:#FFFEFB;border:1px solid #DAD7CC;border-radius:12px;padding:20px 32px"><p style="width:56px;font-size:40px;font-weight:700;color:#B4531A">3</p><p style="width:420px;font-size:32px;font-weight:600">Build the graph</p><p style="flex:1;font-size:28px;color:#4A5568">3 nodes, 4 edges; bind the 6 tools to the LLM</p></div>
+<div style="display:flex;gap:32px;align-items:center;background:#FFFEFB;border:1px solid #DAD7CC;border-radius:12px;padding:20px 32px"><p style="width:56px;font-size:40px;font-weight:700;color:#B4531A">4</p><p style="width:420px;font-size:32px;font-weight:600">Compile with both</p><p style="flex:1;font-family:'JetBrains Mono', 'Courier New', monospace;font-size:26px;color:#172033">compile(checkpointer=saver, store=store)</p></div>
+<div style="display:flex;gap:32px;align-items:center;background:#FFFEFB;border:1px solid #DAD7CC;border-radius:12px;padding:20px 32px"><p style="width:56px;font-size:40px;font-weight:700;color:#B4531A">5</p><p style="width:420px;font-size:32px;font-weight:600">Pick the two ids</p><p style="flex:1;font-size:28px;color:#4A5568">thread_id: random or --thread · user_id: --user</p></div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#6B7280">chat_memory_skills · 06 · skills.py, chat.py main()</p>
+<aside>Step 4 is the one to stress. Once the checkpointer and store are attached at compile time, LangGraph handles saving history, and any node or tool can reach the store with get_store(). Step 1 is why skills are cheap: only one line per skill goes into every prompt, the full text is loaded later only if needed.</aside>
+</section>
+<section id="turn1" data-transition="fade" style="background:#F7F6F1;color:#172033;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<p style="font-size:24px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:#B4531A">One turn · steps 1–3</p>
+<h2 style="font-size:64px;font-weight:600;line-height:1.1">The user presses Enter</h2>
+<div style="display:flex;flex-direction:column;gap:28px">
+<div style="display:flex;gap:32px">
+<p style="width:64px;height:64px;font-size:32px;font-weight:700;color:#F7F6F1;background:#172033;border-radius:32px;text-align:center;line-height:2">1</p>
+<div style="flex:1;display:flex;flex-direction:column;gap:12px">
+<h3 style="font-size:36px;font-weight:600">The REPL starts a run with two ids</h3>
+<div style="background:#172033;border-radius:12px;padding:20px 28px"><p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;line-height:1.5;color:#E6E9F0">config = {"configurable": {"thread_id": t, "user_id": u}}<br>app.stream({"messages": [("user", text)]}, config)</p></div>
+<p style="font-size:28px;color:#4A5568">The input holds <b style="color:#172033">only the new message</b>. History comes from the checkpointer.</p>
+</div>
+</div>
+<div style="display:flex;gap:32px">
+<p style="width:64px;height:64px;font-size:32px;font-weight:700;color:#F7F6F1;background:#2F5FD0;border-radius:32px;text-align:center;line-height:2">2</p>
+<div style="flex:1;display:flex;flex-direction:column;gap:8px">
+<h3 style="font-size:36px;font-weight:600">The checkpointer loads the thread (automatic)</h3>
+<p style="font-size:28px;color:#4A5568">Earlier messages for thread_id load; the add_messages reducer appends the new one.</p>
+</div>
+</div>
+<div style="display:flex;gap:32px">
+<p style="width:64px;height:64px;font-size:32px;font-weight:700;color:#F7F6F1;background:#B4531A;border-radius:32px;text-align:center;line-height:2">3</p>
+<div style="flex:1;display:flex;flex-direction:column;gap:8px">
+<h3 style="font-size:36px;font-weight:600">recall reads long-term memory</h3>
+<p style="font-size:28px;color:#4A5568">store.search(("memories", user_id), query=last message, limit=5) → state["recalled"]</p>
+</div>
+</div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#6B7280">chat_memory_skills · 07 · chat.py chat_turn(), memory.py recall()</p>
+<aside>Step 1: the two ids in the config are the only thing that connects this run to the past. thread_id selects the conversation, user_id selects the person. Step 2 happens without any code of ours. Step 3 is a semantic search: the user's message is embedded and compared with the stored facts, and only this user's namespace is searched.</aside>
+</section>
+<section id="turn2" data-transition="fade" style="background:#F7F6F1;color:#172033;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<p style="font-size:24px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:#B4531A">One turn · steps 4–7</p>
+<h2 style="font-size:64px;font-weight:600;line-height:1.1">The loop until the model answers</h2>
+<div style="display:flex;flex-direction:column;gap:28px">
+<div style="display:flex;gap:32px">
+<p style="width:64px;height:64px;font-size:32px;font-weight:700;color:#F7F6F1;background:#172033;border-radius:32px;text-align:center;line-height:2">4</p>
+<div style="flex:1;display:flex;flex-direction:column;gap:8px">
+<h3 style="font-size:36px;font-weight:600">agent builds the prompt and calls the LLM</h3>
+<p style="font-size:28px;color:#4A5568">rules + skill catalog + recalled facts, then every message → an AIMessage with text <b style="color:#172033">or</b> tool_calls</p>
+</div>
+</div>
+<div style="display:flex;gap:32px">
+<p style="width:64px;height:64px;font-size:32px;font-weight:700;color:#F7F6F1;background:#172033;border-radius:32px;text-align:center;line-height:2">5</p>
+<div style="flex:1;display:flex;flex-direction:column;gap:8px">
+<h3 style="font-size:36px;font-weight:600">tools_condition picks the next node</h3>
+<p style="font-size:28px;color:#4A5568">has tool_calls → tools · no tool_calls → END</p>
+</div>
+</div>
+<div style="display:flex;gap:32px">
+<p style="width:64px;height:64px;font-size:32px;font-weight:700;color:#F7F6F1;background:#172033;border-radius:32px;text-align:center;line-height:2">6</p>
+<div style="flex:1;display:flex;flex-direction:column;gap:8px">
+<h3 style="font-size:36px;font-weight:600">tools runs every requested call</h3>
+<p style="font-size:28px;color:#4A5568">ToolNode runs them (in parallel when several), appends one ToolMessage each, then goes back to step 4</p>
+</div>
+</div>
+<div style="display:flex;gap:32px">
+<p style="width:64px;height:64px;font-size:32px;font-weight:700;color:#F7F6F1;background:#2F5FD0;border-radius:32px;text-align:center;line-height:2">7</p>
+<div style="flex:1;display:flex;flex-direction:column;gap:8px">
+<h3 style="font-size:36px;font-weight:600">END: the thread is saved</h3>
+<p style="font-size:28px;color:#4A5568">The checkpointer saved after every step. The next turn on this thread_id continues from here.</p>
+</div>
+</div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#6B7280">chat_memory_skills · 08 · chat.py agent_node(), build_graph()</p>
+<aside>Steps 4, 5 and 6 repeat as many times as the model needs. Each pass through agent is one LLM call. The model never runs a tool itself: it only asks, and ToolNode runs the Python function and hands the result back as a ToolMessage. Step 7 is again free: we never call save.</aside>
+</section>
+<section id="prompt" data-transition="fade" style="background:#172033;color:#F7F6F1;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<p style="font-size:24px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:#F2A65A">Step 4, up close</p>
+<h2 style="font-size:64px;font-weight:600;line-height:1.1;color:#F7F6F1">What the model actually sees</h2>
+<div style="display:flex;gap:48px">
+<div style="width:1040px;background:#0F1626;border:1px solid #2C3A57;border-radius:16px;padding:32px">
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;line-height:1.5;color:#E6E9F0">You are a helpful assistant with memory, tools and skills.<br><br><span style="color:#A9C1F5">Skills (call load_skill BEFORE acting on a matching request):<br>- meal-planner: Suggest meals or a dinner plan. …<br>- refund-policy: Decide whether a customer order …</span><br><br>Memory: when the user tells you a durable fact,<br>call save_memory.<br><br><span style="color:#F2A65A">Known about this user (from earlier conversations):<br>[88f3d69a] User is vegetarian.<br>[86aedd03] User is allergic to peanuts.</span></p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:28px">
+<div style="border-left:6px solid #F7F6F1;padding:4px 0 4px 24px"><p style="font-size:28px;line-height:1.4;color:#F7F6F1">Rebuilt on <b>every</b> agent call</p></div>
+<div style="border-left:6px solid #A9C1F5;padding:4px 0 4px 24px"><p style="font-size:28px;line-height:1.4;color:#F7F6F1">Skill <b>catalog</b>: one line per skill, never the full text</p></div>
+<div style="border-left:6px solid #F2A65A;padding:4px 0 4px 24px"><p style="font-size:28px;line-height:1.4;color:#F7F6F1">Facts from <b>recall</b>, with ids for forget_memory</p></div>
+<div style="border-left:6px solid #8C97AE;padding:4px 0 4px 24px"><p style="font-size:28px;line-height:1.4;color:#F7F6F1">Then every message in the thread</p></div>
+</div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#8C97AE">chat_memory_skills · 09 · chat.py SYSTEM</p>
+<aside>Show this when students ask "how does the model know about skills" or "how does it remember me". The answer is the same: we put it in the prompt. The skill catalog is short on purpose; the full SKILL.md is only loaded when the model calls load_skill. The memory ids in square brackets let the model call forget_memory when the user corrects a fact.</aside>
+</section>
+<section id="refund" data-transition="fade" style="background:#F7F6F1;color:#172033;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<p style="font-size:24px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:#B4531A">Worked example · “Can I get a refund on order A300?”</p>
+<h2 style="font-size:64px;font-weight:600;line-height:1.1">One turn, four LLM calls</h2>
+<table style="font-size:26px;color:#172033">
+<tr style="background:#172033"><th style="width:8%;color:#F7F6F1">Loop</th><th style="width:13%;color:#F7F6F1">Node</th><th style="width:47%;color:#F7F6F1">What happens</th><th style="width:32%;color:#F7F6F1">Why</th></tr>
+<tr><td>—</td><td>recall</td><td>finds the vegetarian and peanut facts</td><td>recall always runs</td></tr>
+<tr style="background:#EDEBE3"><td>1</td><td>agent</td><td>→ load_skill("refund-policy")</td><td>“refund” matches the catalog</td></tr>
+<tr style="background:#EDEBE3"><td>1</td><td>tools</td><td>returns the full SKILL.md</td><td>skill: load</td></tr>
+<tr><td>2</td><td>agent</td><td>→ lookup_order("A300")</td><td>SKILL.md step 1</td></tr>
+<tr><td>2</td><td>tools</td><td>total $900, delivered 5 days ago</td><td>capability</td></tr>
+<tr style="background:#EDEBE3"><td>3</td><td>agent</td><td>→ read_skill_file(…, "references/escalation.md")</td><td>SKILL.md: total over $500</td></tr>
+<tr style="background:#EDEBE3"><td>3</td><td>tools</td><td>returns the escalation rules</td><td>skill: drill down</td></tr>
+<tr><td>4</td><td>agent</td><td>“eligible … pending manager approval”</td><td>no tool calls → END</td></tr>
+</table>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#6B7280">chat_memory_skills · 10 · real trace from uv run demo.py</p>
+<aside>This is a real trace from demo.py. Walk it row by row and ask students to predict the next row before you reveal it. Notice the skill drove the whole sequence: the model did not know the refund rules, it read them. Also notice recall ran even though diet facts are irrelevant here: recall always runs, and the model decides what matters.</aside>
+</section>
+<section id="disclosure" data-transition="fade" style="background:#F7F6F1;color:#172033;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:48px">
+<p style="font-size:24px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:#B4531A">Skills · progressive disclosure</p>
+<h2 style="font-size:64px;font-weight:600;line-height:1.1">Read only as much as the request needs</h2>
+<div style="display:flex;gap:20px;align-items:center">
+<div style="flex:1;align-self:stretch;display:flex;flex-direction:column;gap:12px;background:#FFFEFB;border:1px solid #DAD7CC;border-top:8px solid #2F5FD0;border-radius:16px;padding:32px">
+<h3 style="font-size:40px;font-weight:600">Discover</h3>
+<p style="font-size:26px;line-height:1.4;color:#4A5568">At startup: each SKILL.md’s name and description go into the prompt</p>
+</div>
+<x-shape kind="arrow-right" style="width:48px;height:28px;background:#8C97AE"></x-shape>
+<div style="flex:1;align-self:stretch;display:flex;flex-direction:column;gap:12px;background:#FFFEFB;border:1px solid #DAD7CC;border-top:8px solid #2F5FD0;border-radius:16px;padding:32px">
+<h3 style="font-size:40px;font-weight:600">Load</h3>
+<p style="font-size:26px;line-height:1.4;color:#4A5568">The model calls load_skill(name) and gets the full SKILL.md</p>
+</div>
+<x-shape kind="arrow-right" style="width:48px;height:28px;background:#8C97AE"></x-shape>
+<div style="flex:1;align-self:stretch;display:flex;flex-direction:column;gap:12px;background:#FFFEFB;border:1px solid #DAD7CC;border-top:8px solid #2F5FD0;border-radius:16px;padding:32px">
+<h3 style="font-size:40px;font-weight:600">Drill</h3>
+<p style="font-size:26px;line-height:1.4;color:#4A5568">read_skill_file for references/ files, only when SKILL.md says so</p>
+</div>
+<x-shape kind="arrow-right" style="width:48px;height:28px;background:#8C97AE"></x-shape>
+<div style="flex:1;align-self:stretch;display:flex;flex-direction:column;gap:12px;background:#FFFEFB;border:1px solid #DAD7CC;border-top:8px solid #B4531A;border-radius:16px;padding:32px">
+<h3 style="font-size:40px;font-weight:600">Act</h3>
+<p style="font-size:26px;line-height:1.4;color:#4A5568">The skill names the tool to call, like lookup_order</p>
+</div>
+</div>
+<p style="font-size:32px;line-height:1.4;color:#4A5568;max-width:1400px">Cheap by default: every prompt holds <b style="color:#172033">one line per skill</b>. The full instructions cost tokens only on the turns that use them.</p>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#6B7280">chat_memory_skills · 11 · skills.py, skills/refund-policy/</p>
+<aside>Same pattern as sample5, but the skills come from a local folder instead of an MCP server. Ask: what would happen if we pasted every SKILL.md into the system prompt? It works for two skills, and breaks down at fifty: cost, and the model gets confused by rules that don’t apply. The refund trace on the previous slide used all four stages.</aside>
+</section>
+<section id="threads" data-transition="fade" style="background:#F7F6F1;color:#172033;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<p style="font-size:24px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:#B4531A">Worked example · same user, two threads</p>
+<h2 style="font-size:64px;font-weight:600;line-height:1.1">What survives a new thread?</h2>
+<div style="display:flex;gap:32px">
+<div style="flex:1;display:flex;flex-direction:column;gap:20px;background:#FFFEFB;border:1px solid #DAD7CC;border-top:8px solid #2F5FD0;border-radius:16px;padding:36px">
+<h3 style="font-size:36px;font-weight:600">Thread A</h3>
+<p style="font-size:28px;line-height:1.4">“I’m vegetarian and allergic to peanuts.”<br><span style="color:#4A5568">→ save_memory ×2 · </span><b style="color:#B4531A">long-term write</b></p>
+<p style="font-size:28px;line-height:1.4">“Can I get a refund on order A300?”<br><span style="color:#4A5568">→ refund skill + lookup_order</span></p>
+<p style="font-size:28px;line-height:1.4">“What was the total on that order?”<br><span style="color:#4A5568">→ $900, from the thread’s history · </span><b style="color:#2F5FD0">short-term</b></p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:20px;background:#FFFEFB;border:1px solid #DAD7CC;border-top:8px solid #B4531A;border-radius:16px;padding:36px">
+<h3 style="font-size:36px;font-weight:600">Thread B · new thread_id</h3>
+<p style="font-size:28px;line-height:1.4;color:#4A5568">History: empty</p>
+<p style="font-size:28px;line-height:1.4">“What should I cook for dinner tonight?”<br><span style="color:#4A5568">→ recall finds vegetarian, peanuts · </span><b style="color:#B4531A">long-term read</b><br><span style="color:#4A5568">→ meal-planner skill → three vegetarian dishes</span></p>
+</div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#6B7280">chat_memory_skills · 12 · real trace from uv run demo.py</p>
+<aside>Ask before revealing the answer: why does thread B know the diet but not order A300? Because recall searches the store by user_id, while the order lives only in thread A’s messages, keyed by thread_id. Follow-up question: what would user sam see in thread B? Nothing, different namespace.</aside>
+</section>
+<section id="samegraph" data-transition="fade" style="background:#E8833A;color:#172033;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;justify-content:center;gap:40px">
+<p style="font-size:28px;font-weight:600;letter-spacing:3px;text-transform:uppercase;color:#172033">Part 2 · the web version</p>
+<h1 style="font-size:112px;font-weight:700;line-height:1.05;color:#172033">The graph<br>doesn’t change.</h1>
+<p style="font-size:40px;line-height:1.35;color:#172033;max-width:1400px">AG-UI and CopilotKit replace only the outer loop: input, output and transport.</p>
+<aside>This is the one sentence to remember from part 2. Everything we just walked through, recall, agent, tools, both memories, the skills, is reused as is. The web version imports build_graph() from chat.py. What changes is how a message gets in and how the answer gets out.</aside>
+</section>
+<section id="web" data-transition="fade" style="background:#F7F6F1;color:#172033;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:48px">
+<p style="font-size:24px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:#B4531A">The web version</p>
+<h2 style="font-size:64px;font-weight:600;line-height:1.1">Four boxes, one request path</h2>
+<div style="display:flex;gap:20px;align-items:center">
+<div style="flex:1;align-self:stretch;display:flex;flex-direction:column;gap:12px;background:#FFFEFB;border:1px solid #DAD7CC;border-top:8px solid #2F5FD0;border-radius:16px;padding:28px">
+<h3 style="font-size:32px;font-weight:600">Browser</h3>
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;color:#172033">&lt;CopilotChat&gt;</p>
+<p style="font-size:26px;line-height:1.4;color:#4A5568">chat window, a card per tool call</p>
+</div>
+<x-shape kind="arrow-right" style="width:48px;height:28px;background:#8C97AE"></x-shape>
+<div style="flex:1;align-self:stretch;display:flex;flex-direction:column;gap:12px;background:#FFFEFB;border:1px solid #DAD7CC;border-top:8px solid #2F5FD0;border-radius:16px;padding:28px">
+<h3 style="font-size:32px;font-weight:600">CopilotRuntime</h3>
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;color:#172033">/api/copilotkit</p>
+<p style="font-size:26px;line-height:1.4;color:#4A5568">Next.js route that only forwards</p>
+</div>
+<x-shape kind="arrow-right" style="width:48px;height:28px;background:#B4531A"></x-shape>
+<div style="flex:1;align-self:stretch;display:flex;flex-direction:column;gap:12px;background:#FFFEFB;border:1px solid #DAD7CC;border-top:8px solid #B4531A;border-radius:16px;padding:28px">
+<h3 style="font-size:32px;font-weight:600">server.py</h3>
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;color:#172033">ag-ui-langgraph</p>
+<p style="font-size:26px;line-height:1.4;color:#4A5568">AG-UI in, SSE events out</p>
+</div>
+<x-shape kind="arrow-right" style="width:48px;height:28px;background:#8C97AE"></x-shape>
+<div style="flex:1;align-self:stretch;display:flex;flex-direction:column;gap:12px;background:#172033;border-radius:16px;padding:28px">
+<h3 style="font-size:32px;font-weight:600;color:#F7F6F1">The graph</h3>
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;color:#F2A65A">build_graph()</p>
+<p style="font-size:26px;line-height:1.4;color:#B8C2D6">unchanged, imported from chat.py</p>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px">
+<p style="font-size:28px;color:#4A5568"><b style="color:#172033">AG-UI</b> = the protocol on the orange arrow: one POST of a RunAgentInput, a stream of typed events back</p>
+<p style="font-size:28px;color:#4A5568"><b style="color:#172033">CopilotKit</b> = React chat components that speak AG-UI, plus the runtime that relays it</p>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#6B7280">chat_memory_skills · 14 · web/app/page.tsx, route.ts, server.py</p>
+<aside>Three processes when you run it: Next.js serves both the browser page and the runtime route on port 3000, and server.py runs on 8000. Why the runtime in the middle? The browser only talks to its own site; the agent URL and any secrets stay on the server, and the runtime is where real auth would go. AG-UI does for agent-to-UI roughly what MCP does for agent-to-tools: a standard so either side can be swapped.</aside>
+</section>
+<section id="events" data-transition="fade" style="background:#172033;color:#F7F6F1;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<p style="font-size:24px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:#F2A65A">AG-UI on the wire · “Refund on order A100?”</p>
+<h2 style="font-size:64px;font-weight:600;line-height:1.1;color:#F7F6F1">Read the graph straight off the stream</h2>
+<div style="display:flex;gap:48px">
+<div style="width:1000px;background:#0F1626;border:1px solid #2C3A57;border-radius:16px;padding:28px 32px">
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;line-height:1.45;color:#E6E9F0">RUN_STARTED<br><span style="color:#A9C1F5">STEP_STARTED recall</span> · STATE_SNAPSHOT<br><span style="color:#A9C1F5">STEP_STARTED agent</span><br><span style="color:#F2A65A">  TOOL_CALL_START load_skill · ARGS ×6 · END</span><br><span style="color:#A9C1F5">STEP_STARTED tools</span> · <span style="color:#F2A65A">TOOL_CALL_RESULT</span><br><span style="color:#A9C1F5">STEP_STARTED agent</span><br><span style="color:#F2A65A">  TOOL_CALL_START lookup_order · ARGS ×7 · END</span><br><span style="color:#A9C1F5">STEP_STARTED tools</span> · <span style="color:#F2A65A">TOOL_CALL_RESULT</span><br><span style="color:#A9C1F5">STEP_STARTED agent</span><br>  TEXT_MESSAGE_START · CONTENT ×22 · END<br>MESSAGES_SNAPSHOT<br>RUN_FINISHED</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:28px">
+<div style="border-left:6px solid #A9C1F5;padding:4px 0 4px 24px"><p style="font-size:28px;line-height:1.4;color:#F7F6F1"><b>STEP_*</b> = one graph node</p></div>
+<div style="border-left:6px solid #F2A65A;padding:4px 0 4px 24px"><p style="font-size:28px;line-height:1.4;color:#F7F6F1"><b>TOOL_CALL_*</b> = one card in the chat</p></div>
+<div style="border-left:6px solid #F7F6F1;padding:4px 0 4px 24px"><p style="font-size:28px;line-height:1.4;color:#F7F6F1"><b>TEXT_MESSAGE_CONTENT</b> = the answer, token by token</p></div>
+<p style="font-size:24px;line-height:1.4;color:#8C97AE">Each step also ends with STATE_SNAPSHOT and STEP_FINISHED (left out here).</p>
+</div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#8C97AE">chat_memory_skills · 15 · captured from server.py, see docs/FLOW.md §6</p>
+<aside>This stream was captured from a real run against server.py. Put it next to the graph slide: recall, agent, tools, agent, tools, agent. It is the same loop, now visible to any client that speaks AG-UI. TOOL_CALL_ARGS and TEXT_MESSAGE_CONTENT arrive in small chunks, which is how the UI can show text appearing as the model writes it.</aside>
+</section>
+<section id="compare" data-transition="fade" style="background:#F7F6F1;color:#172033;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<p style="font-size:24px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:#B4531A">Terminal vs web</p>
+<h2 style="font-size:64px;font-weight:600;line-height:1.1">Only the outer loop is new</h2>
+<table style="font-size:26px;color:#172033">
+<tr style="background:#172033"><th style="width:24%;color:#F7F6F1">Concern</th><th style="width:34%;color:#F7F6F1">chat.py (terminal)</th><th style="width:42%;color:#F7F6F1">web (AG-UI + CopilotKit)</th></tr>
+<tr><td>user input</td><td>input()</td><td>&lt;CopilotChat&gt;</td></tr>
+<tr style="background:#EDEBE3"><td>thread id</td><td>thread variable, /new</td><td>threadId, “New thread” button</td></tr>
+<tr><td>user id</td><td>--user flag</td><td>properties → forwardedProps (demo only)</td></tr>
+<tr style="background:#EDEBE3"><td>run the graph</td><td>app.stream(…)</td><td>adapter: app.astream_events(…)</td></tr>
+<tr><td>show tool calls</td><td>print("[tool call] …")</td><td>TOOL_CALL_* events → cards</td></tr>
+<tr style="background:#EDEBE3"><td>show the answer</td><td>print(reply)</td><td>TEXT_MESSAGE_* events, streamed</td></tr>
+<tr><td>checkpointer</td><td>SqliteSaver</td><td>AsyncSqliteSaver, same file</td></tr>
+<tr style="background:#E9EEFB"><td><b>graph, memory, tools, skills</b></td><td><b>build_graph()</b></td><td><b>the same build_graph()</b></td></tr>
+</table>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#6B7280">chat_memory_skills · 16</p>
+<aside>Read the table top to bottom: every row except the last is about getting text in and out. The checkpointer becomes the async variant only because the AG-UI adapter runs the graph asynchronously; it still writes the same checkpoints.db file. Because both versions share the .db files, a fact saved in the terminal is recalled in the browser for the same user.</aside>
+</section>
+<section id="identity" data-transition="fade" style="background:#F7F6F1;color:#172033;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<p style="font-size:24px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:#B4531A">Security note</p>
+<h2 style="font-size:64px;font-weight:600;line-height:1.1">Identity is a server decision</h2>
+<div style="display:flex;gap:32px">
+<div style="flex:1;display:flex;flex-direction:column;gap:20px;background:#FFFEFB;border:1px solid #DAD7CC;border-top:8px solid #B4531A;border-radius:16px;padding:40px">
+<div style="display:flex;gap:16px;align-items:center"><x-icon name="Warning" style="color:#B4531A;width:48px;height:48px"></x-icon><h3 style="font-size:36px;font-weight:600">In this demo</h3></div>
+<p style="font-size:28px;line-height:1.4;color:#4A5568">The browser’s user picker sends user_id as properties → forwardedProps → server.py.</p>
+<p style="font-size:28px;line-height:1.4;color:#172033">Fine for class: we want to switch users.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:20px;background:#FFFEFB;border:1px solid #DAD7CC;border-top:8px solid #2F5FD0;border-radius:16px;padding:40px">
+<div style="display:flex;gap:16px;align-items:center"><x-icon name="Lock" style="color:#2F5FD0;width:48px;height:48px"></x-icon><h3 style="font-size:36px;font-weight:600">In a real app</h3></div>
+<p style="font-size:28px;line-height:1.4;color:#4A5568">The server reads the login session or token and sets user_id itself.</p>
+<p style="font-size:28px;line-height:1.4;color:#172033">Never trust a user id the browser sends.</p>
+</div>
+</div>
+<p style="font-size:32px;line-height:1.4;color:#172033">Otherwise anyone can type another name and read that person’s memories.</p>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#6B7280">chat_memory_skills · 17 · server.py agent_endpoint()</p>
+<aside>Make this concrete: open the web app, pick user demo, ask what it knows about you. Now imagine the dropdown is a text box. Anyone could type any name. Long-term memory is personal data, so the key to it must come from authentication on the server, the one place the user cannot edit.</aside>
+</section>
+<section id="questions" data-transition="fade" style="background:#172033;color:#F7F6F1;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<p style="font-size:24px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:#F2A65A">Check your understanding</p>
+<h2 style="font-size:64px;font-weight:600;line-height:1.1;color:#F7F6F1">Four questions</h2>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:32px">
+<div style="display:flex;flex-direction:column;gap:12px;background:#22304A;border-radius:16px;padding:36px"><p style="font-size:28px;font-weight:700;color:#F2A65A">1</p><p style="font-size:30px;line-height:1.4;color:#F7F6F1">Thread B knows the user’s diet but not order A300. Why?</p></div>
+<div style="display:flex;flex-direction:column;gap:12px;background:#22304A;border-radius:16px;padding:36px"><p style="font-size:28px;font-weight:700;color:#F2A65A">2</p><p style="font-size:30px;line-height:1.4;color:#F7F6F1">Who decides what becomes a long-term memory?</p></div>
+<div style="display:flex;flex-direction:column;gap:12px;background:#22304A;border-radius:16px;padding:36px"><p style="font-size:28px;font-weight:700;color:#F2A65A">3</p><p style="font-size:30px;line-height:1.4;color:#F7F6F1">How many LLM calls does a turn with two tool rounds make?</p></div>
+<div style="display:flex;flex-direction:column;gap:12px;background:#22304A;border-radius:16px;padding:36px"><p style="font-size:28px;font-weight:700;color:#F2A65A">4</p><p style="font-size:30px;line-height:1.4;color:#F7F6F1">What would you change to add the web UI to another LangGraph agent?</p></div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#8C97AE">chat_memory_skills · 18</p>
+<aside>Answers. 1: recall searches the store by user_id; the order lives in thread A’s messages, keyed by thread_id. 2: the model, by calling save_memory, because the system prompt asks it to. 3: three: one call per pass through agent, two that ask for tools and one that answers. 4: only the outer loop: wrap its compiled graph in server.py with an async checkpointer; the web app stays the same.</aside>
+</section>
+<section id="run" data-transition="fade" style="background:#F7F6F1;color:#172033;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<p style="font-size:24px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:#B4531A">Your turn</p>
+<h2 style="font-size:64px;font-weight:600;line-height:1.1">Run it, then extend it</h2>
+<div style="display:flex;gap:48px">
+<div style="width:820px;display:flex;flex-direction:column;gap:16px">
+<h3 style="font-size:36px;font-weight:600">Run</h3>
+<div style="background:#172033;border-radius:12px;padding:24px 28px"><p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;line-height:1.5;color:#E6E9F0"><span style="color:#8C97AE"># terminal</span><br>uv run demo.py<br>uv run chat.py --user adi<br><br><span style="color:#8C97AE"># web: two terminals</span><br>uv run server.py<br>cd web &amp;&amp; npm install &amp;&amp; npm run dev<br><span style="color:#8C97AE"># open http://localhost:3000</span></p></div>
+<p style="font-size:26px;color:#4A5568">Walkthrough: docs/FLOW.md</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:16px">
+<h3 style="font-size:36px;font-weight:600">Exercises</h3>
+<ol style="font-size:28px;line-height:1.45;color:#172033">
+<li>Add a summarize node when a thread passes 20 messages</li>
+<li>Extract memories after the turn instead of save_memory</li>
+<li>Add a trip-planner skill with a get_weather tool</li>
+<li>Load the skills from the sample5 MCP server</li>
+</ol>
+</div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#6B7280">chat_memory_skills · 19 · needs OPENAI_API_KEY in .env</p>
+<aside>Start with demo.py: it is scripted and shows both memory layers in under a minute. Then let students chat freely with chat.py and try /new and /memories. The exercises go in order of difficulty. Exercise 4 should only touch skills.py, which is a good check that they understood where skills plug in.</aside>
+</section>
+</div></div>
+<div id="notes"></div>
+<div id="bar">
+  <button id="prev" aria-label="Previous slide">←</button>
+  <span id="count"></span>
+  <button id="next" aria-label="Next slide">→</button>
+  <span class="grow" id="label"></span>
+  <button id="toggle-notes">Notes (N)</button>
+  <button id="toggle-all">All slides (P)</button>
+</div>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const deck = document.getElementById("deck");
+  const slides = [...deck.querySelectorAll(":scope > section")];
+
+  // the Slides runtime's custom elements, drawn here with plain SVG / CSS
+  for (const c of deck.querySelectorAll("x-connector")) {
+    const [x1, y1, x2, y2] = ["x1", "y1", "x2", "y2"].map((k) => +c.getAttribute(k));
+    const color = c.style.color || "#172033", w = parseFloat(c.style.borderWidth) || 2;
+    const svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("width", 1920); svg.setAttribute("height", 1080);
+    svg.style.cssText = "position:absolute;left:0;top:0;pointer-events:none;overflow:visible";
+    const ang = Math.atan2(y2 - y1, x2 - x1), L = 8 + 4 * w, hx = x2 - L * Math.cos(ang), hy = y2 - L * Math.sin(ang);
+    const line = document.createElementNS(NS, "line");
+    Object.entries({ x1, y1, x2: hx, y2: hy, stroke: color, "stroke-width": w }).forEach(([k, v]) => line.setAttribute(k, v));
+    const head = document.createElementNS(NS, "polygon");
+    const px = (a) => [x2 - L * Math.cos(ang + a), y2 - L * Math.sin(ang + a)].join(",");
+    head.setAttribute("points", `${x2},${y2} ${px(0.45)} ${px(-0.45)}`); head.setAttribute("fill", color);
+    svg.append(line, head);
+    c.replaceWith(svg);
+  }
+  for (const s of deck.querySelectorAll('x-shape[kind="arrow-right"]')) {
+    s.style.flex = "none";
+    s.style.clipPath = "polygon(0 30%, 60% 30%, 60% 0, 100% 50%, 60% 100%, 60% 70%, 0 70%)";
+  }
+  const ICONS = {
+    Warning: '<path d="M12 3 2 21h20L12 3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 10v5M12 18v.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    Lock: '<rect x="4" y="10" width="16" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2"/>',
+  };
+  for (const i of deck.querySelectorAll("x-icon")) {
+    i.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[i.getAttribute("name")] || ""}</svg>`;
+    i.style.flex = "none";
+  }
+
+  let n = 0;
+  const fromHash = () => Math.max(0, slides.findIndex((s) => "#" + s.id === location.hash));
+  function show(i) {
+    n = Math.min(slides.length - 1, Math.max(0, i));
+    slides.forEach((s, k) => s.classList.toggle("on", k === n));
+    document.getElementById("count").textContent = `${n + 1} / ${slides.length}`;
+    const h = slides[n].querySelector("h1, h2");
+    document.getElementById("label").textContent = h ? h.textContent : "";
+    const aside = slides[n].querySelector("aside");
+    document.getElementById("notes").textContent = aside ? aside.textContent : "(no notes)";
+    history.replaceState(null, "", "#" + slides[n].id);
+  }
+  function fit() {
+    const st = document.getElementById("stage").getBoundingClientRect();
+    deck.style.transform = `translate(-50%, -50%) scale(${Math.min(st.width / 1920, st.height / 1080)})`;
+    document.body.style.setProperty("--zoom", Math.min(1, (innerWidth - 48) / 1920));
+  }
+  const toggle = (cls) => { document.body.classList.toggle(cls); fit(); };
+  document.getElementById("prev").onclick = () => show(n - 1);
+  document.getElementById("next").onclick = () => show(n + 1);
+  document.getElementById("toggle-notes").onclick = () => toggle("notes");
+  document.getElementById("toggle-all").onclick = () => toggle("all");
+  document.getElementById("stage").onclick = (e) => show(n + (e.clientX < innerWidth / 3 ? -1 : 1));
+  addEventListener("keydown", (e) => {
+    if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") show(n + 1);
+    else if (e.key === "ArrowLeft" || e.key === "PageUp") show(n - 1);
+    else if (e.key === "Home") show(0);
+    else if (e.key === "End") show(slides.length - 1);
+    else if (e.key === "n" || e.key === "N") toggle("notes");
+    else if (e.key === "p" || e.key === "P") toggle("all");
+  });
+  addEventListener("resize", fit);
+  addEventListener("hashchange", () => show(fromHash()));
+  fit(); show(fromHash());
+})();
+</script>
+</body>
+</html>

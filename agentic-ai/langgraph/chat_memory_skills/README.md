@@ -25,6 +25,7 @@ progressive disclosure.
 
 The graph wiring and REPL are in [`chat.py`](chat.py).
 **Step-by-step walkthrough of one turn (for teaching): [`docs/FLOW.md`](docs/FLOW.md).**
+Slides for the same lesson, with speaker notes: [`docs/slides.html`](docs/slides.html) (open it in a browser; ← → to move, N for notes, P for all slides / print).
 
 ## The two memory layers
 

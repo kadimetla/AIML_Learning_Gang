@@ -11,7 +11,7 @@ does the provider touch the cloud. By default that cloud is a **fake** one: no
 credentials and no cost. A real **AWS** provider (boto3) uses the same interface
 for when you test for real.
 
-Step-by-step walkthrough for students: **[docs/FLOW.md](docs/FLOW.md)** (the graph) and **[docs/ORCHESTRATION.md](docs/ORCHESTRATION.md)** (the request across all services)
+Step-by-step walkthrough for students: **[docs/FLOW.md](docs/FLOW.md)** (the graph) and **[docs/ORCHESTRATION.md](docs/ORCHESTRATION.md)** (the request across all services). Design for long-term memory (episodes, tenant/user namespaces, self-learning): **[docs/MEMORY.md](docs/MEMORY.md)**
 
 ```
 START → agent ⇄ tools                     list_catalog, list_resources
