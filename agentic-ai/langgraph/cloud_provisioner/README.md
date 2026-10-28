@@ -116,7 +116,8 @@ A view made by an LLM can be wrong: in test runs its cards showed made-up costs 
   two domain components. `Button` and inputs are not in it, so a view can't collect input or send actions; the only
   form is `ask_details`, built by code. The browser draws views with `viewCatalog` and the form with `formCatalog`.
 - **Facts come from the server, not the LLM.** `InventoryTable` draws `GET /inventory`, and `PlanCost` draws the graph's
-  priced plan from state; the agent only places them. `generate_a2ui` refuses a view that types a money amount
+  priced plan from state; the agent only places them. They are server-*backed*, not trusted: the browser could change
+  its own display, which is harmless because the server never reads it back. `generate_a2ui` refuses a view that types a money amount
   anywhere (`a2ui.view_problems`), and the agent retries with `PlanCost`. That check runs inside the tool: its result
   streams to the browser as soon as the tool ends, so a later node would be too late.
 - Domain components show the *current* state, so an older view in the chat updates too.
@@ -161,6 +162,11 @@ The browser is untrusted. These hold for every client:
   and go straight to `apply`, skipping policy, pricing and the human.
 - **An answer must match the open pause.** A `resume` whose `interruptId` isn't open on the thread gets HTTP 409,
   so a stale or replayed Approve can't approve a newer plan.
+- **One run at a time per thread.** Two answers to one pause (a double-click, two tabs) would both pass that check and
+  both apply; in a test without the lock, one approval applied twice. `server.py` holds a per-thread lock for the
+  whole graph run and checks again once it has it; the loser gets an AG-UI `RUN_ERROR` (its HTTP 200 has already
+  been sent). The lock is per process: with several server processes, use a shared one (a Postgres advisory lock or a
+  Redis lease keyed by thread id), and give real cloud calls idempotency keys for retries after a crash.
 - **An approval is checked again.** It expires (`APPROVAL_TTL_MIN`, default 30), and after the "yes" the plan is
   re-checked against the *current* inventory before anything is created.
 - **Form answers are typed.** `ask_details` values pass a Pydantic model (known env/region, budget bounds, no

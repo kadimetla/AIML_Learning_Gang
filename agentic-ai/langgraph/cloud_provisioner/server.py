@@ -14,10 +14,12 @@ What the web UI gets from AG-UI that cli.py printed by hand:
     uv run server.py      # http://localhost:8001/agent
 """
 
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
+from ag_ui.core import EventType, RunErrorEvent
 from ag_ui.core.types import Context, RunAgentInput
 from ag_ui.encoder import EventEncoder
 from ag_ui_a2ui_toolkit import A2UI_SCHEMA_CONTEXT_DESCRIPTION
@@ -89,11 +91,37 @@ def trusted_context(context: list[Context]) -> list[Context]:
     return kept
 
 
+class ThreadLocks:
+    """One graph run at a time per thread. Without it, two answers to one pause (a double-click,
+    two tabs) both pass the open-interrupt check, then both resume the same checkpoint; a new
+    message racing an answer does the same. Process-local: with several server processes this
+    needs a shared lock (e.g. a Postgres advisory lock or a Redis lease keyed by thread id)."""
+
+    def __init__(self):
+        self._locks: dict[str, asyncio.Lock] = {}
+        self._users: dict[str, int] = {}
+
+    @asynccontextmanager
+    async def hold(self, thread_id: str):
+        lock = self._locks.setdefault(thread_id, asyncio.Lock())
+        self._users[thread_id] = self._users.get(thread_id, 0) + 1
+        try:
+            async with lock:  # released on finish, graph error, and client disconnect (cancellation)
+                yield
+        finally:
+            self._users[thread_id] -= 1
+            if not self._users[thread_id]:  # nobody holds or waits: forget the thread
+                del self._users[thread_id], self._locks[thread_id]
+
+
+thread_locks = ThreadLocks()
+
+
 @app.post("/agent")
 async def agent_endpoint(input_data: RunAgentInput, request: Request):
     # In a real deployment: authenticate here, and decide who may approve
     # (e.g. only an ops role may approve prod) before the graph ever runs.
-    input_data = await trusted(input_data)
+    input_data = await trusted(input_data)  # a plainly stale answer gets HTTP 409 right away
     agent = LangGraphAgent(
         name="default",
         description="Cloud provisioning assistant",
@@ -106,8 +134,18 @@ async def agent_endpoint(input_data: RunAgentInput, request: Request):
     encoder = EventEncoder(accept=request.headers.get("accept"))
 
     async def events():
-        async for event in agent.run(input_data):
-            yield encoder.encode(event)
+        # The graph runs while this generator is consumed, so the lock is taken here and held
+        # for the whole run, not just around the check.
+        async with thread_locks.hold(input_data.thread_id):
+            try:
+                # Again, under the lock: the pause may have been answered while this request waited.
+                # The response has already started (200), so the refusal is an AG-UI RUN_ERROR.
+                checked = await trusted(input_data)
+            except HTTPException as e:
+                yield encoder.encode(RunErrorEvent(type=EventType.RUN_ERROR, message=e.detail, code="interrupt_closed"))
+                return
+            async for event in agent.run(checked):
+                yield encoder.encode(event)
 
     return StreamingResponse(events(), media_type=encoder.get_content_type())
 
