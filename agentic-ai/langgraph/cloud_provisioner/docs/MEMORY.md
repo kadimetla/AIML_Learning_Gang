@@ -1,8 +1,11 @@
 # Agent memory for cloud_provisioner: design
 
-What memory this agent has today, what it should add, and where each record lives. This is a
-**design**, not a description of shipped code: today the agent has only working memory (the
-checkpointer). Section 10 is the build plan. For the graph itself see [FLOW.md](FLOW.md); for
+What memory this agent has, what it should add, and where each record lives. Steps 1–4 of the
+build plan (section 10) are built: Postgres for the checkpointer and the Store, episodes and
+workflow traces recorded at every terminal outcome, and recall of similar past cases. What was
+built, and where it differs from the first design, is in section 6 ("As built"). Everything else
+here is still design. How the design was reached (questions, reviewed analyses, corrections,
+findings while building): [MEMORY_DISCUSSION.md](MEMORY_DISCUSSION.md). For the graph itself see [FLOW.md](FLOW.md); for
 the request across services see [ORCHESTRATION.md](ORCHESTRATION.md).
 
 The one rule everything below follows:
@@ -51,7 +54,7 @@ Finer types you will meet in courses and libraries map onto these four:
  │ ("episodes",T,A)         │              ├────────────────────────────────┤
  ├──────────────────────────┤  checkpoint  │ thread: messages, plan, cost,  │
  │ Working                  │─────────────▶│ issues, new message            │
- │ checkpoints.db           │              └───────────────┬────────────────┘
+ │ Postgres checkpointer    │              └───────────────┬────────────────┘
  └──────────────────────────┘                              ▼
             ▲                                         LLM call
             └──────────── writes (section 5) ──────────────┘
@@ -75,13 +78,13 @@ Google ADK draws the same line with `PreloadMemoryTool` (runs before every LLM r
 
 | Kind | cloud_provisioner | chat_memory_skills (sibling project) |
 |---|---|---|
-| Working | checkpointer + typed state (`plan`, `cost`, `issues`); per-thread run lock in `server.py` | checkpointer |
+| Working | Postgres checkpointer + typed state (`plan`, `cost`, `issues`); per-thread run lock in `server.py` | checkpointer |
 | Semantic | none | SqliteStore `("memories", user_id)` + sqlite-vec; `save_memory` / `forget_memory` |
-| Episodic | none | none |
+| Episodic | **built**: `Episode` in `("episodes", T, A)`, `WorkflowTrace` in `("workflows", T, A)` (Postgres Store + pgvector), recalled by `recall_cases` | none |
 | Procedural | system prompt; `policy.py` is **code, not memory** | system prompt + `skills/*/SKILL.md` |
 
-There is no tenant and no user identity yet: `thread_id` is the only id, and `policy.py`
-hardcodes one set of rules.
+Tenant and user are the run's context (`memory.RequestContext`), set by the server: fixed dev
+values (`DEV_TENANT`, `DEV_USER`) until there is auth. `policy.py` still hardcodes one set of rules.
 
 ## 4. Namespaces: isolation by namespace, precedence by layer
 
@@ -99,7 +102,8 @@ prompt text or tool arguments (the same rule `server.py` applies to state and ca
 | `("episodes", T, A)` | tenant × agent | code-built outcome records, with `actor_id` | graph node, at outcomes | `recall_cases` node (top 3), `search_past_cases` tool |
 | `("knowledge", T)` | tenant | approved runbooks and docs | ingestion | a RAG tool |
 | `("preferences", T, U)` | tenant × user | defaults allowed by a kind allowlist | user-confirmed tool | prompt |
-| `("facts", T, U)` | tenant × user | low-risk personal facts | controlled extraction | `recall` (top 5) |
+| `("fact_drafts", T, U)` | tenant × user | candidate facts + evidence episode ids, confidence, expiry | background worker | the **user** confirms them (tenant facts: an admin); never recalled as drafts |
+| `("facts", T, U)` | tenant × user | low-risk personal facts, with provenance | confirmed drafts | `recall` (top 5) |
 
 Platform procedures stay in git: "reviewed and released" is a pull request and a deploy. A
 runtime-writable platform namespace would bypass exactly that review.
@@ -149,6 +153,17 @@ v4) and the Store has no transaction across them, so a reader in between sees no
 
 ## 5. Read and write flows
 
+Two pipelines: a **synchronous** path inside the graph run writes trusted facts and reads recall;
+an **asynchronous** path, later and durable, does LLM enrichment and promotion.
+
+```
+request → recall → LLM plans → policy / approval / apply → terminal outcome
+                                                               │  (in the run, by code)
+                                                     episode + workflow trace
+                                                               │  (later, a durable worker)
+                                          lesson · fact draft · procedure draft → review
+```
+
 ```
 READ, per request
   auth → Ctx(tenant_id, user_id, agent_id)
@@ -174,6 +189,27 @@ When to write, by kind:
 | hot path (a tool during the turn) | adds to the reply | the model | user preferences the user confirms |
 | background (after the thread is idle) | none; appears minutes later | an extraction job | lessons, facts |
 | **outcome point** (code, on approve / reject / fail) | none | code: records what actually happened | **episodes, workflow traces** |
+
+What enters the LLM context:
+
+| Memory | Before the LLM call? | Rule |
+|---|---|---|
+| current checkpoint state | yes, as graph state | this thread only |
+| active procedure | yes | the exact approved version, pinned per thread |
+| user preferences | yes | may only narrow policy |
+| similar episodes | yes, top 1–3 | advice only |
+| confirmed facts | yes, bounded | provenance and expiry required |
+| workflow traces | **no** | background evidence only; never in streamed state |
+| fact drafts, skill drafts / shadow | **no** | not trusted yet |
+| inventory, cost, quota, policy | **no: fetched live** | memory may be stale |
+
+Background work survives restarts without an outbox table: the episode carries its own state
+(`"enrichment": "pending"`, written in the same `put`), and the worker scans
+`store.search(ns, filter={"enrichment": "pending"})` on a schedule. A Store put and an insert into
+a separate job table are not one transaction.
+
+> Facts are captured at outcome time. Learning happens later. Procedures need evidence and a
+> human to activate them. Only active, bounded, scoped memory reaches the planner.
 
 ## 6. Episodes and workflow traces
 
@@ -227,6 +263,36 @@ secrets or full payloads.
 Recall reads the 1–3 closest **active** episodes as a "Similar past cases" block:
 request · outcome · reason · lesson. Never replay a past case's tool arguments.
 
+### As built (memory.py, persistence.py)
+
+```
+START → recall_cases → agent ⇄ tools                          once per user request; a resume does not re-enter START
+          validate │ estimate │ approve │ report  ──outcome──▶ record_outcome → agent
+```
+
+| | Built | Changed from the design above, and why |
+|---|---|---|
+| Backend | `persistence.py`: `AsyncPostgresSaver` + `AsyncPostgresStore` (server), sync ones (CLI, tests); `docker-compose.yml` runs `pgvector/pgvector:pg17` on 127.0.0.1:5434 | Postgres from day one: the dev and production backend are the same. `inventory.db` stays SQLite: it is the provider's state file, not memory |
+| Identity | `context_schema=RequestContext(tenant_id, user_id, agent_id, thread_id)`; `server.py` puts it in `config["configurable"]`, which ag-ui-langgraph passes as the context | — |
+| Outcomes | private `outcome` state key `{kind, reason}`, set by the node that ended the attempt: `invalid` (tool call didn't parse), `policy_failed`, `over_budget`, `rejected`, `expired`, `policy_changed` (approved, then failed the re-check), `done`, `failed` | finer than `rejected/approved/apply_failed/done`: an expired approval and a plan that changed under the approver are different lessons |
+| One record per attempt | `attempt_id` = the `propose_*` tool call id; keys are uuid5 of `tenant:thread:call_id:kind` | keyed on the outcome, not the checkpoint or interrupt: a retried node or a resumed run writes the same key |
+| Episode | env, region, op, resource **shapes** (kind, instance_type, engine), cost from `estimate()`, outcome, success, reason, `issue_classes`, actor, thread, `summary` (embedded) | no names, CIDRs or raw args: episodes are shared across the tenant. Policy messages become classes (`public_database`, `open_admin_port`, ...) |
+| Workflow trace | separate record: `topology_hash` (per resource: kind, the kinds it depends on, which properties it sets), `signature` (topology + tool sequence + error classes), tool sequence with repeats collapsed, apply error classes, retries; `query` embedded | the topology replaces "sorted argument keys": two plans for the same architecture hash the same whatever their names. Apply errors keep only the leading class (`InsufficientCapacity`) |
+| Recall | `store.search(("episodes", T, A), query=<latest user message>, limit=3)` into private `memory_context`; rendered under "ADVICE ONLY" without costs | prices are only ever the live estimate |
+| Not streamed | `memory_context` and `outcome` are left out of `PublicState` (the output schema), so they are not in STATE_SNAPSHOT; `server.trusted()` drops any `forwardedProps` key named like a state key (the adapter merges forwardedProps into the graph input, so `outcome` could otherwise forge a record) | — |
+| Optional | with no store or context (`demo.py`), both nodes do nothing | — |
+
+Not built yet: `search_past_cases` tool, `lesson` lines, `retention_state` / user deletion,
+`policy_version` on episodes, merge of near-duplicates, the `enrichment` state for later
+background passes.
+
+Tests (`uv run pytest`, against the `provisioner_test` database with a fake embedding and a
+scripted chat model): tenant isolation; one record per outcome however often it is written;
+topology equal under renames and different when the architecture differs; names, CIDRs and raw
+args never stored; failed, rejected, invalid, over-budget and expired attempts recorded; `done`
+is the only success; recall capped at 3 and run once per request; recalled cases never replace
+live policy or prices; memory keys absent from the graph output; forwardedProps can't set state.
+
 ## 7. Procedural memory: from traces to an active procedure
 
 ```
@@ -240,7 +306,7 @@ workflows (every run) ──gates──▶ skill_drafts ──shadow──▶ ad
 | Gates (MemoRizz defaults) | ≥ 5 runs with the same hash, ≥ 80% **business** success, ≥ 2 distinct requests. Frequency alone never promotes: 50 runs at 60% is a bug report. |
 | Success | decided by code (approved and applied without error), not "no exception was raised" |
 | Distil | an LLM (LangMem `create_prompt_optimizer`, or DSPy GEPA once there is an eval set) writes a **draft**; it never overwrites an active version |
-| Shadow | the draft is scored against later runs without being injected |
+| Shadow | the draft is scored without being injected: replay it on recent recorded requests and compare its plans with what policy and the approver accepted. That costs LLM calls per draft, so it runs once when the draft is created, not on every live request |
 | Activate | an admin approves a specific immutable version (section 4) |
 | Narrow only | a procedure may add checks, defaults or required fields. A rule whose `kind` would loosen policy, skip approval or raise a budget is refused at write time |
 | Demote | when outcomes under the active version drift, roll the pointer back |
@@ -296,6 +362,7 @@ Many comparison articles are written by vendors of these tools; treat their benc
 
 | Step | What | Depends on |
 |---|---|---|
+| — | **built: 1–4** (with Postgres, `expired` / `policy_changed` / `invalid` outcomes, no `search_past_cases` tool yet); see "As built" in section 6 | |
 | 0 | move `policy.py` constants into a typed `TenantPolicy`, loaded from `("policy", T)`; one default tenant | — |
 | 1 | `context_schema=Ctx(tenant_id, user_id, agent_id)`; `server.py` sets it (fixed dev values until auth) | — |
 | 2 | `record_episode` + workflow trace at reject / approved / apply_failed / done; idempotent keys | 1 |
@@ -303,12 +370,121 @@ Many comparison articles are written by vendors of these tools; treat their benc
 | 4 | tests on isolated copies of the databases: idempotency, tenant isolation, redaction, "recall never bypasses policy" | 2, 3 |
 | 5 | background lesson line (durable job) | real episodes to judge it against |
 | 6 | promotion: gates → draft → shadow → admin activation → `:active` pointer → demotion | 5, auth (item 2) |
+| 7 | housekeeping: reset per-attempt keys (`phase`, ...) at the start of each request; a retention job for old checkpoints (`delete_thread`) | — |
 
 Open questions:
 
 - **Episodes per tenant or per user?** This design shares them across the tenant (redacted).
 - **Auth.** Steps 1–4 use fixed dev ids. Real tenant and user ids, thread ownership and approver
   identity are the auth work (item 2).
+
+## 11. Where each layer lives in Postgres
+
+All memory is in **one database** (`provisioner`; tests use `provisioner_test`), split by table
+and key. `persistence.py` opens two objects on it, and each owns its tables:
+
+| Layer | Scope | Tables | Keyed by | Written |
+|---|---|---|---|---|
+| Working (turn) | one request: user message → reply | none of its own: the run's state in process, persisted step by step into the session tables | `thread_id`, `checkpoint_id`, `task_id` | after every step |
+| Session (conversation) | one thread, all its turns | `checkpoints`, `checkpoint_blobs`, `checkpoint_writes` (`PostgresSaver`) | `thread_id` | automatically |
+| Long-term (cross-session) | every thread of a tenant / user | `store`, `store_vectors` (`PostgresStore`) | `(namespace, key)` | only by code (`record_outcome`) |
+
+### Session tables: the checkpointer
+
+- **`checkpoints`**: one row per step, chained by `parent_checkpoint_id` (resume, replay, fork).
+  The `checkpoint` jsonb holds small values inline (`phase`, `call_id`, `expires_at`) and
+  `channel_versions`, which says which version of each state key is current.
+- **`checkpoint_blobs`**: the larger values (`messages`, `plan`, `cost`, `actions`, `issues`, the
+  private `memory_context` / `outcome`, `ag-ui`), msgpack, one row per (key, version). A key gets a
+  new blob only when a step changes it. `messages` is stored **whole** each time it changes (251 →
+  5029 bytes over 8 versions in one smoke thread), so long threads grow fast: trim or summarise.
+- **`checkpoint_writes`**: what each node of a step produced before the next checkpoint, so a
+  crashed step resumes without redoing finished nodes. An **approval pause is a row here** on
+  channel `__interrupt__` (the approval payload); the answer arrives as `__resume__`.
+
+A **turn is a stretch of the session's chain**, starting at a checkpoint whose metadata says
+`source: "input"` (the user's message). A real two-turn test thread:
+
+```
+ input  -1                       ← turn 1: user message
+ loop 0 recall_cases · 1 agent → propose_plan · 2 plan · 3 validate · 4 estimate
+ loop 5 approve (awaiting_approval, __interrupt__ … __resume__) · 6 record_outcome (rejected)
+ loop 7 agent → reply · 8 end
+ input  9                        ← turn 2: next message; state continues from step 8
+ loop 10 recall_cases · 11 agent → reply · 12 end
+```
+
+What is **not** stored anywhere: the assembled prompt (system prompt + the rendered "ADVICE ONLY"
+cases + messages). `agent()` rebuilds it for every LLM call. Per-turn keys are still state keys,
+so they persist with the session until overwritten: `memory_context` is replaced by each turn's
+recall and `outcome` is cleared by `record_outcome`, but `phase` carries over into the next
+request (e.g. `rejected`). LangGraph has no turn-only scope like ADK's `temp:`; such data must be
+cleared by a node or kept out of state.
+
+### Store tables: long-term memory
+
+```
+store          prefix 'episodes.<tenant>.provisioner'   key <uuid5>   value jsonb   expires_at / ttl_minutes
+store_vectors  (prefix, key, field_name)  → vector(1536), HNSW cosine index, ON DELETE CASCADE from store
+```
+
+Namespaces are dotted text prefixes. `search(("episodes", T))` runs
+`(prefix = 'episodes.T' OR prefix LIKE 'episodes.T.%')`, so it also returns every sub-namespace:
+that is why sibling namespaces need care (section 4). Only indexed fields get a vector row
+(`summary` for episodes, `query` for traces).
+
+**Vector search and tenant scope.** A semantic search is
+`WHERE prefix … ORDER BY embedding <=> query LIMIT n`, and Postgres can run it two ways:
+
+| Plan | When the planner picks it | Tenant-safe? |
+|---|---|---|
+| find the tenant's rows by the prefix B-tree, then sort them exactly | the prefix looks selective (the usual case) | yes |
+| walk the HNSW index in distance order, then drop rows of other prefixes | the prefix looks broad, or its size is misestimated | **not by default**: pgvector takes the `hnsw.ef_search` (40) nearest candidates across *all* tenants and filters afterwards |
+
+With the second plan, a small tenant whose records are farther from the query than a big
+tenant's gets fewer cases than exist, or none: `tests/test_vector_scope.py` forces that plan and
+gets **0 of 3**. `persistence.py` therefore opens every Store connection with
+`hnsw.iterative_scan = relaxed_order` (pgvector ≥ 0.8, through libpq `options`): the index scan
+keeps going until enough rows pass the filter, and the same test gets **3 of 3**. `relaxed_order`
+is enough because the Store re-sorts the results by score. The scan stops at
+`hnsw.max_scan_tuples` (20 000 by default), so very large tables may need that raised.
+
+**No foreign key joins the two sides.** An episode points to its session only through the
+`thread_id` and `attempt_id` copied into it. Deleting a thread keeps its episodes; deleting an
+episode keeps the thread.
+
+### One database or two
+
+| | Session tables | Store tables |
+|---|---|---|
+| Write rate | every step of every run | a few rows per attempt |
+| Growth | messages rewritten per change; nothing is deleted today | small records |
+| Retention | days–weeks: only active threads need checkpoints | months+: it is the history |
+| Needs | fast writes, cleanup (`saver.delete_thread`) | pgvector, backups, per-tenant export and delete |
+
+**Retention: through the APIs, never SQL.** `checkpoints` has no timestamp column (the time is
+inside the jsonb), and deleting from it alone would orphan its `checkpoint_blobs` and
+`checkpoint_writes` rows. The libraries own those tables, so:
+
+| Need | API |
+|---|---|
+| delete a whole thread (e.g. for a user deletion request) | `saver.delete_thread(thread_id)`: all three tables |
+| shrink a thread that is paused or idle | `saver.prune([thread_id], strategy="keep_latest")`: keeps the checkpoint a resume loads, its pending writes and blobs; one transaction per thread |
+| expire long-term records | the Store's `ttl` config (`expires_at`, a background sweep), or `store.delete` |
+
+The checkpointer has no TTL and no way to list threads by age or owner, so choosing which threads
+to prune needs the application's own `threads(thread_id, tenant_id, user_id, last_active_at)`
+table, the same one thread ownership needs.
+
+**Sharing one connection pool** between the saver and the store works only if the pool's
+connections use `autocommit=True, prepare_threshold=0, row_factory=dict_row` (what
+`from_conn_string` sets); with `autocommit` alone the saver gets tuples and fails.
+`persistence.py` opens each with `from_conn_string` instead.
+
+One database is enough now. Splitting later is configuration, not code: the saver and the store
+open their own connections, so `persistence.py` would read `CHECKPOINT_DATABASE_URL` and
+`STORE_DATABASE_URL`, falling back to `DATABASE_URL`. Split when the checkpoint write load or
+different backup / retention rules call for it.
 
 ## Sources
 

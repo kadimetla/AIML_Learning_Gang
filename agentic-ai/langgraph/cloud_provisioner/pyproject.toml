@@ -10,7 +10,9 @@ dependencies = [
     "langchain>=1.4.1",
     "langchain-litellm>=0.7.2",
     "langgraph>=1.2.11",
-    "langgraph-checkpoint-sqlite>=3.1.2",
+    "langgraph-checkpoint-postgres==3.2.0",  # checkpointer + Store (long-term memory), see docs/MEMORY.md
+    "psycopg[binary]==3.3.6",
+    "psycopg-pool==3.3.3",
     "mcp>=1.20",  # litellm imports it at call time but does not declare it
     "python-dotenv>=1.2.3",
     "uvicorn>=0.54.0",
@@ -18,3 +20,9 @@ dependencies = [
 
 [project.optional-dependencies]
 aws = ["boto3>=1.40"]  # only for CLOUD_PROVIDER=aws
+
+[dependency-groups]
+dev = ["pytest==9.1.1"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

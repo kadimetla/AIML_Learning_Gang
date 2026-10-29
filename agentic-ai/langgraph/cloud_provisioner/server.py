@@ -11,12 +11,16 @@ What the web UI gets from AG-UI that cli.py printed by hand:
   resume[]              the card's resolve({approved}) -> Command(resume=...) -> approve continues
   TOOL_CALL_*           list_catalog, propose_plan, ... -> tool cards in the chat
 
+Who is asking (tenant_id, user_id) is the run's context for long-term memory (memory.py). It
+comes from the server's config, never from the request; fixed dev values until there is auth.
+
+    docker compose up -d  # Postgres: checkpoints + long-term memory (persistence.py)
     uv run server.py      # http://localhost:8001/agent
 """
 
 import asyncio
+import os
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 import uvicorn
 from ag_ui.core import EventType, RunErrorEvent
@@ -24,25 +28,28 @@ from ag_ui.core.types import Context, RunAgentInput
 from ag_ui.encoder import EventEncoder
 from ag_ui_a2ui_toolkit import A2UI_SCHEMA_CONTEXT_DESCRIPTION
 from ag_ui_langgraph import LangGraphAgent
+from ag_ui_langgraph.utils import camel_to_snake
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 import a2ui
-from graph import build_graph, inventory, provider
+import persistence
+from graph import PublicState, State, build_graph, inventory, provider
 
-HERE = Path(__file__).parent
-graph = None  # compiled in lifespan, once the checkpoint db is open
+graph = None  # compiled in lifespan, once Postgres is open
+# until there is auth: one dev tenant and user. Real values come from the authenticated session.
+IDENTITY = {"tenant_id": os.getenv("DEV_TENANT", "dev-tenant"), "user_id": os.getenv("DEV_USER", "dev-user"),
+            "agent_id": "provisioner"}
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     global graph
-    # Same file as cli.py. The checkpointer is what lets a run PAUSE at approve
-    # and resume in a later HTTP request (or after a server restart).
-    async with AsyncSqliteSaver.from_conn_string(str(HERE / "checkpoints.db")) as saver:
-        graph = build_graph().compile(checkpointer=saver)
+    # Same database as cli.py. The checkpointer is what lets a run PAUSE at approve and resume
+    # in a later HTTP request (or after a server restart); the store is long-term memory.
+    async with persistence.open_async() as (saver, store):
+        graph = build_graph().compile(checkpointer=saver, store=store)
         yield
 
 
@@ -62,6 +69,10 @@ app.add_middleware(
 # checkpoint AS that node and continues from there (nodeName="approve" -> straight to apply),
 # command.resume is the legacy resume. The browser may not steer the graph.
 UNTRUSTED_PROPS = {"nodeName", "node_name", "command"}
+# The adapter also merges forwardedProps (snake_cased) into the graph INPUT, so a prop named like
+# a state key would write it: "outcome" would forge a memory record, "memoryContext" the recalled
+# cases, "plan" a plan. None of them may come from the browser.
+STATE_KEYS = set(State.__annotations__)
 
 
 async def trusted(input_data: RunAgentInput) -> RunAgentInput:
@@ -74,8 +85,10 @@ async def trusted(input_data: RunAgentInput) -> RunAgentInput:
     stale = [r.interrupt_id for r in input_data.resume or [] if r.interrupt_id not in open_ids]
     if stale:
         raise HTTPException(409, f"not an open interrupt on this thread: {stale}; reload the thread")
-    state = {k: v for k, v in (saved.values or {}).items() if k not in ("messages", "ag-ui")}
-    props = {k: v for k, v in (input_data.forwarded_props or {}).items() if k not in UNTRUSTED_PROPS}
+    public = set(PublicState.__annotations__) - {"messages"}
+    state = {k: v for k, v in (saved.values or {}).items() if k in public}
+    props = {k: v for k, v in (input_data.forwarded_props or {}).items()
+             if k not in UNTRUSTED_PROPS and camel_to_snake(k) not in STATE_KEYS}
     return input_data.model_copy(update={"state": state, "forwarded_props": props,
                                          "context": trusted_context(input_data.context)})
 
@@ -126,7 +139,8 @@ async def agent_endpoint(input_data: RunAgentInput, request: Request):
         name="default",
         description="Cloud provisioning assistant",
         graph=graph,
-        config={"recursion_limit": 100},     # the apply loop is one step per resource
+        # the apply loop is one step per resource; configurable becomes the run's context
+        config={"recursion_limit": 100, "configurable": IDENTITY},
         emit_interrupt_outcome=True,         # standard AG-UI interrupts: RUN_FINISHED outcome + resume[]
         enable_legacy_on_interrupt_event=False,
         emit_raw_events=False,

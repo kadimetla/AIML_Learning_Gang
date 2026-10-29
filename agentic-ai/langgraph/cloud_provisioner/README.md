@@ -11,7 +11,7 @@ does the provider touch the cloud. By default that cloud is a **fake** one: no
 credentials and no cost. A real **AWS** provider (boto3) uses the same interface
 for when you test for real.
 
-Step-by-step walkthrough for students: **[docs/FLOW.md](docs/FLOW.md)** (the graph) and **[docs/ORCHESTRATION.md](docs/ORCHESTRATION.md)** (the request across all services). Design for long-term memory (episodes, tenant/user namespaces, self-learning): **[docs/MEMORY.md](docs/MEMORY.md)**
+Step-by-step walkthrough for students: **[docs/FLOW.md](docs/FLOW.md)** (the graph) and **[docs/ORCHESTRATION.md](docs/ORCHESTRATION.md)** (the request across all services). Design for long-term memory (episodes, tenant/user namespaces, self-learning): **[docs/MEMORY.md](docs/MEMORY.md)** (and how it was decided: [docs/MEMORY_DISCUSSION.md](docs/MEMORY_DISCUSSION.md))
 
 ```
 START → agent ⇄ tools                     list_catalog, list_resources
@@ -27,6 +27,8 @@ START → agent ⇄ tools                     list_catalog, list_resources
 | `graph.py` | the workflow: state, tools, nodes, edges |
 | `catalog.py` | `Plan` / `Resource` models (AWS kinds), prices, `estimate()`, dependency order |
 | `policy.py` | guardrails in plain code: regions, names, open SSH, public DB, 2 AZs, quota, budget, no prod destroy |
+| `memory.py` | long-term memory: `recall_cases` / `record_outcome` nodes, `Episode` and `WorkflowTrace` records ([docs/MEMORY.md](docs/MEMORY.md)) |
+| `persistence.py` | Postgres checkpointer + Store (with pgvector search) for the server, CLI and tests |
 | `cloud.py` | `Inventory` (our "state file", `inventory.db`), `FakeCloud`, `get_provider()` |
 | `aws_cloud.py` | `AwsCloud`: the same `create` / `delete` with boto3 |
 | `cli.py` | terminal chat; approval is a y/N prompt |
@@ -42,11 +44,15 @@ START → agent ⇄ tools                     list_catalog, list_resources
 ## Run (fake cloud)
 
 ```bash
-cp .env.example .env          # set OPENAI_API_KEY
+cp .env.example .env          # set OPENAI_API_KEY; DATABASE_URL is already right for docker compose
 uv sync
+docker compose up -d          # Postgres + pgvector on 127.0.0.1:5434: threads and long-term memory
+uv run pytest                 # memory tests (provisioner_test database, no LLM calls)
 uv run demo.py                # scripted, about 1 minute
-uv run cli.py                 # chat yourself: /inventory /new /quit
+uv run cli.py                 # chat yourself: /inventory /new /quit (--tenant / --user: whose memory)
 ```
+
+`demo.py` runs without Postgres (in-memory checkpointer, no long-term memory). `cli.py` and `server.py` need it.
 
 Web UI, in two terminals:
 
@@ -173,6 +179,9 @@ The browser is untrusted. These hold for every client:
   extra fields) before the LLM sees them.
 - **The catalog and context are the server's.** `RunAgentInput.context` reaches the A2UI sub-agent's prompt. The server
   keeps only the A2UI catalog entry, only if it names our catalog id, and replaces its text with `a2ui.VIEW_CATALOG`.
+- **Memory is not writable from the browser.** The adapter merges `forwardedProps` into the graph input, so any prop
+  named like a state key (`outcome`, `memoryContext`, `plan`, ...) is dropped. Tenant and user come from the server's
+  config, never from the request.
 
 Not done yet: authentication, thread ownership (any caller who knows a thread id can use it), and who may approve.
 

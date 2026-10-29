@@ -1,12 +1,14 @@
 """cloud_provisioner -- the LangGraph workflow: chat -> plan -> policy -> cost -> approve -> apply.
 
-    START -> agent <-> tools                       (LLM asks questions, reads catalog/inventory)
+    START -> recall_cases -> agent <-> tools       (LLM asks questions, reads catalog/inventory)
                |
                | calls propose_plan / propose_destroy
                v
              plan -> validate -> estimate -> approve -> apply (loops, 1 resource per step) -> report
                         |           |           |                                               |
-                        +-----------+-----------+-- problems / rejected: answer the tool call --+--> agent
+                        +-----------+-----------+-- problems / rejected: answer the tool call --+
+                                                                                                    v
+                                                          record_outcome (episode + trace) --> agent
 
   The LLM only PROPOSES (a tool call with a structured Plan). Plain code
   validates it, prices it, a human approves it (interrupt), and only then does
@@ -14,6 +16,11 @@
   result of its propose_* tool call, so it can fix the plan or explain.
 
   State is shared with the web UI over AG-UI: phase, plan, cost, issues, actions.
+
+  Long-term memory (memory.py, docs/MEMORY.md): recall_cases puts up to 3 similar past
+  attempts of this tenant into the prompt as advice; every terminal outcome (policy failed, over
+  budget, rejected, expired, done, failed) is recorded once by record_outcome. Who is asking
+  (tenant_id, user_id) is the run's context (memory.RequestContext), set by the server.
 
   A2UI (only when the client sends an A2UI catalog, i.e. web_shadcn/; see a2ui.py):
     agent -> details   ask_details: a form built by code, shown via interrupt(), answered by resume
@@ -39,6 +46,7 @@ from ag_ui_langgraph import get_a2ui_tools
 from pydantic import ValidationError
 
 import a2ui
+import memory
 
 from catalog import KIND_ORDER, Plan, Resource, catalog_text, estimate, ordered
 from cloud import Inventory, TransientError, get_provider
@@ -66,7 +74,12 @@ class PublicState(MessagesState):
 AgUi = TypedDict("AgUi", {"ag-ui": dict}, total=False)
 
 
-class State(PublicState, AgUi):
+class Private(TypedDict, total=False):
+    memory_context: list[dict]  # recall_cases: similar past episodes, rendered into the prompt
+    outcome: dict | None        # {"kind", "reason"}: set by the node that ended an attempt
+
+
+class State(PublicState, AgUi, Private):
     pass
 
 
@@ -168,9 +181,10 @@ def build_graph():
     llm_ui = model.bind_tools([*READ_TOOLS, propose_plan, propose_destroy, ask_details, generate_a2ui])
 
     def agent(state: State) -> dict:
+        cases = memory.render_memory_context(state.get("memory_context") or [])
         if a2ui.enabled(state):  # this client sent an A2UI catalog: it can render forms and views
-            return {"messages": [llm_ui.invoke([("system", SYSTEM + SYSTEM_A2UI), *state["messages"]])]}
-        return {"messages": [llm.invoke([("system", SYSTEM), *state["messages"]])]}
+            return {"messages": [llm_ui.invoke([("system", SYSTEM + SYSTEM_A2UI + cases), *state["messages"]])]}
+        return {"messages": [llm.invoke([("system", SYSTEM + cases), *state["messages"]])]}
 
     def route_agent(state: State) -> str:
         calls = state["messages"][-1].tool_calls
@@ -203,7 +217,7 @@ def build_graph():
         call = next(c for c in last.tool_calls if c["name"] in PROPOSE)
         skipped = [ToolMessage("not run: propose alone, in its own step", tool_call_id=c["id"])
                    for c in last.tool_calls if c is not call]
-        base = {"call_id": call["id"], "issues": [], "cost": None, "actions": [], "messages": skipped}
+        base = {"call_id": call["id"], "issues": [], "cost": None, "actions": [], "messages": skipped, "outcome": None}
 
         if call["name"] == "propose_destroy":
             env = call["args"]["env"]
@@ -235,6 +249,7 @@ def build_graph():
         issues = state["issues"] if p is None else policy_issues(p)  # None: the tool call did not even parse
         if issues:
             return {"issues": issues, "phase": "policy_failed",
+                    "outcome": {"kind": "invalid" if p is None else "policy_failed"},
                     "messages": [answer(state, "Policy check failed, nothing was changed:\n- " + "\n- ".join(issues))]}
         return {"issues": []}
 
@@ -243,7 +258,7 @@ def build_graph():
         parsed = Plan.model_validate(p)
         cost = estimate(parsed)
         if not p["destroy"] and (issues := check_budget(parsed, cost)):
-            return {"cost": cost, "issues": issues, "phase": "over_budget",
+            return {"cost": cost, "issues": issues, "phase": "over_budget", "outcome": {"kind": "over_budget"},
                     "messages": [answer(state, "Over budget, nothing was changed:\n- " + "\n- ".join(issues))]}
         # the deadline is set here, not in approve(): approve() reruns from the top on resume
         return {"cost": cost, "phase": "awaiting_approval",
@@ -263,18 +278,18 @@ def build_graph():
         # resolve({"approved": true}) from the UI / CLI; anything else (cancel, reject) is a no
         if not (isinstance(decision, dict) and decision.get("approved") is True):
             reason = (decision or {}).get("reason") if isinstance(decision, dict) else None
-            return {"phase": "rejected",
+            return {"phase": "rejected", "outcome": {"kind": "rejected", "reason": reason},
                     "messages": [answer(state, f"The user rejected the plan{': ' + reason if reason else ''}. Nothing was changed.")]}
 
         # A "yes" approves this plan as checked THEN. Before touching the cloud, check it is still
         # timely and still passes policy: the inventory may have changed while it waited.
         expires = state.get("expires_at")
         if expires and datetime.now(UTC) > datetime.fromisoformat(expires):
-            return {"phase": "rejected",
+            return {"phase": "rejected", "outcome": {"kind": "expired"},
                     "messages": [answer(state, f"The approval arrived after it expired ({expires}). Nothing was changed; "
                                                "propose the plan again for a fresh check.")]}
         if issues := policy_issues(p):
-            return {"issues": issues, "phase": "policy_failed",
+            return {"issues": issues, "phase": "policy_failed", "outcome": {"kind": "policy_changed"},
                     "messages": [answer(state, "Approved, but the plan no longer passes policy (something changed "
                                                "while it waited). Nothing was changed:\n- " + "\n- ".join(issues))]}
         return {"phase": "applying"}
@@ -316,14 +331,16 @@ def build_graph():
                  for a in state["actions"]]
         failed = any(a["status"] == "failed" for a in state["actions"])
         head = "FAILED, stopped at the first failure; finished resources are kept:" if failed else "Applied:"
-        return {"phase": "failed" if failed else "done",
+        return {"phase": "failed" if failed else "done", "outcome": {"kind": "failed" if failed else "done"},
                 "messages": [answer(state, head + "\n" + "\n".join(lines))]}
 
     def after(next_node: str):
-        """validate/estimate/approve: continue, or back to the agent if they answered the call."""
-        return lambda state: "agent" if state["phase"] in ("policy_failed", "over_budget", "rejected") else next_node
+        """validate/estimate/approve: continue, or (via record_outcome) back to the agent if they answered the call."""
+        return lambda state: "record_outcome" if state.get("outcome") else next_node
 
-    g = StateGraph(State, output_schema=PublicState)
+    g = StateGraph(State, context_schema=memory.RequestContext, output_schema=PublicState)
+    g.add_node("recall_cases", memory.recall_cases)
+    g.add_node("record_outcome", memory.record_outcome)
     g.add_node("agent", agent)
     g.add_node("tools", ToolNode([*READ_TOOLS, generate_a2ui]))
     g.add_node("details", details)
@@ -334,14 +351,16 @@ def build_graph():
     g.add_node("apply", apply)
     g.add_node("report", report)
 
-    g.add_edge(START, "agent")
+    g.add_edge(START, "recall_cases")  # once per user request; tool loops go agent <-> tools
+    g.add_edge("recall_cases", "agent")
     g.add_conditional_edges("agent", route_agent, ["tools", "plan", "details", END])
     g.add_edge("tools", "agent")
     g.add_edge("details", "agent")
     g.add_edge("plan", "validate")
-    g.add_conditional_edges("validate", after("estimate"), ["estimate", "agent"])
-    g.add_conditional_edges("estimate", after("approve"), ["approve", "agent"])
-    g.add_conditional_edges("approve", after("apply"), ["apply", "agent"])
+    g.add_conditional_edges("validate", after("estimate"), ["estimate", "record_outcome"])
+    g.add_conditional_edges("estimate", after("approve"), ["approve", "record_outcome"])
+    g.add_conditional_edges("approve", after("apply"), ["apply", "record_outcome"])
     g.add_conditional_edges("apply", route_apply, ["apply", "report"])
-    g.add_edge("report", "agent")
+    g.add_edge("report", "record_outcome")
+    g.add_edge("record_outcome", "agent")
     return g

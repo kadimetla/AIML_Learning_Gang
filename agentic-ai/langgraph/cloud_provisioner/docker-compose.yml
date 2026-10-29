@@ -1,0 +1,26 @@
+# Postgres for the checkpointer (threads, approval pauses) and the Store (long-term memory).
+# pgvector is needed for the Store's semantic search (recall of similar past cases).
+#
+#   docker compose up -d           # then DATABASE_URL from .env.example works as is
+#   docker compose down            # stop; add -v to also delete the data
+#
+# Dev-only credentials, bound to localhost. Port 5434 so it doesn't clash with a local 5432/5433.
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: provisioner
+      POSTGRES_PASSWORD: provisioner
+      POSTGRES_DB: provisioner
+    ports:
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro   # creates provisioner_test for the tests
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U provisioner -d provisioner"]
+      interval: 2s
+      retries: 15
+
+volumes:
+  pgdata:
